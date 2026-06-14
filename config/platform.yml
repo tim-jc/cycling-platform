@@ -1,0 +1,5 @@
+platform:
+  name: cycling-platform
+
+source:
+  primary: strava

@@ -1,0 +1,9 @@
+Strava
+  ↓
+raw
+  ↓
+silver
+  ↓
+gold
+  ↓
+consumers

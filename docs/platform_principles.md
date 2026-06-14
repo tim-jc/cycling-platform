@@ -1,0 +1,8 @@
+- Strava is the source system of record.
+- Raw data is retained.
+- Metadata is first-class.
+- Every load is traceable.
+- Every transformation is reproducible.
+- Coaching consumes curated data only.
+- Configuration is externalised.
+- Recovery is documented.
