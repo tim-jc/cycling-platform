@@ -5,4 +5,5 @@
 - Every transformation is reproducible.
 - Coaching consumes curated data only.
 - Configuration is externalised.
+- Secrets (passwords etc) are externalised and never hard-coded.
 - Recovery is documented.
