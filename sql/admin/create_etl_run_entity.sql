@@ -6,15 +6,26 @@ CREATE TABLE IF NOT EXISTS admin.etl_run_entity (
 
     entity_name VARCHAR(100) NOT NULL,
 
+    entity_status VARCHAR(20) NOT NULL,
+
     rows_inserted INT NOT NULL DEFAULT 0,
+
     rows_updated INT NOT NULL DEFAULT 0,
 
-    status VARCHAR(20) NOT NULL,
+    rows_deleted INT NOT NULL DEFAULT 0,
 
-    inserted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at DATETIME NOT NULL,
 
-    CONSTRAINT fk_etl_run
+    completed_at DATETIME NULL,
+
+    duration_seconds INT NULL,
+
+    error_message TEXT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_etl_run_entity
         FOREIGN KEY (run_id)
-        REFERENCES admin.etl_run(run_id)
+        REFERENCES admin.etl_run (run_id)
 
 );
