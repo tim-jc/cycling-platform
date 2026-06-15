@@ -30,3 +30,8 @@ Repeat
 Complete run
     ↓
 Notify
+
+allowed ETL run_status values:
+RUNNING
+SUCCESS
+FAILED
