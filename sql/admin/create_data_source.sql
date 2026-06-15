@@ -6,8 +6,23 @@ CREATE TABLE IF NOT EXISTS admin.data_source (
 
     source_description VARCHAR(255) NULL,
 
-    is_active BOOLEAN NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at DATETIME NOT NULL
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    UNIQUE KEY uq_data_source_name (source_name)
+
+);
+
+INSERT IGNORE INTO admin.data_source (
+    source_id,
+    source_name,
+    source_description,
+    is_active
+)
+VALUES (
+    1,
+    'strava',
+    'Strava REST API',
+    TRUE
 );
