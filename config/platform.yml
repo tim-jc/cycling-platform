@@ -1,18 +1,33 @@
 platform:
   name: cycling-platform
 
-source:
-  name: strava
+sources:
+
+  strava:
+
+    enabled: true
 
 ingestion:
 
+  # Number of days refreshed during routine ingestion runs
   activity_refresh_days: 30
 
+  # Number of days refreshed during monthly hygiene runs
   activity_hygiene_days: 365
 
+  # Maximum retries before failing an ingestion run
   max_retries: 3
 
+  # API request timeout in seconds
   timeout_seconds: 60
+
+scheduling:
+
+  # Desired ingestion cadence
+  ingestion_frequency: daily
+
+  # Desired hygiene cadence
+  hygiene_frequency: monthly
 
 notifications:
 
@@ -20,8 +35,17 @@ notifications:
 
   provider: ntfy
 
+  topic: cycling-platform
+
 logging:
 
   level: INFO
 
   retention_days: 30
+
+backups:
+
+  enabled: true
+
+  retention_days: 30
+  
