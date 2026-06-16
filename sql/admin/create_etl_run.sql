@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS admin.etl_run (
+CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run (
 
     run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
@@ -20,6 +20,6 @@ CREATE TABLE IF NOT EXISTS admin.etl_run (
 
     CONSTRAINT fk_etl_run_source
         FOREIGN KEY (source_id)
-        REFERENCES admin.data_source (source_id)
+        REFERENCES cycling_platform_admin.data_source (source_id)
 
 );

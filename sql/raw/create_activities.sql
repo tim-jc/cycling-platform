@@ -4,7 +4,7 @@
 -- Refresh strategy: rolling window + hygiene runs
 -- Source of truth: raw_payload
 
-CREATE TABLE IF NOT EXISTS raw.activities (
+CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     activity_id BIGINT PRIMARY KEY,
 
@@ -64,10 +64,10 @@ CREATE TABLE IF NOT EXISTS raw.activities (
 
     CONSTRAINT fk_activities_run
         FOREIGN KEY (run_id)
-        REFERENCES admin.etl_run (run_id),
+        REFERENCES cycling_platform_admin.etl_run (run_id),
 
     CONSTRAINT fk_activities_source
         FOREIGN KEY (source_id)
-        REFERENCES admin.data_source (source_id)
+        REFERENCES cycling_platform_admin.data_source (source_id)
 
 );
