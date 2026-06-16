@@ -1,8 +1,8 @@
 #' Send notification
 #'
 #' Send NTFY notification
-#' @param title Title of message
-#' @param message Body of message
+#' @param title Title of message.
+#' @param message Body of message.
 #' @param tags Optional character vector of ntfy tags.
 #'
 #' @return invisible(NULL)

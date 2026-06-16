@@ -1,6 +1,7 @@
 #' Update ETL run
 #'
 #' Updates an ETL run already created
+#' @param run_id Integer ETL run identifier.
 #' @param run_status Character value: RUNNING, SUCCESS or FAILED.
 #' @param error_message Optional error message.
 #'

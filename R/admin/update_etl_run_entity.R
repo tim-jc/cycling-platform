@@ -1,6 +1,7 @@
 #' Update ETL run entity
 #'
 #' Updates an existing ETL run entity
+#' @param run_entity_id Integer ETL run entity identifier.
 #' @param entity_status Character value: RUNNING, SUCCESS or FAILED.
 #' @param rows_inserted Integer number of inserted rows.
 #' @param rows_updated Integer number of updated rows.
