@@ -24,5 +24,17 @@ get_access_token <- function() {
 
   body <- httr2::resp_body_json(response)
 
+  body <- httr2::resp_body_json(
+    response,
+    simplifyVector = TRUE
+  )
+
+  if (!is.null(body$refresh_token)) {
+    update_renviron(
+      key = "STRAVA_REFRESH_TOKEN",
+      value = body$refresh_token
+    )
+  }
+
   body$access_token
 }
