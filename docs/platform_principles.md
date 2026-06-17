@@ -1,9 +1,53 @@
-- Strava is the source system of record.
-- Raw data is retained.
-- Metadata is first-class.
-- Every load is traceable.
-- Every transformation is reproducible.
-- Coaching consumes curated data only.
-- Configuration is externalised.
-- Secrets (passwords etc) are externalised and never hard-coded.
-- Recovery is documented.
+# Platform Principles
+
+* Strava is the system of record.
+* Raw source data is retained.
+* Metadata is treated as a first-class asset.
+* Every ingestion run is traceable.
+* Every transformation is reproducible.
+* Analytics and coaching consume curated data only.
+* Configuration is externalised.
+* Secrets are externalised and never hard-coded.
+* Recovery procedures are documented and tested.
+
+## Definitions
+
+### System of Record
+
+The platform preserves source-system fidelity by treating Strava as the authoritative source for activity data.
+
+### Curated Data
+
+Dashboards, analytics, coaching workflows, and MCP integrations consume data from the `silver` and `gold` layers only.
+
+The `raw` layer exists to support ingestion, auditability, and reprocessing.
+
+### Externalised Configuration
+
+Platform behaviour is defined outside application code.
+
+Examples include:
+
+* Ingestion windows
+* Notification settings
+* Logging configuration
+* Scheduling behaviour
+
+### Externalised Secrets
+
+Sensitive information must never be committed to source control.
+
+Examples include:
+
+* Database credentials
+* API client secrets
+* OAuth refresh tokens
+* Notification service credentials
+
+Secrets are managed through environment variables and `.Renviron`.
+
+### Recovery
+
+The platform must be recoverable from source control, configuration, and documented procedures.
+
+Recovery procedures should be version-controlled and regularly reviewed.

@@ -5,11 +5,11 @@
 ```text
 Strava API
     ↓
-   Raw
+    Raw
     ↓
-  Silver
+   Silver
     ↓
-   Gold
+    Gold
     ↓
  Consumers
 ```
@@ -19,7 +19,9 @@ Strava API
 * Dashboard
 * MCP
 
-## Database Schemas
+## Data Layers
+
+The platform is organised into the following logical layers:
 
 * `admin`
 * `raw`
@@ -50,19 +52,23 @@ Notify
 
 ---
 
-# `raw.activities` Design
+## `raw.activities` Design
 
-## Grain
+### Grain
 
-* One row per Strava activity
+* One row per Strava activity.
 
-## Load Strategy
+### Business Key
 
-* `UPSERT` using `activity_id` as the business key
-* Activities are refreshed using a rolling refresh window
-* The Strava API does not expose a reliable activity modification timestamp
+* `activity_id`
 
-### Daily Run
+### Load Strategy
+
+* Use `UPSERT` with `activity_id` as the business key.
+* Activities are refreshed using a rolling refresh window.
+* The Strava API does not expose a reliable activity modification timestamp.
+
+#### Daily Run
 
 ```text
 Refresh last 30 days
@@ -70,7 +76,7 @@ Refresh last 30 days
 UPSERT by activity_id
 ```
 
-### Monthly Hygiene Run
+#### Monthly Hygiene Run
 
 ```text
 Refresh last 365 days
@@ -78,7 +84,7 @@ Refresh last 365 days
 UPSERT by activity_id
 ```
 
-### Annual Hygiene Run
+#### Annual Hygiene Run
 
 ```text
 Refresh all activities
@@ -86,20 +92,25 @@ Refresh all activities
 UPSERT by activity_id
 ```
 
-## Raw Data Retention
+### Raw Data Retention
 
-* Retain the complete API response payload
-* Store the payload in `raw_payload`
-* Treat `raw_payload` as the source of truth
-* Promote commonly queried fields to dedicated columns
+* Retain the complete API response payload.
+* Store the payload in `raw_payload`.
+* Treat `raw_payload` as the source of truth.
+* Promote commonly queried fields to dedicated columns.
 
-## Design Principles
+### Design Principles
 
-* Preserve source-system fidelity
-* Support idempotent ingestion
-* Prioritise auditability and lineage
-* Optimise for convergence rather than change detection
-* Separate ingestion concerns from analytics concerns
+* Preserve source-system fidelity.
+* Support idempotent ingestion.
+* Prioritise auditability and lineage.
+* Optimise for convergence rather than change detection.
+* Separate ingestion concerns from analytics concerns.
 
+### JSON Storage
 
-raw_payload is stored using MariaDB's JSON type, which is implemented as validated text in MariaDB 10.5.
+`raw_payload` is stored using MariaDB's `JSON` type.
+
+In MariaDB 10.5, the `JSON` type is implemented as validated text rather than a native binary JSON format.
+
+The platform treats `raw_payload` as an immutable copy of the source API response.
