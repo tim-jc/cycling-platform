@@ -1,16 +1,18 @@
 platform.R
     ↓
+load_config()
+    ↓
 create_etl_run()
     ↓
 ingest_activities()
-    ↓
-create_etl_run_entity()
-    ↓
-get_activities()
-    ↓
-upsert_activities()
-    ↓
-update_etl_run_entity()
+        ↓
+    create_etl_run_entity()
+        ↓
+    get_activities()
+        ↓
+    upsert_activities()
+        ↓
+    update_etl_run_entity()
     ↓
 update_etl_run()
     ↓
