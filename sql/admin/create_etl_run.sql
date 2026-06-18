@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run (
 
     run_status VARCHAR(20) NOT NULL,
 
-    started_at DATETIME NOT NULL,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    completed_at DATETIME NULL,
+    completed_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
 
     duration_seconds INT NULL,
 
