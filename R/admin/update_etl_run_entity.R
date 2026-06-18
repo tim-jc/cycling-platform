@@ -10,7 +10,7 @@
 #' @return invisible(NULL)
 update_etl_run_entity <- function(
   connection,
-  entity_run_id,
+  run_entity_id,
   entity_status,
   rows_inserted = 0L,
   rows_updated = 0L,
