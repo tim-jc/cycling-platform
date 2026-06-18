@@ -1,13 +1,19 @@
 #' Get Activities
 #'
-#' Get activities from Strava API for specified time window
-#' @param refresh_days Number of days to look back when retrieving activities.
+#' Retrieve activities from the Strava API for a specified time window.
 #'
-#' @return Tibble containing one row per activity and raw_payload.
-get_activities <- function(run_id, source_id, refresh_days) {
+#' @param run_id Integer ETL run identifier.
+#' @param source_id Integer source identifier.
+#' @param refresh_days Number of days to look back.
+#'
+#' @return Tibble containing one row per activity.
+get_activities <- function(
+  run_id,
+  source_id,
+  refresh_days
+) {
   token <- get_access_token()
 
-  # TODO: implement pagination
   response <- httr2::request(
     "https://www.strava.com/api/v3/athlete/activities"
   ) |>
@@ -27,59 +33,101 @@ get_activities <- function(run_id, source_id, refresh_days) {
     response,
     simplifyVector = TRUE
   )
-  if (length(body) == 0) {
-    return(tibble::tibble())
+
+  body_tbl <- tibble::as_tibble(body)
+
+  if (nrow(body_tbl) == 200) {
+    warning(
+      "Activity result set reached per_page limit; pagination not yet implemented."
+    )
   }
 
-  retrieved_at <- Sys.time()
+  optional_columns <- c(
+    "average_cadence",
+    "average_heartrate",
+    "average_watts",
+    "weighted_average_watts",
+    "kilojoules",
+    "gear_id",
+    "device_watts",
+    "timezone"
+  )
 
-  body_tbl <- tibble::as_tibble(body) |>
+  missing_columns <- setdiff(
+    optional_columns,
+    names(body_tbl)
+  )
+
+  for (column in missing_columns) {
+    body_tbl[[column]] <- NA
+  }
+
+  raw_payload <- purrr::map_chr(
+    seq_len(nrow(body_tbl)),
+    \(i) {
+      jsonlite::toJSON(
+        body_tbl[i, ],
+        auto_unbox = TRUE,
+        null = "null"
+      )
+    }
+  )
+
+  body_tbl |>
     dplyr::mutate(
       run_id = run_id,
       source_id = source_id,
-      retrieved_at = retrieved_at,
-      athlete_id = purrr::map_int(athlete, "id"),
-      raw_payload = purrr::map_chr(
-        body,
-        ~ jsonlite::toJSON(
-          .x,
-          auto_unbox = TRUE,
-          null = "null"
-        )
-      ),
-      start_datetime_utc = lubridate::ymd_hms(
-        start_date,
-        tz = "UTC"
-      ),
-      start_datetime_local = lubridate::ymd_hms(
-        start_date_local
-      )
+      retrieved_at = Sys.time(),
+      athlete_id = athlete$id,
+      raw_payload = raw_payload
     ) |>
-    dplyr::select(
+    dplyr::transmute(
       run_id,
       source_id,
       retrieved_at,
       raw_payload,
+
       activity_id = id,
+
       athlete_id,
+
       activity_name = name,
+
       sport_type,
-      start_datetime_utc,
-      start_datetime_local,
+
+      start_datetime_utc = lubridate::ymd_hms(
+        start_date,
+        tz = "UTC"
+      ),
+
+      start_datetime_local = lubridate::ymd_hms(
+        start_date_local
+      ),
+
       timezone_name = timezone,
+
       distance_metres = distance,
+
       moving_time_seconds = moving_time,
+
       elapsed_time_seconds = elapsed_time,
+
       elevation_gain_metres = total_elevation_gain,
+
       average_speed_metres_per_second = average_speed,
+
       average_cadence_rpm = average_cadence,
-      average_power_watts = average_watts,
-      weighted_average_power_watts = weighted_average_watts,
+
       average_heartrate_bpm = average_heartrate,
+
+      average_power_watts = average_watts,
+
+      weighted_average_power_watts = weighted_average_watts,
+
       energy_kilojoules = kilojoules,
+
       gear_id,
+
       is_device_watts = device_watts
     )
-
-  return(body_tbl)
 }

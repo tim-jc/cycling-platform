@@ -6,6 +6,37 @@
 #' @param error_message Optional error message.
 #'
 #' @return invisible(NULL)
-update_etl_run <- function(run_id, run_status, error_message = NULL) {
-  stop("Not implemented")
+update_etl_run <- function(
+  connection,
+  run_id,
+  run_status,
+  error_message = NULL
+) {
+  if (is.null(error_message)) {
+    error_message <- NA_character_
+  }
+
+  DBI::dbExecute(
+    conn = connection,
+    statement = "
+      UPDATE cycling_platform_admin.etl_run
+      SET
+        run_status = ?,
+        completed_at = UTC_TIMESTAMP(),
+        duration_seconds = TIMESTAMPDIFF(
+          SECOND,
+          started_at,
+          UTC_TIMESTAMP()
+        ),
+        error_message = ?
+      WHERE run_id = ?
+    ",
+    params = list(
+      run_status,
+      error_message,
+      run_id
+    )
+  )
+
+  invisible(NULL)
 }

@@ -7,5 +7,28 @@ get_existing_activity_ids <- function(
   connection,
   activity_ids
 ) {
-  stop("Not implemented")
+  if (length(activity_ids) == 0) {
+    return(numeric())
+  }
+
+  placeholders <- paste(
+    rep("?", length(activity_ids)),
+    collapse = ", "
+  )
+
+  sql <- paste0(
+    "SELECT activity_id
+     FROM activities
+     WHERE activity_id IN (",
+    placeholders,
+    ")"
+  )
+
+  existing_activity_ids <- DBI::dbGetQuery(
+    connection,
+    sql,
+    params = as.list(activity_ids)
+  )$activity_id
+
+  existing_activity_ids
 }

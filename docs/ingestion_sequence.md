@@ -15,6 +15,8 @@ platform.R
     ↓
 load_config()
     ↓
+get_connection()
+    ↓
 create_etl_run()
     ↓
 ingest_activities()
@@ -24,6 +26,12 @@ ingest_activities()
     get_activities()
         ↓
     upsert_activities()
+            ↓
+        get_existing_activity_ids()
+        ↓
+        insert_activities()
+        ↓
+        update_activities()
         ↓
     update_etl_run_entity()
     ↓

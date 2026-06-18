@@ -1,6 +1,7 @@
 #' Update ETL run entity
 #'
-#' Updates an existing ETL run entity
+#' Mark an entity load as complete.
+#'
 #' @param run_entity_id Integer ETL run entity identifier.
 #' @param entity_status Character value: RUNNING, SUCCESS or FAILED.
 #' @param rows_inserted Integer number of inserted rows.
@@ -14,7 +15,40 @@ update_etl_run_entity <- function(
   entity_status,
   rows_inserted = 0L,
   rows_updated = 0L,
+  rows_deleted = 0L,
   error_message = NULL
 ) {
-  stop("Not implemented")
+  if (is.null(error_message)) {
+    error_message <- NA_character_
+  }
+
+  DBI::dbExecute(
+    conn = connection,
+    statement = "
+      UPDATE cycling_platform_admin.etl_run_entity
+      SET
+        entity_status = ?,
+        rows_inserted = ?,
+        rows_updated = ?,
+        rows_deleted = ?,
+        completed_at = UTC_TIMESTAMP(),
+        duration_seconds = TIMESTAMPDIFF(
+          SECOND,
+          started_at,
+          UTC_TIMESTAMP()
+        ),
+        error_message = ?
+      WHERE run_entity_id = ?
+    ",
+    params = list(
+      entity_status,
+      rows_inserted,
+      rows_updated,
+      rows_deleted,
+      error_message,
+      run_entity_id
+    )
+  )
+
+  invisible(NULL)
 }

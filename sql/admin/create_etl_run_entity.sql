@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run_entity (
 
     rows_deleted INT NOT NULL DEFAULT 0,
 
-    started_at DATETIME NOT NULL,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     completed_at DATETIME NULL,
 
