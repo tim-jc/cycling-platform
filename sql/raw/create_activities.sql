@@ -64,15 +64,12 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     CONSTRAINT fk_activities_source
         FOREIGN KEY (source_id)
-        REFERENCES cycling_platform_admin.data_source (source_id)
+        REFERENCES cycling_platform_admin.data_source (source_id),
 
-    CREATE INDEX idx_activities_start_datetime_utc
-        ON cycling_platform_raw.activities(start_datetime_utc);
+    KEY idx_activities_start_datetime_utc (start_datetime_utc),
 
-    CREATE INDEX idx_activities_sport_type
-        ON cycling_platform_raw.activities(sport_type);
+    KEY idx_activities_sport_type (sport_type),
 
-    CREATE INDEX idx_activities_gear_id
-        ON cycling_platform_raw.activities(gear_id);
+    KEY idx_activities_gear_id (gear_id)
 
 );
