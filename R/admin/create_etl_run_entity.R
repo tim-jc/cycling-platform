@@ -5,6 +5,6 @@
 #' @param entity_name Name of entity.
 #'
 #' @return Integer ETL run entity identifier.
-create_etl_run_entity <- function(run_id, entity_name) {
+create_etl_run_entity <- function(connection, run_id, entity_name) {
   stop("Not implemented")
 }
