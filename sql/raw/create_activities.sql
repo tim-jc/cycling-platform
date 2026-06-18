@@ -15,12 +15,16 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
     retrieved_at DATETIME NOT NULL,
 
     raw_payload JSON NOT NULL,
+    
+    athlete_id BIGINT NULL,
 
     activity_name VARCHAR(255),
 
     sport_type VARCHAR(50),
 
     start_datetime_utc DATETIME,
+
+    start_datetime_local DATETIME,
 
     timezone_name VARCHAR(100),
 
@@ -34,11 +38,9 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     average_speed_metres_per_second DOUBLE,
 
-    max_speed_metres_per_second DOUBLE,
+    average_cadence_rpm DOUBLE NULL,
 
     average_heartrate_bpm DOUBLE NULL,
-
-    max_heartrate_bpm DOUBLE NULL,
 
     average_power_watts DOUBLE NULL,
 
@@ -48,13 +50,7 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     gear_id VARCHAR(50) NULL,
 
-    is_trainer_activity BOOLEAN,
-
-    is_commute_activity BOOLEAN,
-
-    is_manual_activity BOOLEAN,
-
-    is_private_activity BOOLEAN,
+    is_device_watts BOOLEAN,
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -69,5 +65,14 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
     CONSTRAINT fk_activities_source
         FOREIGN KEY (source_id)
         REFERENCES cycling_platform_admin.data_source (source_id)
+
+    CREATE INDEX idx_activities_start_datetime_utc
+        ON cycling_platform_raw.activities(start_datetime_utc);
+
+    CREATE INDEX idx_activities_sport_type
+        ON cycling_platform_raw.activities(sport_type);
+
+    CREATE INDEX idx_activities_gear_id
+        ON cycling_platform_raw.activities(gear_id);
 
 );
