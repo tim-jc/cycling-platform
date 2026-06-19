@@ -19,7 +19,8 @@ tryCatch(
       connection = connection,
       run_id = run_id,
       source_id = 1L,
-      refresh_days = config$ingestion$activity_refresh_days
+      refresh_days = config$ingestion$activity_refresh_days,
+      config = config
     )
 
     update_etl_run(

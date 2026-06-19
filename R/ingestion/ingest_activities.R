@@ -12,7 +12,8 @@ ingest_activities <- function(
   connection,
   run_id,
   source_id,
-  refresh_days
+  refresh_days,
+  config
 ) {
   run_entity_id <- create_etl_run_entity(
     connection = connection,
@@ -25,7 +26,8 @@ ingest_activities <- function(
       activities <- get_activities(
         run_id = run_id,
         source_id = source_id,
-        refresh_days = refresh_days
+        refresh_days = refresh_days,
+        config = config
       )
 
       result <- upsert_activities(

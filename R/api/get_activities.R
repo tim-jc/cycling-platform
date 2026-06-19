@@ -10,9 +10,22 @@
 get_activities <- function(
   run_id,
   source_id,
-  refresh_days
+  refresh_days,
+  config
 ) {
   token <- get_access_token()
+
+  api_base_url <- config$sources$strava$api_base_url
+
+  per_page <- config$ingestion$activities_per_page
+
+  request_pause_seconds <- config$ingestion$request_pause_seconds
+
+  stopifnot(per_page > 0)
+
+  stopifnot(request_pause_seconds >= 0)
+
+  stopifnot(nzchar(api_base_url))
 
   # ----- pagination -----
 
@@ -24,7 +37,6 @@ get_activities <- function(
     )
   )
 
-  per_page <- 200
   page <- 1
   body_pages <- list()
 
@@ -34,7 +46,7 @@ get_activities <- function(
     ))
 
     response <- httr2::request(
-      "https://www.strava.com/api/v3/athlete/activities"
+      paste0(api_base_url, "/athlete/activities")
     ) |>
       httr2::req_auth_bearer_token(token) |>
       httr2::req_url_query(
@@ -63,6 +75,9 @@ get_activities <- function(
     if (nrow(body_tbl) < per_page) {
       break
     }
+
+    # short pause to get ahead of Strava API rate limiting
+    Sys.sleep(request_pause_seconds)
 
     page <- page + 1
   }

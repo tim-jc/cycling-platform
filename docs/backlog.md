@@ -45,7 +45,9 @@ Establish the platform foundation and prove end-to-end ingestion from the Strava
 
 ## Deferred
 
-* [ ] Add pagination to `get_activities()`
+* [x] Add pagination to `get_activities()`
+* [x] Externalise Strava API configuration
+* [x] Externalise ingestion rate limitation
 * [ ] Load full activity history
 * [ ] Build `silver` transformations
 * [ ] Build `gold` models
