@@ -13,16 +13,3 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.data_source (
     UNIQUE KEY uq_data_source_name (source_name)
 
 );
-
-INSERT IGNORE INTO cycling_platform_admin.data_source (
-    source_id,
-    source_name,
-    source_description,
-    is_active
-)
-VALUES (
-    1,
-    'strava',
-    'Strava REST API',
-    TRUE
-);
