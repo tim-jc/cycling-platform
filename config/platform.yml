@@ -7,6 +7,8 @@ sources:
 
     enabled: true
 
+    api_base_url: https://www.strava.com/api/v3
+
 ingestion:
 
   # Number of days refreshed during routine ingestion runs
@@ -15,11 +17,19 @@ ingestion:
   # Number of days refreshed during monthly hygiene runs
   activity_hygiene_days: 365
 
+  # Number of days refreshed during historical backfills
+  activity_backfill_days: 8000
+
+  # Maximum activities returned per API request
+  activities_per_page: 200
+
   # Maximum retries before failing an ingestion run
   max_retries: 3
 
   # API request timeout in seconds
   timeout_seconds: 60
+
+  request_pause_seconds: 0.25
 
 scheduling:
 
