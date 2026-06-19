@@ -23,18 +23,14 @@ Establish the platform foundation and prove end-to-end ingestion from the Strava
 * [x] Create `raw.activities`
 * [x] Implement `get_activities()`
 * [x] Implement ETL run logging
-* [x] Prove end-to-end API connectivity
-
-## In Progress
-
-* [ ] Implement `update_activities()`
-* [ ] Complete `upsert_activities()`
-* [ ] Verify second-run idempotency
-* [ ] Implement notification delivery
+* [x] Implement `update_activities()`
+* [x] Complete `upsert_activities()`
+* [x] Implement basic notification delivery
+* [x] Verify second-run idempotency
+* [x] Prove end-to-end ingestion from Strava to MariaDB
 
 ## Technical Debt
 
-* [ ] Add pagination to `get_activities()`
 * [ ] Add automated tests
 * [ ] Improve notification content
 * [ ] Add database transaction handling to `upsert_activities()`
@@ -42,16 +38,21 @@ Establish the platform foundation and prove end-to-end ingestion from the Strava
 
 ## Sprint 1 Exit Criteria
 
-* [ ] Activities can be ingested repeatedly without creating duplicates.
-* [ ] `etl_run` and `etl_run_entity` are fully populated.
-* [ ] Failed runs record actionable error information.
-* [ ] The platform executes successfully via a single command.
-* [ ] The activities load process is idempotent.
+* [x] Activities can be ingested repeatedly without creating duplicates.
+* [x] `etl_run` and `etl_run_entity` are fully populated.
+* [x] Failed runs record actionable error information.
+* [x] The platform executes successfully via a single command.
 
 ## Deferred
 
+* [ ] Add pagination to `get_activities()`
+* [ ] Load full activity history
 * [ ] Build `silver` transformations
 * [ ] Build `gold` models
 * [ ] Implement dashboards
 * [ ] Implement MCP integration
 * [ ] Implement additional Strava entities (`athlete`, `streams`, `gear`, `zones`, `routes`)
+
+## Milestone
+
+* [x] Tag platform release `v0.1.0`

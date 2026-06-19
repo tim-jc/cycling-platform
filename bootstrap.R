@@ -8,8 +8,8 @@ source_files <- list.files(
 
 purrr::walk(
   source_files,
-  ~ {
-    message("Sourcing: ", .x)
-    source(.x)
+  \(file) {
+    message("Sourcing: ", file)
+    source(file)
   }
 )

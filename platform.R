@@ -7,11 +7,6 @@ connection <- get_connection(
   database_name = "cycling_platform_raw"
 )
 
-on.exit(
-  DBI::dbDisconnect(connection),
-  add = TRUE
-)
-
 run_id <- create_etl_run(
   connection = connection,
   source_id = 1L,
