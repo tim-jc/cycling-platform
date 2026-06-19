@@ -14,33 +14,64 @@ get_activities <- function(
 ) {
   token <- get_access_token()
 
-  response <- httr2::request(
-    "https://www.strava.com/api/v3/athlete/activities"
-  ) |>
-    httr2::req_auth_bearer_token(token) |>
-    httr2::req_url_query(
-      after = as.integer(
-        as.numeric(
-          Sys.time() - lubridate::days(refresh_days)
-        )
-      ),
-      per_page = 200,
-      page = 1
-    ) |>
-    httr2::req_perform()
+  # ----- pagination -----
 
-  body <- httr2::resp_body_json(
-    response,
-    simplifyVector = TRUE
+  retrieved_at <- Sys.time()
+
+  after_timestamp <- as.integer(
+    as.numeric(
+      retrieved_at - lubridate::days(refresh_days)
+    )
   )
 
-  body_tbl <- tibble::as_tibble(body)
+  per_page <- 200
+  page <- 1
+  body_pages <- list()
 
-  if (nrow(body_tbl) == 200) {
-    warning(
-      "Activity result set reached per_page limit; pagination not yet implemented."
-    )
+  repeat {
+    message(glue::glue(
+      "Retrieving response page {page}..."
+    ))
+
+    response <- httr2::request(
+      "https://www.strava.com/api/v3/athlete/activities"
+    ) |>
+      httr2::req_auth_bearer_token(token) |>
+      httr2::req_url_query(
+        after = after_timestamp,
+        per_page = per_page,
+        page = page
+      ) |>
+      httr2::req_perform()
+
+    body_tbl <- httr2::resp_body_json(
+      response,
+      simplifyVector = TRUE
+    ) |>
+      tibble::as_tibble()
+
+    if (nrow(body_tbl) == 0) {
+      break
+    }
+
+    message(glue::glue(
+      "Retrieved {nrow(body_tbl)} activities"
+    ))
+
+    body_pages[[page]] <- body_tbl
+
+    if (nrow(body_tbl) < per_page) {
+      break
+    }
+
+    page <- page + 1
   }
+
+  if (length(body_pages) == 0) {
+    return(tibble::tibble())
+  }
+
+  body_tbl <- dplyr::bind_rows(body_pages)
 
   optional_columns <- c(
     "average_cadence",
@@ -77,7 +108,7 @@ get_activities <- function(
     dplyr::mutate(
       run_id = run_id,
       source_id = source_id,
-      retrieved_at = Sys.time(),
+      retrieved_at = retrieved_at,
       athlete_id = athlete$id,
       raw_payload = raw_payload
     ) |>
