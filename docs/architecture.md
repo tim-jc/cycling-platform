@@ -114,3 +114,32 @@ UPSERT by activity_id
 In MariaDB 10.5, the `JSON` type is implemented as validated text rather than a native binary JSON format.
 
 The platform treats `raw_payload` as an immutable copy of the source API response.
+
+
+# `raw.activity_streams` Design
+
+## Grain
+
+One row per `activity_id` × `stream_type`.
+
+## Business Key
+
+(`activity_id`, `stream_type`)
+
+## Load Strategy
+
+UPSERT using (`activity_id`, `stream_type`) as the business key.
+
+## Raw Data Retention
+
+- Retain the complete stream payload returned by the API.
+- Store the payload in `stream_payload`.
+- Treat `stream_payload` as the source of truth.
+- Promote commonly queried metadata to dedicated columns.
+
+## Design Principles
+
+- Preserve source-system fidelity.
+- Minimise transformation in the raw layer.
+- Support idempotent ingestion.
+- Optimise for reprocessing and downstream flexibility.
