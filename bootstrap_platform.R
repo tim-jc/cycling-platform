@@ -5,36 +5,41 @@ config <- load_config()
 
 connection <- get_connection("mysql")
 
-on.exit(
-  DBI::dbDisconnect(connection),
-  add = TRUE
-)
+tryCatch(
+  {
+    sql_directories <- c(
+      "install",
+      "admin",
+      "raw",
+      "silver",
+      "gold"
+    )
 
-sql_directories <- c(
-  "install",
-  "admin",
-  "raw",
-  "silver",
-  "gold"
-)
-
-sql_files <- purrr::map(
-  sql_directories,
-  \(directory) {
-    list.files(
-      path = file.path("sql", directory),
-      pattern = "\\.sql$",
-      full.names = TRUE
+    sql_files <- purrr::map(
+      sql_directories,
+      \(directory) {
+        list.files(
+          path = file.path("sql", directory),
+          pattern = "\\.sql$",
+          full.names = TRUE
+        ) |>
+          sort()
+      }
     ) |>
-      sort()
+      unlist(use.names = FALSE)
+
+    purrr::walk(
+      sql_files,
+      execute_sql_file,
+      connection = connection
+    )
+
+    message("Platform bootstrap complete.")
+  },
+
+  finally = {
+    if (DBI::dbIsValid(connection)) {
+      DBI::dbDisconnect(connection)
+    }
   }
-) |>
-  unlist(use.names = FALSE)
-
-purrr::walk(
-  sql_files,
-  execute_sql_file,
-  connection = connection
 )
-
-message("Platform bootstrap complete.")

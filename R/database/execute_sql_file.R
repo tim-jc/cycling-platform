@@ -2,13 +2,13 @@
 #'
 #' Execute a SQL script.
 #'
-#' @param connection Database connection.
 #' @param sql_file Path to SQL file.
+#' @param connection Database connection.
 #'
 #' @return Invisibly returns NULL.
 execute_sql_file <- function(
-  connection,
-  sql_file
+  sql_file,
+  connection
 ) {
   stopifnot(file.exists(sql_file))
 
@@ -29,6 +29,11 @@ execute_sql_file <- function(
   purrr::walk(
     statements,
     \(statement) {
+      message(
+        "Executing statement: ",
+        substr(statement, 1, 80)
+      )
+
       DBI::dbExecute(
         conn = connection,
         statement = statement
