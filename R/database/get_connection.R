@@ -6,7 +6,7 @@
 #'
 #' @return DBIConnection
 get_connection <- function(database_name) {
-  connection <- DBI::dbConnect(
+  DBI::dbConnect(
     drv = RMariaDB::MariaDB(),
 
     host = Sys.getenv("MARIADB_HOST"),
@@ -21,6 +21,4 @@ get_connection <- function(database_name) {
 
     password = Sys.getenv("MARIADB_PASSWORD")
   )
-
-  return(connection)
 }

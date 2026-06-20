@@ -10,6 +10,10 @@ purrr::walk(
   source_files,
   \(file) {
     message("Sourcing: ", file)
-    source(file)
+    source(file, local = .GlobalEnv)
   }
 )
+
+# TODO:
+# Convert project to an R package once the raw and silver
+# layers have stabilised.

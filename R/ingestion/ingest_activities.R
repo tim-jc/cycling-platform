@@ -30,9 +30,14 @@ ingest_activities <- function(
         config = config
       )
 
-      result <- upsert_activities(
-        connection = connection,
-        activities = activities
+      result <- DBI::dbWithTransaction(
+        conn = connection,
+        {
+          upsert_activities(
+            connection = connection,
+            activities = activities
+          )
+        }
       )
 
       update_etl_run_entity(

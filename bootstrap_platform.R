@@ -1,8 +1,6 @@
 # bootstrap_platform.R
 source("bootstrap.R")
 
-config <- load_config()
-
 connection <- get_connection("mysql")
 
 tryCatch(

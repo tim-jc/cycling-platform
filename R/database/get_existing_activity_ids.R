@@ -1,8 +1,11 @@
 #' Get Existing Activity IDs
 #'
 #' Function to return which of a given set of activity_ids is present in the database
+#'
 #' @param connection Database connection.
 #' @param activity_ids Vector of activity IDs to check
+#'
+#' @return Vector of activity IDs present in the database
 get_existing_activity_ids <- function(
   connection,
   activity_ids

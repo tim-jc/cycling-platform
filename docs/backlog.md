@@ -35,10 +35,13 @@ Establish the platform foundation and prove end-to-end ingestion from the Strava
 
 ## Technical Debt
 
-* [ ] Add automated tests
+* [ ] Introduce automated testing framework (`testthat`)
+* [*] Add package management with `renv`
 * [ ] Improve notification content
 * [ ] Add database transaction handling to `upsert_activities()`
 * [ ] Implement data quality checks
+* [ ] Convert project to an R package and replace `source()` with `devtools::load_all()`
+* [ ] Replace SQL statement parser with a robust implementation
 
 ## Sprint 1 Exit Criteria
 
