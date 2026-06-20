@@ -9,6 +9,19 @@ sources:
 
     api_base_url: https://www.strava.com/api/v3
 
+    stream_types:
+      - time
+      - latlng
+      - distance
+      - altitude
+      - velocity_smooth
+      - heartrate
+      - cadence
+      - watts
+      - temp
+      - moving
+      - grade_smooth
+
 ingestion:
 
   # Number of days refreshed during routine ingestion runs
