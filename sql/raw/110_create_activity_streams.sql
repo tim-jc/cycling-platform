@@ -4,8 +4,14 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activity_streams (
 
     stream_type VARCHAR(50) NOT NULL,
 
-    run_id BIGINT NOT NULL,
+    series_type VARCHAR(50) NULL,
 
+    original_size INT NULL,
+    
+    resolution VARCHAR(20) NULL,
+
+    run_id BIGINT NOT NULL,
+    
     source_id INT NOT NULL,
 
     retrieved_at DATETIME NOT NULL,
