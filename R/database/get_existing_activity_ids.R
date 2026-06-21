@@ -21,7 +21,7 @@ get_existing_activity_ids <- function(
 
   sql <- paste0(
     "SELECT activity_id
-     FROM activities
+     FROM cycling_platform_raw.activities
      WHERE activity_id IN (",
     placeholders,
     ")"

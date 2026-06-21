@@ -87,10 +87,12 @@ get_streams <- function(
             original_size = stream$original_size,
             resolution = stream$resolution,
 
-            stream_payload = jsonlite::toJSON(
-              stream$data,
-              auto_unbox = TRUE,
-              null = "null"
+            stream_payload = as.character(
+              jsonlite::toJSON(
+                stream$data,
+                auto_unbox = TRUE,
+                null = "null"
+              )
             )
           )
         }

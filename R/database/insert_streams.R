@@ -3,7 +3,7 @@
 #' Function to insert new streams into the database
 #'
 #' @param connection Database connection.
-#' @param streams Tibble of activities to insert.
+#' @param streams Tibble of streams to insert.
 #'
 #' @return Number of rows inserted.
 insert_streams <- function(
@@ -16,7 +16,10 @@ insert_streams <- function(
 
   DBI::dbWriteTable(
     conn = connection,
-    name = "activity_streams",
+    name = DBI::Id(
+      schema = "cycling_platform_raw",
+      table = "activity_streams"
+    ),
     value = streams,
     append = TRUE,
     overwrite = FALSE
