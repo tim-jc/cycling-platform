@@ -11,7 +11,7 @@ get_existing_activity_ids <- function(
   activity_ids
 ) {
   if (length(activity_ids) == 0) {
-    return(numeric())
+    return(bit64::integer64())
   }
 
   placeholders <- paste(

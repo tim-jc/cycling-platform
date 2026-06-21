@@ -23,6 +23,24 @@ tryCatch(
       config = config
     )
 
+    activity_ids <- DBI::dbGetQuery(
+      connection,
+      "
+      SELECT activity_id
+      FROM cycling_platform_raw.activities
+      WHERE run_id = ?
+      ",
+      params = list(run_id)
+    )$activity_id
+
+    ingest_streams(
+      connection = connection,
+      run_id = run_id,
+      source_id = 1L,
+      activity_ids = activity_ids,
+      config = config
+    )
+
     update_etl_run(
       connection = connection,
       run_id = run_id,

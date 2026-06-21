@@ -14,7 +14,7 @@ get_existing_stream_keys <- function(
   if (length(activity_ids) == 0) {
     return(
       tibble::tibble(
-        activity_id = numeric(),
+        activity_id = bit64::integer64(),
         stream_type = character()
       )
     )

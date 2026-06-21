@@ -16,7 +16,10 @@ insert_activities <- function(
 
   DBI::dbWriteTable(
     conn = connection,
-    name = "activities",
+    name = DBI::Id(
+      schema = "cycling_platform_raw",
+      table = "activities"
+    ),
     value = activities,
     append = TRUE,
     overwrite = FALSE
