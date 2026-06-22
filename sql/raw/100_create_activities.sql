@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    stream_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+
+    stream_attempted_at DATETIME NULL,
+
     updated_at DATETIME NOT NULL
         DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,

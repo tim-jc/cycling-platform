@@ -4,16 +4,52 @@
 #'
 #' @param run_id Integer ETL run identifier.
 #' @param source_id Integer source identifier.
-#' @param activity_ids Integer vector of activity IDs.
+#' @param activity_ids Integer64 vector of activity IDs.
 #' @param config Platform configuration.
 #'
-#' @return Tibble containing one row per activity_id × stream_type.
+#' @return Named list containing:
+#'   - streams: tibble containing one row per activity_id × stream_type
+#'   - not_found_ids: integer64 vector of activity IDs with no streams
 get_streams <- function(
   run_id,
   source_id,
   activity_ids,
   config
 ) {
+  empty_streams <- function() {
+    tibble::tibble(
+      run_id = bit64::integer64(),
+
+      source_id = integer(),
+
+      retrieved_at = as.POSIXct(
+        character(),
+        tz = "UTC"
+      ),
+
+      activity_id = bit64::integer64(),
+
+      stream_type = character(),
+
+      series_type = character(),
+
+      original_size = integer(),
+
+      resolution = character(),
+
+      stream_payload = character()
+    )
+  }
+
+  if (length(activity_ids) == 0) {
+    return(
+      list(
+        streams = empty_streams(),
+        not_found_ids = bit64::integer64()
+      )
+    )
+  }
+
   token <- get_access_token()
 
   retrieved_at <- Sys.time()
@@ -22,69 +58,114 @@ get_streams <- function(
 
   request_pause_seconds <- config$ingestion$request_pause_seconds
 
-  stream_types <- config$sources$strava$stream_types
-
   stream_keys <- paste(
-    stream_types,
+    config$sources$strava$stream_types,
     collapse = ","
   )
-
-  stopifnot(length(activity_ids) > 0)
 
   stopifnot(request_pause_seconds >= 0)
 
   stopifnot(nzchar(api_base_url))
 
-  purrr::map_dfr(
-    activity_ids,
-    \(activity_to_get) {
+  n_streams_to_get <- length(activity_ids)
+
+  # Track activities with no stream data (HTTP 404)
+  not_found_ids <- bit64::integer64()
+
+  streams <- purrr::map_dfr(
+    seq_along(activity_ids),
+    \(i) {
+      activity_to_get <- activity_ids[[i]]
+
+      pct_complete <- round(
+        i / n_streams_to_get * 100,
+        digits = 1
+      )
+
       message(glue::glue(
-        "Retrieving stream for activity id {activity_to_get}..."
+        "[{i}/{n_streams_to_get} | {pct_complete}%] ",
+        "Retrieving streams for activity {activity_to_get}"
       ))
 
-      response <- httr2::request(
-        paste0(
-          api_base_url,
-          "/activities/",
-          activity_to_get,
-          "/streams"
+      response <- tryCatch(
+        {
+          httr2::request(
+            paste0(
+              api_base_url,
+              "/activities/",
+              activity_to_get,
+              "/streams"
+            )
+          ) |>
+            httr2::req_auth_bearer_token(token) |>
+            httr2::req_url_query(
+              keys = stream_keys,
+              key_by_type = "true"
+            ) |>
+            httr2::req_perform()
+        },
+
+        error = function(e) {
+          if (inherits(e, "httr2_http_404")) {
+            message(glue::glue(
+              "No streams available for activity {activity_to_get}"
+            ))
+
+            not_found_ids <<- c(
+              not_found_ids,
+              bit64::as.integer64(activity_to_get)
+            )
+
+            return(NULL)
+          }
+
+          stop(e)
+        }
+      )
+
+      Sys.sleep(request_pause_seconds)
+
+      if (is.null(response)) {
+        return(
+          empty_streams()
         )
-      ) |>
-        httr2::req_auth_bearer_token(token) |>
-        httr2::req_url_query(
-          keys = stream_keys,
-          key_by_type = "true"
-        ) |>
-        httr2::req_perform()
+      }
 
       body <- httr2::resp_body_json(
         response,
         simplifyVector = FALSE
       )
 
-      message(glue::glue(
-        "Retrieved {length(body)} streams for activity {activity_to_get}"
-      ))
-
       if (length(body) == 0) {
-        return(tibble::tibble())
-      }
+        message(glue::glue(
+          "Empty stream response for activity {activity_to_get}"
+        ))
 
-      Sys.sleep(request_pause_seconds)
+        return(
+          empty_streams()
+        )
+      }
 
       purrr::imap_dfr(
         body,
         \(stream, stream_type) {
           tibble::tibble(
             run_id = run_id,
+
             source_id = source_id,
+
             retrieved_at = retrieved_at,
 
-            activity_id = activity_to_get,
+            activity_id = bit64::as.integer64(
+              activity_to_get
+            ),
+
             stream_type = stream_type,
 
             series_type = stream$series_type,
+
             original_size = stream$original_size,
+
             resolution = stream$resolution,
 
             stream_payload = as.character(
@@ -98,5 +179,13 @@ get_streams <- function(
         }
       )
     }
+  )
+
+  list(
+    streams = streams,
+
+    not_found_ids = unique(
+      bit64::as.integer64(not_found_ids)
+    )
   )
 }

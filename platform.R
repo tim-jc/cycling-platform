@@ -23,15 +23,9 @@ tryCatch(
       config = config
     )
 
-    activity_ids <- DBI::dbGetQuery(
-      connection,
-      "
-      SELECT activity_id
-      FROM cycling_platform_raw.activities
-      WHERE run_id = ?
-      ",
-      params = list(run_id)
-    )$activity_id
+    activity_ids <- get_pending_stream_activity_ids(
+      connection = connection
+    )
 
     ingest_streams(
       connection = connection,

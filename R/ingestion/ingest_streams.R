@@ -5,7 +5,7 @@
 #' @param connection Database connection.
 #' @param run_id Integer ETL run identifier.
 #' @param source_id Integer source identifier.
-#' @param activity_ids Integer vector of activity IDs.
+#' @param activity_ids Integer64 vector of activity IDs.
 #' @param config Platform configuration.
 #'
 #' @return invisible(NULL)
@@ -24,32 +24,43 @@ ingest_streams <- function(
 
   tryCatch(
     {
-      streams <- get_streams(
+      stream_result <- get_streams(
         run_id = run_id,
         source_id = source_id,
         activity_ids = activity_ids,
         config = config
       )
 
-      if (nrow(streams) == 0) {
-        update_etl_run_entity(
-          connection = connection,
-          run_entity_id = run_entity_id,
-          entity_status = "SUCCESS",
-          rows_inserted = 0L,
-          rows_updated = 0L
-        )
+      streams <- stream_result$streams
 
-        return(invisible(NULL))
-      }
+      not_found_ids <- stream_result$not_found_ids
 
       result <- DBI::dbWithTransaction(
         conn = connection,
+
         {
-          upsert_streams(
+          upsert_result <- upsert_streams(
             connection = connection,
             streams = streams
           )
+
+          successful_ids <- unique(
+            streams$activity_id
+          )
+
+          update_activity_stream_status(
+            connection = connection,
+            activity_ids = successful_ids,
+            stream_status = "SUCCESS"
+          )
+
+          update_activity_stream_status(
+            connection = connection,
+            activity_ids = not_found_ids,
+            stream_status = "NOT_FOUND"
+          )
+
+          upsert_result
         }
       )
 
@@ -63,6 +74,12 @@ ingest_streams <- function(
     },
 
     error = function(e) {
+      update_activity_stream_status(
+        connection = connection,
+        activity_ids = activity_ids,
+        stream_status = "FAILED"
+      )
+
       update_etl_run_entity(
         connection = connection,
         run_entity_id = run_entity_id,
