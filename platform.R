@@ -27,13 +27,18 @@ tryCatch(
       connection = connection
     )
 
-    ingest_streams(
-      connection = connection,
-      run_id = run_id,
-      source_id = 1L,
-      activity_ids = activity_ids,
-      config = config
-    )
+    if (length(activity_ids) == 0) {
+      message(
+        "No activities require stream ingestion."
+      )
+    } else {
+      ingest_streams(
+        connection = connection,
+        run_id = run_id,
+        source_id = source_id,
+        activity_ids = activity_ids
+      )
+    }
 
     update_etl_run(
       connection = connection,

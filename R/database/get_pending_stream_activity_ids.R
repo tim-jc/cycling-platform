@@ -15,10 +15,19 @@ get_pending_stream_activity_ids <- function(
       'PENDING',
       'FAILED'
     )
+    ORDER BY activity_id
   "
 
-  DBI::dbGetQuery(
+  result <- DBI::dbGetQuery(
     conn = connection,
     statement = sql
-  )$activity_id
+  )
+
+  if (nrow(result) == 0) {
+    return(bit64::integer64())
+  }
+
+  bit64::as.integer64(
+    result$activity_id
+  )
 }
