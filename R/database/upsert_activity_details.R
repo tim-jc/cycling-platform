@@ -1,0 +1,75 @@
+#' Upsert Activity Details
+#'
+#' Insert new activity details and update existing activity details.
+#'
+#' @param connection DBI connection object.
+#' @param activity_details Tibble returned by get_activity_details().
+#'
+#' @return Named list containing rows_inserted and rows_updated.
+upsert_activity_details <- function(
+  connection,
+  activity_details
+) {
+  if (nrow(activity_details) == 0) {
+    return(
+      list(
+        rows_inserted = 0L,
+        rows_updated = 0L
+      )
+    )
+  }
+
+  placeholders <- paste(
+    rep("?", length(activity_details$activity_id)),
+    collapse = ", "
+  )
+
+  sql <- paste0(
+    "SELECT activity_id
+     FROM cycling_platform_raw.activity_details
+     WHERE activity_id IN (",
+    placeholders,
+    ")"
+  )
+
+  existing_ids <- DBI::dbGetQuery(
+    connection,
+    sql,
+    params = as.list(activity_details$activity_id)
+  )$activity_id
+
+  # Split incoming data
+  activity_details_insert <- dplyr::filter(
+    activity_details,
+    !activity_id %in% existing_ids
+  )
+
+  activity_details_update <- dplyr::filter(
+    activity_details,
+    activity_id %in% existing_ids
+  )
+
+  rows_inserted <- 0L
+  rows_updated <- 0L
+
+  # Insert new activity details
+  if (nrow(activity_details_insert) > 0) {
+    rows_inserted <- insert_activity_details(
+      connection = connection,
+      activity_details = activity_details_insert
+    )
+  }
+
+  # Update existing activity details
+  if (nrow(activity_details_update) > 0) {
+    rows_updated <- update_activity_details(
+      connection = connection,
+      activity_details = activity_details_update
+    )
+  }
+
+  list(
+    rows_inserted = rows_inserted,
+    rows_updated = rows_updated
+  )
+}

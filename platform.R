@@ -23,11 +23,11 @@ tryCatch(
       config = config
     )
 
-    activity_ids <- get_pending_stream_activity_ids(
+    stream_activity_ids <- get_pending_stream_activity_ids(
       connection = connection
     )
 
-    if (length(activity_ids) == 0) {
+    if (length(stream_activity_ids) == 0) {
       message(
         "No activities require stream ingestion."
       )
@@ -35,8 +35,27 @@ tryCatch(
       ingest_streams(
         connection = connection,
         run_id = run_id,
-        source_id = source_id,
-        activity_ids = activity_ids
+        source_id = 1L,
+        activity_ids = stream_activity_ids,
+        config = config
+      )
+    }
+
+    detail_activity_ids <- get_pending_detail_activity_ids(
+      connection = connection
+    )
+
+    if (length(detail_activity_ids) == 0) {
+      message(
+        "No activities require detail ingestion."
+      )
+    } else {
+      ingest_activity_details(
+        connection = connection,
+        run_id = run_id,
+        source_id = 1L,
+        activity_ids = detail_activity_ids,
+        config = config
       )
     }
 
