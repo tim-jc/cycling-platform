@@ -8,19 +8,19 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 ### Planned Work
 
-* [ ] Implement `raw.activity_details`
-* [ ] Implement `get_activity_details()`
-* [ ] Implement `upsert_activity_details()`
-* [ ] Add `details_status` to `raw.activities`
-* [ ] Implement resumable activity details ingestion
+* [x] Implement `raw.activity_details`
+* [x] Implement `get_activity_details()`
+* [x] Implement `upsert_activity_details()`
+* [x] Add `details_status` to `raw.activities`
+* [x] Implement resumable activity details ingestion
 * [ ] Load full activity details history
 
 ### Exit Criteria
 
-* [ ] Activity details can be ingested repeatedly without duplicates
+* [x] Activity details can be ingested repeatedly without duplicates
 * [x] Historical backfills can be resumed safely
-* [ ] `details_status` is fully populated
-* [ ] Failed runs record actionable error information
+* [ ] `details_status` is fully populated for full history
+* [x] Failed runs record actionable error information
 
 ---
 
@@ -60,6 +60,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 * [x] Add transaction handling to all ingestion workflows
 * [x] Implement API retry handling
+* [x] Implement batched child-entity ingestion for historical backfills
 * [ ] Implement data quality checks
 
 ### Medium Priority

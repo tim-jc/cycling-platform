@@ -69,6 +69,9 @@ IDs in configurable batches and commit each batch independently. Completed
 batches should update their parent statuses before the next batch starts so
 rate limits or interruptions do not discard already-loaded data.
 
+Historical backfill operating guidance is documented in
+`docs/historical_backfill.md`.
+
 ## Verification
 
 Run the local smoke checks before committing structural changes:

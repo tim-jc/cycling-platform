@@ -50,6 +50,20 @@ Notify
 * `SUCCESS`
 * `FAILED`
 
+## Execution Modes
+
+The platform currently supports two execution modes:
+
+* `manual`: refreshes the routine activity window using
+  `ingestion.activity_refresh_days`.
+* `backfill`: refreshes the historical activity window using
+  `ingestion.activity_backfill_days`.
+
+```sh
+Rscript platform.R
+Rscript platform.R backfill
+```
+
 ---
 
 ## `raw.activities` Design
@@ -130,6 +144,10 @@ One row per `activity_id` × `stream_type`.
 
 UPSERT using (`activity_id`, `stream_type`) as the business key.
 
+Streams are ingested in configurable activity ID batches. Each batch is fetched,
+loaded, and status-marked inside its own database transaction so long historical
+backfills can resume after rate limits or interruptions.
+
 ## Raw Data Retention
 
 - Retain the complete stream payload returned by the API.
@@ -143,3 +161,36 @@ UPSERT using (`activity_id`, `stream_type`) as the business key.
 - Minimise transformation in the raw layer.
 - Support idempotent ingestion.
 - Optimise for reprocessing and downstream flexibility.
+
+# `raw.activity_details` Design
+
+## Grain
+
+One row per Strava activity.
+
+## Business Key
+
+`activity_id`
+
+## Load Strategy
+
+UPSERT using `activity_id` as the business key.
+
+Activity details are ingested in configurable activity ID batches. Each batch is
+committed independently and updates `raw.activities.details_status` for
+successful, missing, or failed activity IDs.
+
+## Raw Data Retention
+
+- Retain the complete activity detail payload returned by the API.
+- Store the payload in `details_payload`.
+- Treat `details_payload` as the source of truth.
+- Promote fields into curated layers later rather than expanding raw
+  transformation logic.
+
+## Design Principles
+
+- Preserve source-system fidelity.
+- Support idempotent ingestion.
+- Keep raw activity details available for future silver/gold modelling.
+- Support resumable historical backfills.
