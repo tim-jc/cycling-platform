@@ -15,8 +15,6 @@ get_activities <- function(
 ) {
   token <- get_access_token()
 
-  api_base_url <- config$sources$strava$api_base_url
-
   per_page <- config$ingestion$activities_per_page
 
   request_pause_seconds <- config$ingestion$request_pause_seconds
@@ -24,8 +22,6 @@ get_activities <- function(
   stopifnot(per_page > 0)
 
   stopifnot(request_pause_seconds >= 0)
-
-  stopifnot(nzchar(api_base_url))
 
   # ----- pagination -----
 
@@ -45,16 +41,16 @@ get_activities <- function(
       "Retrieving response page {page}..."
     ))
 
-    response <- httr2::request(
-      paste0(api_base_url, "/athlete/activities")
-    ) |>
-      httr2::req_auth_bearer_token(token) |>
-      httr2::req_url_query(
+    response <- perform_strava_request(
+      path = "/athlete/activities",
+      config = config,
+      query = list(
         after = after_timestamp,
         per_page = per_page,
         page = page
-      ) |>
-      httr2::req_perform()
+      ),
+      token = token
+    )
 
     body_tbl <- httr2::resp_body_json(
       response,

@@ -58,13 +58,14 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 ### High Priority
 
-* [ ] Add transaction handling to all ingestion workflows
-* [ ] Implement API retry handling
+* [x] Add transaction handling to all ingestion workflows
+* [x] Implement API retry handling
 * [ ] Implement data quality checks
 
 ### Medium Priority
 
 * [ ] Introduce automated testing (`testthat`)
+* [x] Add smoke checks for raw-layer structural regressions
 * [ ] Improve notification content
 * [ ] Replace SQL statement parser
 

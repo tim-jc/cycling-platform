@@ -44,13 +44,9 @@ get_activity_details <- function(
 
   token <- get_access_token()
 
-  api_base_url <- config$sources$strava$api_base_url
-
   request_pause_seconds <- config$ingestion$request_pause_seconds
 
   stopifnot(request_pause_seconds >= 0)
-
-  stopifnot(nzchar(api_base_url))
 
   n_details_to_get <- length(activity_ids)
 
@@ -74,15 +70,14 @@ get_activity_details <- function(
 
       response <- tryCatch(
         {
-          httr2::request(
-            paste0(
-              api_base_url,
+          perform_strava_request(
+            path = paste0(
               "/activities/",
               activity_to_get
-            )
-          ) |>
-            httr2::req_auth_bearer_token(token) |>
-            httr2::req_perform()
+            ),
+            config = config,
+            token = token
+          )
         },
 
         error = function(e) {

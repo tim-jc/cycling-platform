@@ -54,8 +54,6 @@ get_streams <- function(
 
   retrieved_at <- Sys.time()
 
-  api_base_url <- config$sources$strava$api_base_url
-
   request_pause_seconds <- config$ingestion$request_pause_seconds
 
   stream_keys <- paste(
@@ -64,8 +62,6 @@ get_streams <- function(
   )
 
   stopifnot(request_pause_seconds >= 0)
-
-  stopifnot(nzchar(api_base_url))
 
   n_streams_to_get <- length(activity_ids)
 
@@ -89,20 +85,19 @@ get_streams <- function(
 
       response <- tryCatch(
         {
-          httr2::request(
-            paste0(
-              api_base_url,
+          perform_strava_request(
+            path = paste0(
               "/activities/",
               activity_to_get,
               "/streams"
-            )
-          ) |>
-            httr2::req_auth_bearer_token(token) |>
-            httr2::req_url_query(
+            ),
+            config = config,
+            query = list(
               keys = stream_keys,
               key_by_type = "true"
-            ) |>
-            httr2::req_perform()
+            ),
+            token = token
+          )
         },
 
         error = function(e) {
