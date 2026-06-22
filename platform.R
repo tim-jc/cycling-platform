@@ -3,6 +3,31 @@ source("bootstrap.R")
 
 config <- load_config()
 
+args <- commandArgs(
+  trailingOnly = TRUE
+)
+
+execution_mode <- "manual"
+
+if (length(args) > 0) {
+  execution_mode <- tolower(args[[1]])
+}
+
+if (!execution_mode %in% c("manual", "backfill")) {
+  stop(
+    "Unknown execution mode. Use 'manual' or 'backfill'.",
+    call. = FALSE
+  )
+}
+
+if (execution_mode == "backfill") {
+  run_mode <- "BACKFILL"
+  activity_refresh_days <- config$ingestion$activity_backfill_days
+} else {
+  run_mode <- "MANUAL"
+  activity_refresh_days <- config$ingestion$activity_refresh_days
+}
+
 connection <- get_connection(
   database_name = "cycling_platform_raw"
 )
@@ -10,7 +35,7 @@ connection <- get_connection(
 run_id <- create_etl_run(
   connection = connection,
   source_id = 1L,
-  run_mode = "MANUAL"
+  run_mode = run_mode
 )
 
 tryCatch(
@@ -19,7 +44,7 @@ tryCatch(
       connection = connection,
       run_id = run_id,
       source_id = 1L,
-      refresh_days = config$ingestion$activity_refresh_days,
+      refresh_days = activity_refresh_days,
       config = config
     )
 

@@ -11,6 +11,13 @@ r_files <- list.files(
   full.names = TRUE
 )
 
+r_files <- c(
+  r_files,
+  "bootstrap.R",
+  "bootstrap_platform.R",
+  "platform.R"
+)
+
 parse_failures <- lapply(
   r_files,
   function(file) {

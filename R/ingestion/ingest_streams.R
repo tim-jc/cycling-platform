@@ -22,61 +22,118 @@ ingest_streams <- function(
     entity_name = "activity_streams"
   )
 
+  batch_size <- config$ingestion$stream_activity_batch_size
+
+  if (is.null(batch_size)) {
+    batch_size <- 25
+  }
+
+  stopifnot(batch_size > 0)
+
+  activity_id_batches <- chunk_vector(
+    activity_ids,
+    batch_size
+  )
+
+  current_batch <- NA_integer_
+
+  completed_batches <- 0L
+
+  rows_inserted <- 0L
+
+  rows_updated <- 0L
+
   tryCatch(
     {
-      stream_result <- get_streams(
-        run_id = run_id,
-        source_id = source_id,
-        activity_ids = activity_ids,
-        config = config
-      )
+      for (i in seq_along(activity_id_batches)) {
+        current_batch <- i
 
-      streams <- stream_result$streams
+        batch_activity_ids <- activity_id_batches[[i]]
 
-      not_found_ids <- stream_result$not_found_ids
+        message(glue::glue(
+          "Processing stream batch {i}/{length(activity_id_batches)} ",
+          "({length(batch_activity_ids)} activities)."
+        ))
 
-      result <- DBI::dbWithTransaction(
-        conn = connection,
+        stream_result <- get_streams(
+          run_id = run_id,
+          source_id = source_id,
+          activity_ids = batch_activity_ids,
+          config = config
+        )
 
-        {
-          upsert_result <- upsert_streams(
-            connection = connection,
-            streams = streams
-          )
+        streams <- stream_result$streams
 
-          successful_ids <- unique(
-            streams$activity_id
-          )
+        not_found_ids <- stream_result$not_found_ids
 
-          update_activity_stream_status(
-            connection = connection,
-            activity_ids = successful_ids,
-            stream_status = "SUCCESS"
-          )
+        batch_result <- DBI::dbWithTransaction(
+          conn = connection,
 
-          update_activity_stream_status(
-            connection = connection,
-            activity_ids = not_found_ids,
-            stream_status = "NOT_FOUND"
-          )
+          {
+            upsert_result <- upsert_streams(
+              connection = connection,
+              streams = streams
+            )
 
-          upsert_result
-        }
-      )
+            successful_ids <- unique(
+              streams$activity_id
+            )
+
+            update_activity_stream_status(
+              connection = connection,
+              activity_ids = successful_ids,
+              stream_status = "SUCCESS"
+            )
+
+            update_activity_stream_status(
+              connection = connection,
+              activity_ids = not_found_ids,
+              stream_status = "NOT_FOUND"
+            )
+
+            upsert_result
+          }
+        )
+
+        rows_inserted <- rows_inserted + batch_result$rows_inserted
+
+        rows_updated <- rows_updated + batch_result$rows_updated
+
+        completed_batches <- i
+
+        message(glue::glue(
+          "Completed stream batch {i}/{length(activity_id_batches)}: ",
+          "{batch_result$rows_inserted} inserted, ",
+          "{batch_result$rows_updated} updated."
+        ))
+      }
 
       update_etl_run_entity(
         connection = connection,
         run_entity_id = run_entity_id,
         entity_status = "SUCCESS",
-        rows_inserted = result$rows_inserted,
-        rows_updated = result$rows_updated
+        rows_inserted = rows_inserted,
+        rows_updated = rows_updated
       )
     },
 
     error = function(e) {
+      failed_ids <- bit64::integer64()
+
+      first_failed_batch <- completed_batches + 1L
+
+      if (first_failed_batch <= length(activity_id_batches)) {
+        failed_ids <- do.call(
+          c,
+          activity_id_batches[first_failed_batch:length(activity_id_batches)]
+        )
+      } else if (is.na(current_batch)) {
+        failed_ids <- activity_ids
+      }
+
       update_activity_stream_status(
         connection = connection,
-        activity_ids = activity_ids,
+        activity_ids = failed_ids,
         stream_status = "FAILED"
       )
 
@@ -84,6 +141,8 @@ ingest_streams <- function(
         connection = connection,
         run_entity_id = run_entity_id,
         entity_status = "FAILED",
+        rows_inserted = rows_inserted,
+        rows_updated = rows_updated,
         error_message = conditionMessage(e)
       )
 

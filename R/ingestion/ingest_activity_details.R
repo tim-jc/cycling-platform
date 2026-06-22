@@ -1,6 +1,6 @@
 #' Ingest Activity Details
 #'
-#' Orchestrates end-to-end ingestion of Strava activity details
+#' Orchestrates end-to-end ingestion of Strava activity details.
 #'
 #' @param connection Database connection.
 #' @param run_id Integer ETL run identifier.
@@ -22,61 +22,118 @@ ingest_activity_details <- function(
     entity_name = "activity_details"
   )
 
+  batch_size <- config$ingestion$detail_activity_batch_size
+
+  if (is.null(batch_size)) {
+    batch_size <- 50
+  }
+
+  stopifnot(batch_size > 0)
+
+  activity_id_batches <- chunk_vector(
+    activity_ids,
+    batch_size
+  )
+
+  current_batch <- NA_integer_
+
+  completed_batches <- 0L
+
+  rows_inserted <- 0L
+
+  rows_updated <- 0L
+
   tryCatch(
     {
-      activity_details_result <- get_activity_details(
-        run_id = run_id,
-        source_id = source_id,
-        activity_ids = activity_ids,
-        config = config
-      )
+      for (i in seq_along(activity_id_batches)) {
+        current_batch <- i
 
-      activity_details <- activity_details_result$details
+        batch_activity_ids <- activity_id_batches[[i]]
 
-      not_found_ids <- activity_details_result$not_found_ids
+        message(glue::glue(
+          "Processing activity detail batch {i}/{length(activity_id_batches)} ",
+          "({length(batch_activity_ids)} activities)."
+        ))
 
-      result <- DBI::dbWithTransaction(
-        conn = connection,
+        activity_details_result <- get_activity_details(
+          run_id = run_id,
+          source_id = source_id,
+          activity_ids = batch_activity_ids,
+          config = config
+        )
 
-        {
-          upsert_result <- upsert_activity_details(
-            connection = connection,
-            activity_details = activity_details
-          )
+        activity_details <- activity_details_result$details
 
-          successful_ids <- unique(
-            activity_details$activity_id
-          )
+        not_found_ids <- activity_details_result$not_found_ids
 
-          update_activity_details_status(
-            connection = connection,
-            activity_ids = successful_ids,
-            details_status = "SUCCESS"
-          )
+        batch_result <- DBI::dbWithTransaction(
+          conn = connection,
 
-          update_activity_details_status(
-            connection = connection,
-            activity_ids = not_found_ids,
-            details_status = "NOT_FOUND"
-          )
+          {
+            upsert_result <- upsert_activity_details(
+              connection = connection,
+              activity_details = activity_details
+            )
 
-          upsert_result
-        }
-      )
+            successful_ids <- unique(
+              activity_details$activity_id
+            )
+
+            update_activity_details_status(
+              connection = connection,
+              activity_ids = successful_ids,
+              details_status = "SUCCESS"
+            )
+
+            update_activity_details_status(
+              connection = connection,
+              activity_ids = not_found_ids,
+              details_status = "NOT_FOUND"
+            )
+
+            upsert_result
+          }
+        )
+
+        rows_inserted <- rows_inserted + batch_result$rows_inserted
+
+        rows_updated <- rows_updated + batch_result$rows_updated
+
+        completed_batches <- i
+
+        message(glue::glue(
+          "Completed activity detail batch {i}/{length(activity_id_batches)}: ",
+          "{batch_result$rows_inserted} inserted, ",
+          "{batch_result$rows_updated} updated."
+        ))
+      }
 
       update_etl_run_entity(
         connection = connection,
         run_entity_id = run_entity_id,
         entity_status = "SUCCESS",
-        rows_inserted = result$rows_inserted,
-        rows_updated = result$rows_updated
+        rows_inserted = rows_inserted,
+        rows_updated = rows_updated
       )
     },
 
     error = function(e) {
+      failed_ids <- bit64::integer64()
+
+      first_failed_batch <- completed_batches + 1L
+
+      if (first_failed_batch <= length(activity_id_batches)) {
+        failed_ids <- do.call(
+          c,
+          activity_id_batches[first_failed_batch:length(activity_id_batches)]
+        )
+      } else if (is.na(current_batch)) {
+        failed_ids <- activity_ids
+      }
+
       update_activity_details_status(
         connection = connection,
-        activity_ids = activity_ids,
+        activity_ids = failed_ids,
         details_status = "FAILED"
       )
 
@@ -84,6 +141,8 @@ ingest_activity_details <- function(
         connection = connection,
         run_entity_id = run_entity_id,
         entity_status = "FAILED",
+        rows_inserted = rows_inserted,
+        rows_updated = rows_updated,
         error_message = conditionMessage(e)
       )
 

@@ -18,7 +18,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 ### Exit Criteria
 
 * [ ] Activity details can be ingested repeatedly without duplicates
-* [ ] Historical backfills can be resumed safely
+* [x] Historical backfills can be resumed safely
 * [ ] `details_status` is fully populated
 * [ ] Failed runs record actionable error information
 
