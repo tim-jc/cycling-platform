@@ -59,6 +59,11 @@ The platform currently supports two execution modes:
 * `backfill`: refreshes the historical activity window using
   `ingestion.activity_backfill_days`.
 
+Execution mode only controls the activity refresh window. Stream and activity
+detail ingestion are always state-driven across the full `raw.activities` table:
+all activities with `PENDING` or `FAILED` child-entity status are selected,
+regardless of whether they were included in the current activity refresh window.
+
 ```sh
 Rscript platform.R
 Rscript platform.R backfill
@@ -148,6 +153,9 @@ Streams are ingested in configurable activity ID batches. Each batch is fetched,
 loaded, and status-marked inside its own database transaction so long historical
 backfills can resume after rate limits or interruptions.
 
+Pending stream work is discovered from `raw.activities.stream_status`, not from
+the current activity refresh window.
+
 ## Raw Data Retention
 
 - Retain the complete stream payload returned by the API.
@@ -179,6 +187,9 @@ UPSERT using `activity_id` as the business key.
 Activity details are ingested in configurable activity ID batches. Each batch is
 committed independently and updates `raw.activities.details_status` for
 successful, missing, or failed activity IDs.
+
+Pending detail work is discovered from `raw.activities.details_status`, not from
+the current activity refresh window.
 
 ## Raw Data Retention
 

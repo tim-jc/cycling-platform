@@ -180,11 +180,14 @@ Possible implementation:
 
 * `R/quality/check_raw_<entity>.R`
 * `R/quality/run_data_quality_checks.R`
+* `R/quality/report_raw_status.R`
 * `admin.data_quality_check`
 * `admin.data_quality_check_result`
 
 Results should eventually be included in notifications so routine automation
 surfaces problems without manual database inspection.
+
+Initial SQL sketches are captured in `docs/data_quality_sql.md`.
 
 ## Open Questions
 

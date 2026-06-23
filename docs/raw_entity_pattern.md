@@ -75,6 +75,8 @@ Historical backfill operating guidance is documented in
 Raw endpoint ingestion patterns are documented in
 `docs/ingestion_patterns.md`.
 
+Operational status values are documented in `docs/status_values.md`.
+
 ## Verification
 
 Run the local smoke checks before committing structural changes:

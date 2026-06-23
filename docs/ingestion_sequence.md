@@ -8,6 +8,10 @@ Each execution creates a single `run_id` in `admin.etl_run`.
 
 All entity-level processing is associated with that `run_id` through `admin.etl_run_entity`.
 
+Execution mode controls only the activity refresh window. Child entities are
+always selected by status from `raw.activities`, so pending or failed stream and
+detail work resumes on any platform run.
+
 ## Happy Path
 
 ```text id="9wsu6g"

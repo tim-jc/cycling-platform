@@ -43,6 +43,10 @@ Current entities:
 Use where IDs are discovered from another raw entity and each source request
 fetches child data for one parent ID.
 
+Discovery is state-driven. Child entity work should be selected from status or
+queue metadata across the whole parent table, not from the current activity
+refresh window.
+
 Flow:
 
 ```text

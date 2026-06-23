@@ -18,6 +18,10 @@ Backfill mode uses:
 * `ingestion.stream_activity_batch_size`
 * `ingestion.detail_activity_batch_size`
 
+Backfill mode only changes the activity discovery window. Stream and activity
+detail ingestion remain status-driven and are not limited to activities returned
+by the current activity refresh.
+
 ## Behaviour
 
 The platform refreshes activities first. It then discovers activities requiring
@@ -60,4 +64,5 @@ Rscript platform.R backfill
 ```
 
 The run will select `PENDING` and `FAILED` activity IDs for child-entity
-ingestion and continue from the remaining work.
+ingestion from the full `raw.activities` table and continue from the remaining
+work.
