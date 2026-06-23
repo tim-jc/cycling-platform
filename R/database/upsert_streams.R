@@ -24,18 +24,15 @@ upsert_streams <- function(
     activity_ids = unique(streams$activity_id)
   )
 
-  # Split incoming data
-  streams_to_insert <- dplyr::anti_join(
-    streams,
-    existing_keys,
-    by = c("activity_id", "stream_type")
+  split_rows <- split_existing_rows(
+    data = streams,
+    existing_keys = existing_keys,
+    key_columns = c("activity_id", "stream_type")
   )
 
-  streams_to_update <- dplyr::semi_join(
-    streams,
-    existing_keys,
-    by = c("activity_id", "stream_type")
-  )
+  streams_to_insert <- split_rows$to_insert
+
+  streams_to_update <- split_rows$to_update
 
   rows_inserted <- 0L
   rows_updated <- 0L

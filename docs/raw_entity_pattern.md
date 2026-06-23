@@ -72,6 +72,9 @@ rate limits or interruptions do not discard already-loaded data.
 Historical backfill operating guidance is documented in
 `docs/historical_backfill.md`.
 
+Raw endpoint ingestion patterns are documented in
+`docs/ingestion_patterns.md`.
+
 ## Verification
 
 Run the local smoke checks before committing structural changes:

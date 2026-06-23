@@ -19,35 +19,20 @@ upsert_activity_details <- function(
     )
   }
 
-  placeholders <- paste(
-    rep("?", length(activity_details$activity_id)),
-    collapse = ", "
+  existing_ids <- get_existing_activity_detail_ids(
+    connection = connection,
+    activity_ids = activity_details$activity_id
   )
 
-  sql <- paste0(
-    "SELECT activity_id
-     FROM cycling_platform_raw.activity_details
-     WHERE activity_id IN (",
-    placeholders,
-    ")"
+  split_rows <- split_existing_rows(
+    data = activity_details,
+    existing_keys = existing_ids,
+    key_columns = "activity_id"
   )
 
-  existing_ids <- DBI::dbGetQuery(
-    connection,
-    sql,
-    params = as.list(activity_details$activity_id)
-  )$activity_id
+  activity_details_insert <- split_rows$to_insert
 
-  # Split incoming data
-  activity_details_insert <- dplyr::filter(
-    activity_details,
-    !activity_id %in% existing_ids
-  )
-
-  activity_details_update <- dplyr::filter(
-    activity_details,
-    activity_id %in% existing_ids
-  )
+  activity_details_update <- split_rows$to_update
 
   rows_inserted <- 0L
   rows_updated <- 0L

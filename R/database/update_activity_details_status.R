@@ -38,7 +38,9 @@ update_activity_details_status <- function(
     statement = sql,
     params = c(
       list(details_status),
-      as.list(activity_ids)
+      as.list(
+        unname(activity_ids)
+      )
     )
   )
 }

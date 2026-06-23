@@ -36,7 +36,9 @@ get_existing_stream_keys <- function(
   DBI::dbGetQuery(
     connection,
     sql,
-    params = as.list(activity_ids)
+    params = as.list(
+      unname(activity_ids)
+    )
   ) |>
     dplyr::mutate(
       stream_type = as.character(stream_type)

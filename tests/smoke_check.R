@@ -99,6 +99,42 @@ for (file in setdiff(api_files, direct_request_allowed)) {
   }
 }
 
+message("Checking raw row split helper...")
+
+suppressPackageStartupMessages(
+  library(bit64)
+)
+
+source(
+  file.path("R", "database", "split_existing_rows.R")
+)
+
+split_check_data <- data.frame(
+  activity_id = bit64::as.integer64(
+    c("101", "102", "103")
+  ),
+  stream_type = c(
+    "time",
+    "time",
+    "latlng"
+  )
+)
+
+split_check_existing <- data.frame(
+  activity_id = bit64::as.integer64("102"),
+  stream_type = "time"
+)
+
+split_check <- split_existing_rows(
+  data = split_check_data,
+  existing_keys = split_check_existing,
+  key_columns = c("activity_id", "stream_type")
+)
+
+if (nrow(split_check$to_insert) != 2 || nrow(split_check$to_update) != 1) {
+  fail("split_existing_rows() did not split composite keys correctly")
+}
+
 message("Checking raw SQL table declarations...")
 
 raw_sql_files <- list.files(

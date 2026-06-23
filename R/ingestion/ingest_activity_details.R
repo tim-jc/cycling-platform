@@ -127,8 +127,10 @@ ingest_activity_details <- function(
           c,
           activity_id_batches[first_failed_batch:length(activity_id_batches)]
         )
+
+        failed_ids <- unname(failed_ids)
       } else if (is.na(current_batch)) {
-        failed_ids <- activity_ids
+        failed_ids <- unname(activity_ids)
       }
 
       update_activity_details_status(

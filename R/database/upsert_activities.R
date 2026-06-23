@@ -25,16 +25,15 @@ upsert_activities <- function(
     activity_ids = activities$activity_id
   )
 
-  # Split incoming data
-  activities_insert <- dplyr::filter(
-    activities,
-    !activity_id %in% existing_ids
+  split_rows <- split_existing_rows(
+    data = activities,
+    existing_keys = existing_ids,
+    key_columns = "activity_id"
   )
 
-  activities_update <- dplyr::filter(
-    activities,
-    activity_id %in% existing_ids
-  )
+  activities_insert <- split_rows$to_insert
+
+  activities_update <- split_rows$to_update
 
   rows_inserted <- 0L
   rows_updated <- 0L

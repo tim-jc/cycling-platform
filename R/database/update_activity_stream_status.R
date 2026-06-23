@@ -38,7 +38,9 @@ update_activity_stream_status <- function(
     statement = sql,
     params = c(
       list(stream_status),
-      as.list(activity_ids)
+      as.list(
+        unname(activity_ids)
+      )
     )
   )
 }

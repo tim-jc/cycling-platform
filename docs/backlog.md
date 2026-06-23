@@ -61,7 +61,8 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Add transaction handling to all ingestion workflows
 * [x] Implement API retry handling
 * [x] Implement batched child-entity ingestion for historical backfills
-* [ ] Implement data quality checks
+* [ ] Implement raw-layer data quality checks
+* [x] Document data quality check strategy
 
 ### Medium Priority
 
@@ -76,3 +77,4 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Replace `source()` with `devtools::load_all()`
 * [ ] Externalise schema names
 * [ ] Standardise SQL construction patterns
+* [ ] Implement robust database backup processes

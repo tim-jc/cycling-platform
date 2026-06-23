@@ -1,12 +1,12 @@
-#' Get Existing Activity IDs
+#' Get Existing Activity Detail IDs
 #'
-#' Function to return which of a given set of activity_ids is present in the database
+#' Return activity IDs already present in raw activity details.
 #'
 #' @param connection Database connection.
-#' @param activity_ids Vector of activity IDs to check
+#' @param activity_ids Vector of activity IDs to check.
 #'
-#' @return Vector of activity IDs present in the database
-get_existing_activity_ids <- function(
+#' @return Vector of activity IDs present in raw activity details.
+get_existing_activity_detail_ids <- function(
   connection,
   activity_ids
 ) {
@@ -21,19 +21,17 @@ get_existing_activity_ids <- function(
 
   sql <- paste0(
     "SELECT activity_id
-     FROM cycling_platform_raw.activities
+     FROM cycling_platform_raw.activity_details
      WHERE activity_id IN (",
     placeholders,
     ")"
   )
 
-  existing_activity_ids <- DBI::dbGetQuery(
+  DBI::dbGetQuery(
     connection,
     sql,
     params = as.list(
       unname(activity_ids)
     )
   )$activity_id
-
-  existing_activity_ids
 }
