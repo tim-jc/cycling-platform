@@ -45,6 +45,21 @@ split_existing_rows <- function(
     drop = FALSE
   ]
 
+  for (key_column in key_columns) {
+    uses_integer64 <- bit64::is.integer64(data[[key_column]]) ||
+      bit64::is.integer64(existing_keys[[key_column]])
+
+    if (uses_integer64) {
+      data[[key_column]] <- bit64::as.integer64(
+        data[[key_column]]
+      )
+
+      existing_keys[[key_column]] <- bit64::as.integer64(
+        existing_keys[[key_column]]
+      )
+    }
+  }
+
   list(
     to_insert = dplyr::anti_join(
       data,

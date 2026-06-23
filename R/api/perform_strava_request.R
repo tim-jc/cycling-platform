@@ -23,6 +23,50 @@ perform_strava_request <- function(
     value
   }
 
+  parse_rate_limit_header <- function(value) {
+    if (is.null(value) || is.na(value) || !nzchar(value)) {
+      return(integer())
+    }
+
+    strsplit(
+      value,
+      ",",
+      fixed = TRUE
+    )[[1]] |>
+      trimws() |>
+      as.integer()
+  }
+
+  log_rate_limit_headers <- function(response) {
+    limit_header <- httr2::resp_header(
+      response,
+      "x-ratelimit-limit",
+      default = NA_character_
+    )
+
+    usage_header <- httr2::resp_header(
+      response,
+      "x-ratelimit-usage",
+      default = NA_character_
+    )
+
+    limits <- parse_rate_limit_header(limit_header)
+
+    usage <- parse_rate_limit_header(usage_header)
+
+    if (length(limits) < 2 || length(usage) < 2) {
+      return(invisible(NULL))
+    }
+
+    message(glue::glue(
+      "Strava rate limit usage: ",
+      "15-minute {usage[[1]]}/{limits[[1]]}; ",
+      "daily {usage[[2]]}/{limits[[2]]}."
+    ))
+
+    invisible(NULL)
+  }
+
   api_base_url <- config$sources$strava$api_base_url
 
   timeout_seconds <- value_or_default(
@@ -61,11 +105,24 @@ perform_strava_request <- function(
     )
 
     if (!inherits(response, "error")) {
+      log_rate_limit_headers(response)
+
       return(response)
     }
 
-    is_retryable <- inherits(response, "httr2_http_429") ||
-      inherits(response, "httr2_http_500") ||
+    if (inherits(response, "httr2_http") && !is.null(response$resp)) {
+      log_rate_limit_headers(response$resp)
+    }
+
+    if (inherits(response, "httr2_http_429")) {
+      message(
+        "Rate limit reached; stopping without immediate retry."
+      )
+
+      stop(response)
+    }
+
+    is_retryable <- inherits(response, "httr2_http_500") ||
       inherits(response, "httr2_http_502") ||
       inherits(response, "httr2_http_503") ||
       inherits(response, "httr2_http_504")

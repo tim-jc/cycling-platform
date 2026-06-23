@@ -32,13 +32,18 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Implement `athlete`
 * [ ] Implement `zones`
 * [ ] Implement `routes`
+* [ ] Implement activity detail refresh policy for already-loaded activities
+* [ ] Mark activity details stale when activity summary payload changes
 
 ### Silver Layer
 
 * [ ] Design conformed entities
 * [ ] Build `silver.activities`
+* [ ] Build `silver.activity_streams`
 * [ ] Build `silver.gear`
 * [ ] Build `silver.athlete`
+* [ ] Repoint existing dashboards to conformed silver activities and streams
+* [ ] Decommission legacy dashboard data-preparation code
 
 ### Gold Layer
 
@@ -61,6 +66,9 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Add transaction handling to all ingestion workflows
 * [x] Implement API retry handling
 * [x] Implement batched child-entity ingestion for historical backfills
+* [x] Implement ntfy heartbeat notifications for platform run outcomes
+* [x] Include entity insert/update summary and pending child work in notifications
+* [x] Suppress batch-level notifications to avoid notification fatigue
 * [ ] Implement raw-layer data quality checks
 * [x] Document data quality check strategy
 
@@ -78,3 +86,4 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Externalise schema names
 * [ ] Standardise SQL construction patterns
 * [ ] Implement robust database backup processes
+* [ ] Add rate-limit usage summary to notifications once usage is stored structurally

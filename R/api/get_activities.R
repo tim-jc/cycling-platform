@@ -120,7 +120,9 @@ get_activities <- function(
       run_id = run_id,
       source_id = source_id,
       retrieved_at = retrieved_at,
-      athlete_id = athlete$id,
+      athlete_id = bit64::as.integer64(
+        athlete$id
+      ),
       raw_payload = raw_payload
     ) |>
     dplyr::transmute(
@@ -129,7 +131,9 @@ get_activities <- function(
       retrieved_at,
       raw_payload,
 
-      activity_id = id,
+      activity_id = bit64::as.integer64(
+        id
+      ),
 
       athlete_id,
 

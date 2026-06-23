@@ -63,8 +63,6 @@ get_streams <- function(
 
   stopifnot(request_pause_seconds >= 0)
 
-  n_streams_to_get <- length(activity_ids)
-
   # Track activities with no stream data (HTTP 404)
   not_found_ids <- bit64::integer64()
 
@@ -72,16 +70,6 @@ get_streams <- function(
     seq_along(activity_ids),
     \(i) {
       activity_to_get <- activity_ids[[i]]
-
-      pct_complete <- round(
-        i / n_streams_to_get * 100,
-        digits = 1
-      )
-
-      message(glue::glue(
-        "[{i}/{n_streams_to_get} | {pct_complete}%] ",
-        "Retrieving streams for activity {activity_to_get}"
-      ))
 
       response <- tryCatch(
         {

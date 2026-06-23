@@ -110,9 +110,7 @@ source(
 )
 
 split_check_data <- data.frame(
-  activity_id = bit64::as.integer64(
-    c("101", "102", "103")
-  ),
+  activity_id = c(101, 102, 103),
   stream_type = c(
     "time",
     "time",

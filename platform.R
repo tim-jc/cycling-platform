@@ -38,6 +38,8 @@ run_id <- create_etl_run(
   run_mode = run_mode
 )
 
+platform_error <- NULL
+
 tryCatch(
   {
     ingest_activities(
@@ -99,7 +101,7 @@ tryCatch(
       error_message = conditionMessage(e)
     )
 
-    stop(e)
+    platform_error <<- e
   },
 
   finally = {
@@ -108,5 +110,10 @@ tryCatch(
 )
 
 send_notification(
-  run_id = run_id
+  run_id = run_id,
+  config = config
 )
+
+if (!is.null(platform_error)) {
+  stop(platform_error)
+}

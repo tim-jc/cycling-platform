@@ -37,6 +37,19 @@ Streams and activity details are processed in activity ID batches. Each batch:
 If a batch fails, completed batches remain committed. The current and remaining
 activity IDs are marked `FAILED` and selected again by the next backfill run.
 
+Activity detail batches are deliberately smaller than stream batches because
+rate limits often occur during long detail backfills. Smaller batches reduce
+the number of successfully fetched responses that are lost when a later request
+in the same batch fails.
+
+Strava rate-limit headers are logged for successful API responses:
+
+* `x-ratelimit-limit`
+* `x-ratelimit-usage`
+
+The log message reports both the 15-minute and daily usage windows. These
+headers are the source of truth for the current app quota and usage.
+
 ## Useful Status Checks
 
 ```sql
