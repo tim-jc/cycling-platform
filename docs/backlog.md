@@ -39,7 +39,9 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 * [x] Design conformed entities
 * [ ] Build `silver.activities`
-* [ ] Build `silver.activity_streams`
+* [x] Build `silver.activity_streams`
+* [x] Add repair mode for interrupted `silver.activity_streams` rebuilds
+* [ ] Implement incremental refresh for `silver.activity_streams`
 * [ ] Build `silver.gear`
 * [ ] Build `silver.athlete`
 * [ ] Repoint existing dashboards to conformed silver activities and streams

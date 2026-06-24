@@ -46,6 +46,15 @@ Rscript run_silver.R
 This keeps raw/admin bootstrap safe to rerun without accidentally launching a
 large silver stream expansion.
 
+Silver stream samples are rebuilt in activity batches so long rebuilds provide
+progress feedback and avoid one large opaque database statement.
+
+Interrupted silver stream rebuilds can be resumed in repair mode:
+
+```sh
+Rscript run_silver.R repair
+```
+
 ## ETL Lifecycle
 
 ```text

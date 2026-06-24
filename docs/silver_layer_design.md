@@ -30,10 +30,10 @@ sql/silver/
   200_create_activities.sql
   210_transform_activities.sql
   220_create_activity_streams.sql
-  230_transform_activity_streams.sql
 
 R/transforms/
   run_silver_transformations.R
+  rebuild_silver_activity_streams.R
 ```
 
 `bootstrap_platform.R` should run only create scripts for derived layers. Silver
@@ -54,6 +54,8 @@ Initial strategy:
 * avoid incremental silver logic until raw entity patterns are stable
 * keep rebuilds out of bootstrap so schema setup cannot get stuck on large
   derived table loads
+* rebuild stream samples in activity batches rather than one whole-table SQL
+  statement
 
 Future strategy:
 
@@ -246,6 +248,28 @@ Include enough lineage to trace back to raw stream records:
 * `transformed_at`
 
 Raw stream payloads remain in `raw.activity_streams`.
+
+### Rebuild Behaviour
+
+`silver.activity_streams` is rebuilt by `rebuild_silver_activity_streams()` in
+activity batches. This avoids one long-running opaque `INSERT ... SELECT`,
+limits transaction size, and produces progress messages during large stream
+expansions.
+
+The batch size is controlled by
+`transforms.silver_stream_activity_batch_size` in `config/platform.yml`.
+
+Run modes:
+
+```sh
+Rscript run_silver.R
+Rscript run_silver.R repair
+```
+
+The default mode truncates and fully rebuilds `silver.activity_streams`.
+`repair` mode compares raw stream `original_size` values with existing silver
+row counts, then deletes and rebuilds only missing or incomplete activities.
+This is the preferred recovery path after an interrupted silver stream rebuild.
 
 ## Data Quality Expectations
 

@@ -81,3 +81,8 @@ backups:
   enabled: true
 
   retention_days: 30
+
+transforms:
+
+  # Number of activities processed per silver stream transformation batch
+  silver_stream_activity_batch_size: 10
