@@ -48,7 +48,11 @@ ingestion:
   # API request timeout in seconds
   timeout_seconds: 60
 
+  # Default pause between API requests
   request_pause_seconds: 0.25
+
+  # Detail endpoint appears to have a lower practical throttle than app limits
+  detail_request_pause_seconds: 10
 
 scheduling:
 

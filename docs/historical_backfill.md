@@ -42,6 +42,12 @@ rate limits often occur during long detail backfills. Smaller batches reduce
 the number of successfully fetched responses that are lost when a later request
 in the same batch fails.
 
+Activity detail requests also use a slower endpoint-specific pause. During the
+historical load, Strava returned `429` responses around 100 detail requests per
+15-minute window even though the standard app quota header reported
+`200/15min`. The detail pause is therefore set conservatively to stay below the
+observed practical throttle.
+
 Strava rate-limit headers are logged for successful API responses:
 
 * `x-ratelimit-limit`

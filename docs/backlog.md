@@ -69,6 +69,10 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Implement ntfy heartbeat notifications for platform run outcomes
 * [x] Include entity insert/update summary and pending child work in notifications
 * [x] Suppress batch-level notifications to avoid notification fatigue
+* [ ] Define MariaDB backup and restore procedure
+* [ ] Take raw/admin backup before further schema changes
+* [ ] Add backup runbook to docs
+* [ ] Decide migration strategy for existing databases
 * [ ] Implement raw-layer data quality checks
 * [x] Document data quality check strategy
 
@@ -85,5 +89,4 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Replace `source()` with `devtools::load_all()`
 * [ ] Externalise schema names
 * [ ] Standardise SQL construction patterns
-* [ ] Implement robust database backup processes
 * [ ] Add rate-limit usage summary to notifications once usage is stored structurally

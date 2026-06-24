@@ -44,7 +44,11 @@ get_activity_details <- function(
 
   token <- get_access_token()
 
-  request_pause_seconds <- config$ingestion$request_pause_seconds
+  request_pause_seconds <- config$ingestion$detail_request_pause_seconds
+
+  if (is.null(request_pause_seconds)) {
+    request_pause_seconds <- config$ingestion$request_pause_seconds
+  }
 
   stopifnot(request_pause_seconds >= 0)
 

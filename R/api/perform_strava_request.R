@@ -87,7 +87,10 @@ perform_strava_request <- function(
     paste0(api_base_url, path)
   ) |>
     httr2::req_auth_bearer_token(token) |>
-    httr2::req_timeout(timeout_seconds)
+    httr2::req_timeout(timeout_seconds) |>
+    httr2::req_options(
+      connecttimeout = timeout_seconds
+    )
 
   if (length(query) > 0) {
     request <- do.call(
@@ -122,7 +125,8 @@ perform_strava_request <- function(
       stop(response)
     }
 
-    is_retryable <- inherits(response, "httr2_http_500") ||
+    is_retryable <- inherits(response, "httr2_failure") ||
+      inherits(response, "httr2_http_500") ||
       inherits(response, "httr2_http_502") ||
       inherits(response, "httr2_http_503") ||
       inherits(response, "httr2_http_504")
@@ -139,7 +143,8 @@ perform_strava_request <- function(
     message(glue::glue(
       "Strava request failed with a transient error; ",
       "retrying in {pause_seconds}s ",
-      "({attempt}/{total_attempts})."
+      "({attempt}/{total_attempts}). ",
+      "Error: {conditionMessage(response)}"
     ))
 
     Sys.sleep(pause_seconds)
