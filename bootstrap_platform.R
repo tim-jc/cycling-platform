@@ -5,24 +5,27 @@ connection <- get_connection("mysql")
 
 tryCatch(
   {
-    sql_directories <- c(
-      "install",
-      "admin",
-      "raw",
-      "silver",
-      "gold"
-    )
+    list_sql_files <- function(directory, pattern = "\\.sql$") {
+      path <- file.path("sql", directory)
 
-    sql_files <- purrr::map(
-      sql_directories,
-      \(directory) {
-        list.files(
-          path = file.path("sql", directory),
-          pattern = "\\.sql$",
-          full.names = TRUE
-        ) |>
-          sort()
+      if (!dir.exists(path)) {
+        return(character())
       }
+
+      list.files(
+        path = path,
+        pattern = pattern,
+        full.names = TRUE
+      ) |>
+        sort()
+    }
+
+    sql_files <- list(
+      list_sql_files("install"),
+      list_sql_files("admin"),
+      list_sql_files("raw"),
+      list_sql_files("silver", "^[0-9]+_create_.*\\.sql$"),
+      list_sql_files("gold", "^[0-9]+_create_.*\\.sql$")
     ) |>
       unlist(use.names = FALSE)
 

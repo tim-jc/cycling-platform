@@ -10,26 +10,9 @@ run_silver_transformations <- function(
   connection,
   sql_dir = file.path("sql", "silver")
 ) {
-  stopifnot(dir.exists(sql_dir))
-
-  sql_files <- list.files(
-    path = sql_dir,
-    pattern = "\\.sql$",
-    full.names = TRUE
-  ) |>
-    sort()
-
-  if (length(sql_files) == 0) {
-    message("No silver transformation SQL files found.")
-
-    return(invisible(NULL))
-  }
-
-  purrr::walk(
-    sql_files,
-    execute_sql_file,
-    connection = connection
+  run_sql_directory(
+    connection = connection,
+    sql_dir = sql_dir,
+    layer_name = "silver transformation"
   )
-
-  invisible(NULL)
 }

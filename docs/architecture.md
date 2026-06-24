@@ -30,6 +30,22 @@ The platform is organised into the following logical layers:
 
 Silver layer design is documented in `docs/silver_layer_design.md`.
 
+## Bootstrap and Derived Layers
+
+`bootstrap_platform.R` is for database and table setup. It runs install, admin,
+raw, and derived-layer create scripts only. It should not run silver or gold
+transformation scripts because those can be long-running rebuilds over existing
+raw data.
+
+Derived layers are refreshed explicitly:
+
+```sh
+Rscript run_silver.R
+```
+
+This keeps raw/admin bootstrap safe to rerun without accidentally launching a
+large silver stream expansion.
+
 ## ETL Lifecycle
 
 ```text

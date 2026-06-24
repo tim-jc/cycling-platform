@@ -36,6 +36,10 @@ R/transforms/
   run_silver_transformations.R
 ```
 
+`bootstrap_platform.R` should run only create scripts for derived layers. Silver
+transformation scripts are intentionally excluded from bootstrap and should be
+run explicitly with `Rscript run_silver.R`.
+
 Use R for orchestration, run metadata, data quality checks, and any later
 analytics that are awkward in SQL.
 
@@ -48,6 +52,8 @@ Initial strategy:
 * truncate and reload silver tables after raw ingestion
 * keep transformations deterministic
 * avoid incremental silver logic until raw entity patterns are stable
+* keep rebuilds out of bootstrap so schema setup cannot get stuck on large
+  derived table loads
 
 Future strategy:
 

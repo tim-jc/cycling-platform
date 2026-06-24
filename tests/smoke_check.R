@@ -15,7 +15,8 @@ r_files <- c(
   r_files,
   "bootstrap.R",
   "bootstrap_platform.R",
-  "platform.R"
+  "platform.R",
+  "run_silver.R"
 )
 
 parse_failures <- lapply(
@@ -146,7 +147,8 @@ expected_tables <- c(
   "raw/100_create_activities.sql" = "cycling_platform_raw.activities",
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
-  "silver/200_create_activities.sql" = "cycling_platform_silver.activities"
+  "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
+  "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
 )
 
 for (file in sql_files) {
@@ -179,6 +181,17 @@ for (file in sql_files) {
       )
     )
   }
+}
+
+message("Checking bootstrap excludes transformation SQL...")
+
+bootstrap_text <- paste(
+  readLines("bootstrap_platform.R", warn = FALSE),
+  collapse = "\n"
+)
+
+if (!grepl("^[0-9]+_create_", bootstrap_text, fixed = TRUE)) {
+  fail("bootstrap_platform.R should only run create SQL for derived layers")
 }
 
 message("Smoke checks passed.")
