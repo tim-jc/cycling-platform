@@ -133,22 +133,28 @@ if (nrow(split_check$to_insert) != 2 || nrow(split_check$to_update) != 1) {
   fail("split_existing_rows() did not split composite keys correctly")
 }
 
-message("Checking raw SQL table declarations...")
+message("Checking SQL table declarations...")
 
-raw_sql_files <- list.files(
-  file.path("sql", "raw"),
+sql_files <- list.files(
+  "sql",
   pattern = "[.]sql$",
+  recursive = TRUE,
   full.names = TRUE
 )
 
 expected_tables <- c(
-  "100_create_activities.sql" = "cycling_platform_raw.activities",
-  "110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
-  "120_create_activity_details.sql" = "cycling_platform_raw.activity_details"
+  "raw/100_create_activities.sql" = "cycling_platform_raw.activities",
+  "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
+  "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
+  "silver/200_create_activities.sql" = "cycling_platform_silver.activities"
 )
 
-for (file in raw_sql_files) {
-  file_name <- basename(file)
+for (file in sql_files) {
+  file_name <- sub(
+    "^sql/",
+    "",
+    file
+  )
 
   if (!file_name %in% names(expected_tables)) {
     next

@@ -37,7 +37,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 ### Silver Layer
 
-* [ ] Design conformed entities
+* [x] Design conformed entities
 * [ ] Build `silver.activities`
 * [ ] Build `silver.activity_streams`
 * [ ] Build `silver.gear`
@@ -74,6 +74,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Add backup runbook to docs
 * [ ] Decide migration strategy for existing databases
 * [ ] Implement raw-layer data quality checks
+* [ ] Add DQ checks comparing promoted raw columns to source payload values
 * [x] Document data quality check strategy
 
 ### Medium Priority

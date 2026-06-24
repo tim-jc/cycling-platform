@@ -146,6 +146,45 @@ WHERE details_payload IS NULL
    OR details_payload = '';
 ```
 
+## Promoted Column Reconciliation
+
+Promoted raw columns should match the corresponding source payload value when
+they are direct extracts. These sketches intentionally compare only fields where
+the relationship should be straightforward.
+
+```sql
+SELECT activity_id, JSON_VALUE(raw_payload, '$.id') AS payload_activity_id
+FROM cycling_platform_raw.activities
+WHERE CAST(activity_id AS CHAR) <> JSON_VALUE(raw_payload, '$.id');
+
+SELECT
+  activity_id,
+  sport_type,
+  JSON_VALUE(raw_payload, '$.sport_type') AS payload_sport_type
+FROM cycling_platform_raw.activities
+WHERE sport_type <> JSON_VALUE(raw_payload, '$.sport_type');
+
+SELECT
+  activity_id,
+  distance,
+  JSON_VALUE(raw_payload, '$.distance') AS payload_distance
+FROM cycling_platform_raw.activities
+WHERE ABS(distance - CAST(JSON_VALUE(raw_payload, '$.distance') AS DECIMAL(18,6))) > 0.000001;
+
+SELECT
+  activity_id,
+  moving_time,
+  JSON_VALUE(raw_payload, '$.moving_time') AS payload_moving_time
+FROM cycling_platform_raw.activities
+WHERE moving_time <> CAST(JSON_VALUE(raw_payload, '$.moving_time') AS SIGNED);
+
+SELECT
+  d.activity_id,
+  JSON_VALUE(d.details_payload, '$.id') AS payload_activity_id
+FROM cycling_platform_raw.activity_details d
+WHERE CAST(d.activity_id AS CHAR) <> JSON_VALUE(d.details_payload, '$.id');
+```
+
 ## Payload Checksums
 
 MariaDB can compute hashes over stored payload text. This is useful as a first

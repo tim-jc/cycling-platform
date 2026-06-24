@@ -28,6 +28,8 @@ The platform is organised into the following logical layers:
 * `silver`
 * `gold`
 
+Silver layer design is documented in `docs/silver_layer_design.md`.
+
 ## ETL Lifecycle
 
 ```text

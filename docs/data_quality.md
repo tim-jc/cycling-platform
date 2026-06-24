@@ -60,6 +60,25 @@ If checksums are computed from raw JSON text, formatting or key-order changes
 can produce false positives. For stream arrays this is less risky, but activity
 and detail payloads may need canonical JSON before checksums are reliable.
 
+### Promoted Column Reconciliation Checks
+
+Promoted raw columns are convenient cached extracts from source payloads. They
+should therefore reconcile back to the corresponding JSON values wherever the
+relationship is direct.
+
+Examples:
+
+* `raw.activities.activity_id` should match `raw_payload.id`.
+* `raw.activities.sport_type` should match `raw_payload.sport_type`.
+* promoted distance, duration, elevation, and speed fields should match their
+  equivalent payload fields after type conversion.
+* `raw.activity_details.activity_id` should match `details_payload.id`.
+
+If a promoted column and payload value disagree, curated layers should treat the
+payload as authoritative and the mismatch should be surfaced as a data quality
+failure. These checks protect the silver-layer rule that promoted columns may be
+used for efficiency only when they remain equivalent to the source payload.
+
 ### Completeness Checks
 
 * Activities in scope for a run are loaded.
@@ -171,10 +190,11 @@ Near-term checks:
 2. child rows without parent activities
 3. invalid or empty payloads
 4. stream and detail payload checksum drift
-5. status fields that do not match child table data
-6. stale `PENDING` statuses
-7. unexplained `NOT_FOUND` statuses
-8. recent failed entity runs
+5. promoted raw columns that do not match source payload values
+6. status fields that do not match child table data
+7. stale `PENDING` statuses
+8. unexplained `NOT_FOUND` statuses
+9. recent failed entity runs
 
 Possible implementation:
 

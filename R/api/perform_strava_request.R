@@ -131,7 +131,16 @@ perform_strava_request <- function(
       inherits(response, "httr2_http_503") ||
       inherits(response, "httr2_http_504")
 
-    if (!is_retryable || attempt == total_attempts) {
+    if (!is_retryable) {
+      stop(response)
+    }
+
+    if (attempt == total_attempts) {
+      message(glue::glue(
+        "Strava request failed after {total_attempts} attempts. ",
+        "Error: {conditionMessage(response)}"
+      ))
+
       stop(response)
     }
 
