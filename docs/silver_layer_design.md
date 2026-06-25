@@ -257,7 +257,13 @@ limits transaction size, and produces progress messages during large stream
 expansions.
 
 The batch size is controlled by
-`transforms.silver_stream_activity_batch_size` in `config/platform.yml`.
+`transforms.silver_stream_activity_batch_size` and
+`transforms.silver_stream_batch_max_expected_rows` in `config/platform.yml`.
+
+Batches are planned using both activity count and expected stream row count.
+Expected row count comes from `MAX(original_size)` in
+`raw.activity_streams`. This keeps short activities grouped efficiently while
+long rides are isolated into smaller database statements.
 
 Run modes:
 

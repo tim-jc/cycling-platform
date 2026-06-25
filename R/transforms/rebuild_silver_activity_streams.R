@@ -1,33 +1,33 @@
-#' Get Silver Stream Activity IDs
+#' Get Silver Stream Activity Plan
 #'
-#' Return activity IDs with raw stream data.
+#' Return activity IDs with raw stream data and expected silver row counts.
 #'
 #' @param connection Database connection.
 #'
-#' @return Vector of activity IDs.
-get_silver_stream_activity_ids <- function(connection) {
-  activity_ids <- DBI::dbGetQuery(
+#' @return Data frame with activity_id and expected_row_count.
+get_silver_stream_activity_plan <- function(connection) {
+  DBI::dbGetQuery(
     conn = connection,
     statement = "
-      SELECT activity_id
+      SELECT
+          activity_id,
+          MAX(original_size) AS expected_row_count
       FROM cycling_platform_raw.activity_streams
       GROUP BY activity_id
       ORDER BY activity_id
     "
   )
-
-  activity_ids$activity_id
 }
 
-#' Get Silver Stream Repair Activity IDs
+#' Get Silver Stream Repair Activity Plan
 #'
-#' Return activity IDs where silver stream rows are missing or incomplete.
+#' Return activities where silver stream rows are missing or incomplete.
 #'
 #' @param connection Database connection.
 #'
-#' @return Vector of activity IDs.
-get_silver_stream_repair_activity_ids <- function(connection) {
-  activity_ids <- DBI::dbGetQuery(
+#' @return Data frame with activity_id and expected_row_count.
+get_silver_stream_repair_activity_plan <- function(connection) {
+  DBI::dbGetQuery(
     conn = connection,
     statement = "
       WITH raw_summary AS (
@@ -44,7 +44,9 @@ get_silver_stream_repair_activity_ids <- function(connection) {
           FROM cycling_platform_silver.activity_streams
           GROUP BY activity_id
       )
-      SELECT raw_summary.activity_id
+      SELECT
+          raw_summary.activity_id,
+          raw_summary.expected_row_count
       FROM raw_summary
       LEFT JOIN silver_summary
           ON silver_summary.activity_id = raw_summary.activity_id
@@ -53,8 +55,79 @@ get_silver_stream_repair_activity_ids <- function(connection) {
       ORDER BY raw_summary.activity_id
     "
   )
+}
 
-  activity_ids$activity_id
+#' Build Silver Stream Activity Batches
+#'
+#' Pack activities into batches using both activity count and expected row count.
+#'
+#' @param activity_plan Data frame with activity_id and expected_row_count.
+#' @param max_activities Maximum activities per batch.
+#' @param max_expected_rows Maximum expected rows per batch.
+#'
+#' @return List of activity plan data frames.
+build_silver_stream_activity_batches <- function(
+  activity_plan,
+  max_activities,
+  max_expected_rows
+) {
+  stopifnot(max_activities > 0)
+  stopifnot(max_expected_rows > 0)
+
+  if (nrow(activity_plan) == 0) {
+    return(list())
+  }
+
+  if (!"expected_row_count" %in% names(activity_plan)) {
+    stop(
+      "Activity plan must include expected_row_count.",
+      call. = FALSE
+    )
+  }
+
+  activity_plan$expected_row_count <- as.numeric(
+    as.character(activity_plan$expected_row_count)
+  )
+
+  if (any(is.na(activity_plan$expected_row_count))) {
+    stop(
+      "Activity plan contains missing expected row counts.",
+      call. = FALSE
+    )
+  }
+
+  batches <- list()
+  current_batch <- activity_plan[0, , drop = FALSE]
+  current_expected_rows <- 0L
+
+  for (row_index in seq_len(nrow(activity_plan))) {
+    activity_row <- activity_plan[row_index, , drop = FALSE]
+    activity_expected_rows <- activity_row$expected_row_count[[1]]
+
+    would_exceed_activity_limit <- nrow(current_batch) >= max_activities
+    would_exceed_row_limit <- nrow(current_batch) > 0 &&
+      current_expected_rows + activity_expected_rows > max_expected_rows
+
+    if (would_exceed_activity_limit || would_exceed_row_limit) {
+      batches[[length(batches) + 1L]] <- current_batch
+
+      current_batch <- activity_plan[0, , drop = FALSE]
+      current_expected_rows <- 0L
+    }
+
+    current_batch <- rbind(
+      current_batch,
+      activity_row
+    )
+
+    current_expected_rows <- current_expected_rows + activity_expected_rows
+  }
+
+  if (nrow(current_batch) > 0) {
+    batches[[length(batches) + 1L]] <- current_batch
+  }
+
+  batches
 }
 
 #' Format Activity ID Filter
@@ -297,7 +370,8 @@ insert_silver_activity_stream_batch <- function(
 #' Truncate and rebuild silver stream samples in activity batches.
 #'
 #' @param connection Database connection.
-#' @param batch_size Number of activities to process per batch.
+#' @param batch_size Maximum number of activities to process per batch.
+#' @param max_expected_rows Maximum expected stream rows per batch.
 #' @param mode Use `full` to truncate and rebuild every activity, or `repair`
 #'   to rebuild only activities with missing or incomplete silver rows.
 #'
@@ -305,6 +379,7 @@ insert_silver_activity_stream_batch <- function(
 rebuild_silver_activity_streams <- function(
   connection,
   batch_size = 10L,
+  max_expected_rows = 20000L,
   mode = c(
     "full",
     "repair"
@@ -313,6 +388,7 @@ rebuild_silver_activity_streams <- function(
   mode <- match.arg(mode)
 
   stopifnot(batch_size > 0)
+  stopifnot(max_expected_rows > 0)
 
   if (mode == "full") {
     message("Truncating silver activity streams.")
@@ -322,20 +398,21 @@ rebuild_silver_activity_streams <- function(
       statement = "TRUNCATE TABLE cycling_platform_silver.activity_streams"
     )
 
-    activity_ids <- get_silver_stream_activity_ids(
+    activity_plan <- get_silver_stream_activity_plan(
       connection = connection
     )
   } else {
     message("Repairing incomplete silver activity streams.")
 
-    activity_ids <- get_silver_stream_repair_activity_ids(
+    activity_plan <- get_silver_stream_repair_activity_plan(
       connection = connection
     )
   }
 
-  activity_batches <- chunk_vector(
-    x = activity_ids,
-    chunk_size = batch_size
+  activity_batches <- build_silver_stream_activity_batches(
+    activity_plan = activity_plan,
+    max_activities = batch_size,
+    max_expected_rows = max_expected_rows
   )
 
   if (length(activity_batches) == 0) {
@@ -346,8 +423,9 @@ rebuild_silver_activity_streams <- function(
 
   message(glue::glue(
     "Rebuilding silver activity streams for ",
-    "{length(activity_ids)} activities in ",
-    "{length(activity_batches)} batches."
+    "{nrow(activity_plan)} activities in ",
+    "{length(activity_batches)} batches ",
+    "(max {batch_size} activities or {max_expected_rows} expected rows)."
   ))
 
   total_rows_deleted <- 0L
@@ -356,20 +434,24 @@ rebuild_silver_activity_streams <- function(
   purrr::iwalk(
     activity_batches,
     \(activity_batch, batch_index) {
+      activity_ids <- activity_batch$activity_id
+      expected_rows <- sum(activity_batch$expected_row_count)
+
       message(glue::glue(
         "Processing silver stream batch {batch_index}/",
         "{length(activity_batches)} ",
-        "({length(activity_batch)} activities)."
+        "({length(activity_ids)} activities, ",
+        "{expected_rows} expected rows)."
       ))
 
       rows_deleted <- delete_silver_activity_streams(
         connection = connection,
-        activity_ids = activity_batch
+        activity_ids = activity_ids
       )
 
       rows_inserted <- insert_silver_activity_stream_batch(
         connection = connection,
-        activity_ids = activity_batch
+        activity_ids = activity_ids
       )
 
       total_rows_deleted <<- total_rows_deleted + rows_deleted

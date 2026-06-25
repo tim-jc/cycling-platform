@@ -16,9 +16,15 @@ run_silver_transformations <- function(
   stream_rebuild_mode = "full"
 ) {
   silver_stream_batch_size <- config$transforms$silver_stream_activity_batch_size
+  silver_stream_batch_max_expected_rows <-
+    config$transforms$silver_stream_batch_max_expected_rows
 
   if (is.null(silver_stream_batch_size)) {
     silver_stream_batch_size <- 10L
+  }
+
+  if (is.null(silver_stream_batch_max_expected_rows)) {
+    silver_stream_batch_max_expected_rows <- 20000L
   }
 
   run_sql_directory(
@@ -31,6 +37,7 @@ run_silver_transformations <- function(
   rebuild_silver_activity_streams(
     connection = connection,
     batch_size = silver_stream_batch_size,
+    max_expected_rows = silver_stream_batch_max_expected_rows,
     mode = stream_rebuild_mode
   )
 }
