@@ -38,9 +38,11 @@ Expand the raw layer with additional Strava entities required for analytics and 
 ### Silver Layer
 
 * [x] Design conformed entities
-* [ ] Build `silver.activities`
+* [x] Build `silver.activities`
 * [x] Build `silver.activity_streams`
 * [x] Add repair mode for interrupted `silver.activity_streams` rebuilds
+* [x] Add transform logging for `silver.activity_streams`
+* [x] Add transform logging for `silver.activities`
 * [ ] Implement incremental refresh for `silver.activity_streams`
 * [ ] Build `silver.gear`
 * [ ] Build `silver.athlete`

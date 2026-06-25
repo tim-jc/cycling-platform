@@ -169,6 +169,11 @@ Metric/SI fields should remain canonical. Imperial fields such as
 `distance_miles` and `average_speed_miles_per_hour` are convenience columns for
 dashboards and should be derived consistently in silver.
 
+Silver activity rebuilds write run and single-batch progress to
+`cycling_platform_admin.transform_run` and
+`cycling_platform_admin.transform_run_batch`. The log records expected raw
+activity rows, inserted silver rows, timing, and failures.
+
 ## `silver.activity_streams`
 
 ### Grain
@@ -276,6 +281,12 @@ The default mode truncates and fully rebuilds `silver.activity_streams`.
 `repair` mode compares raw stream `original_size` values with existing silver
 row counts, then deletes and rebuilds only missing or incomplete activities.
 This is the preferred recovery path after an interrupted silver stream rebuild.
+
+Silver stream rebuilds write run and batch progress to
+`cycling_platform_admin.transform_run` and
+`cycling_platform_admin.transform_run_batch`. These logs record planned and
+completed batches, activity counts, expected rows, inserted/deleted rows,
+duration, and failures.
 
 ## Data Quality Expectations
 

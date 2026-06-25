@@ -30,8 +30,14 @@ run_silver_transformations <- function(
   run_sql_directory(
     connection = connection,
     sql_dir = sql_dir,
-    layer_name = "silver table and activity transformation",
-    exclude_pattern = "^230_transform_activity_streams\\.sql$"
+    layer_name = "silver table creation",
+    pattern = "^[0-9]+_create_.*\\.sql$"
+  )
+
+  rebuild_silver_activities(
+    connection = connection,
+    sql_dir = sql_dir,
+    mode = "full"
   )
 
   rebuild_silver_activity_streams(

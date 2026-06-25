@@ -55,6 +55,21 @@ Interrupted silver stream rebuilds can be resumed in repair mode:
 Rscript run_silver.R repair
 ```
 
+## Transform Logging
+
+Silver and gold transformations should write operational metadata to admin
+tables. The initial implementation logs silver activity and stream rebuilds:
+
+* `cycling_platform_admin.transform_run`: one row per transform run, including
+  layer, entity, mode, status, planned batches, completed batches, activities,
+  expected rows, inserted/deleted rows, timing, and errors.
+* `cycling_platform_admin.transform_run_batch`: one row per transform batch,
+  including batch number, status, activity count, expected rows,
+  inserted/deleted rows, activity ID range, timing, and errors.
+
+This supports progress tracking, recovery after failed batches, performance
+review, and future automation notifications.
+
 ## ETL Lifecycle
 
 ```text

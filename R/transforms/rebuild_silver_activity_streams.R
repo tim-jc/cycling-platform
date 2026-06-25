@@ -428,42 +428,169 @@ rebuild_silver_activity_streams <- function(
     "(max {batch_size} activities or {max_expected_rows} expected rows)."
   ))
 
+  ensure_transform_logging_tables(
+    connection = connection
+  )
+
+  transform_run_id <- create_transform_run(
+    connection = connection,
+    layer_name = "silver",
+    entity_name = "activity_streams",
+    run_mode = mode,
+    total_batches = length(activity_batches),
+    activities_planned = nrow(activity_plan),
+    expected_rows_planned = sum(activity_plan$expected_row_count),
+    max_batch_activities = batch_size,
+    max_batch_expected_rows = max_expected_rows
+  )
+
+  safe_update_transform_run <- function(...) {
+    tryCatch(
+      update_transform_run(...),
+      error = function(e) {
+        message(glue::glue(
+          "Unable to update transform run log: {conditionMessage(e)}"
+        ))
+      }
+    )
+  }
+
+  safe_update_transform_run_batch <- function(...) {
+    tryCatch(
+      update_transform_run_batch(...),
+      error = function(e) {
+        message(glue::glue(
+          "Unable to update transform batch log: {conditionMessage(e)}"
+        ))
+      }
+    )
+  }
+
+  completed_batches <- 0L
+  activities_completed <- 0L
   total_rows_deleted <- 0L
   total_rows_inserted <- 0L
 
-  purrr::iwalk(
-    activity_batches,
-    \(activity_batch, batch_index) {
-      activity_ids <- activity_batch$activity_id
-      expected_rows <- sum(activity_batch$expected_row_count)
+  run_error <- tryCatch(
+    {
+      purrr::iwalk(
+        activity_batches,
+        \(activity_batch, batch_index) {
+          activity_ids <- activity_batch$activity_id
+          expected_rows <- sum(activity_batch$expected_row_count)
 
-      message(glue::glue(
-        "Processing silver stream batch {batch_index}/",
-        "{length(activity_batches)} ",
-        "({length(activity_ids)} activities, ",
-        "{expected_rows} expected rows)."
-      ))
+          message(glue::glue(
+            "Processing silver stream batch {batch_index}/",
+            "{length(activity_batches)} ",
+            "({length(activity_ids)} activities, ",
+            "{expected_rows} expected rows)."
+          ))
 
-      rows_deleted <- delete_silver_activity_streams(
-        connection = connection,
-        activity_ids = activity_ids
+          transform_run_batch_id <- create_transform_run_batch(
+            connection = connection,
+            transform_run_id = transform_run_id,
+            batch_number = batch_index,
+            activity_ids = activity_ids,
+            expected_rows = expected_rows
+          )
+
+          rows_deleted <- 0L
+          rows_inserted <- 0L
+
+          batch_error <- tryCatch(
+            {
+              rows_deleted <- delete_silver_activity_streams(
+                connection = connection,
+                activity_ids = activity_ids
+              )
+
+              rows_inserted <- insert_silver_activity_stream_batch(
+                connection = connection,
+                activity_ids = activity_ids
+              )
+
+              NULL
+            },
+            error = function(e) {
+              e
+            }
+          )
+
+          if (!is.null(batch_error)) {
+            safe_update_transform_run_batch(
+              connection = connection,
+              transform_run_batch_id = transform_run_batch_id,
+              batch_status = "FAILED",
+              rows_inserted = rows_inserted,
+              rows_deleted = rows_deleted,
+              error_message = conditionMessage(batch_error)
+            )
+
+            stop(batch_error)
+          }
+
+          completed_batches <<- completed_batches + 1L
+          activities_completed <<- activities_completed + length(activity_ids)
+          total_rows_deleted <<- total_rows_deleted + rows_deleted
+          total_rows_inserted <<- total_rows_inserted + rows_inserted
+
+          update_transform_run_batch(
+            connection = connection,
+            transform_run_batch_id = transform_run_batch_id,
+            batch_status = "SUCCESS",
+            rows_inserted = rows_inserted,
+            rows_deleted = rows_deleted
+          )
+
+          update_transform_run(
+            connection = connection,
+            transform_run_id = transform_run_id,
+            run_status = "RUNNING",
+            completed_batches = completed_batches,
+            activities_completed = activities_completed,
+            rows_inserted = total_rows_inserted,
+            rows_deleted = total_rows_deleted
+          )
+
+          message(glue::glue(
+            "Completed silver stream batch {batch_index}/",
+            "{length(activity_batches)}: ",
+            "{rows_deleted} rows deleted, ",
+            "{rows_inserted} rows inserted."
+          ))
+        }
       )
 
-      rows_inserted <- insert_silver_activity_stream_batch(
-        connection = connection,
-        activity_ids = activity_ids
-      )
-
-      total_rows_deleted <<- total_rows_deleted + rows_deleted
-      total_rows_inserted <<- total_rows_inserted + rows_inserted
-
-      message(glue::glue(
-        "Completed silver stream batch {batch_index}/",
-        "{length(activity_batches)}: ",
-        "{rows_deleted} rows deleted, ",
-        "{rows_inserted} rows inserted."
-      ))
+      NULL
+    },
+    error = function(e) {
+      e
     }
+  )
+
+  if (!is.null(run_error)) {
+    safe_update_transform_run(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      run_status = "FAILED",
+      completed_batches = completed_batches,
+      activities_completed = activities_completed,
+      rows_inserted = total_rows_inserted,
+      rows_deleted = total_rows_deleted,
+      error_message = conditionMessage(run_error)
+    )
+
+    stop(run_error)
+  }
+
+  update_transform_run(
+    connection = connection,
+    transform_run_id = transform_run_id,
+    run_status = "SUCCESS",
+    completed_batches = completed_batches,
+    activities_completed = activities_completed,
+    rows_inserted = total_rows_inserted,
+    rows_deleted = total_rows_deleted
   )
 
   message(glue::glue(
