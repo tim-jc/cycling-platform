@@ -62,6 +62,10 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.activities (
 
     details_attempted_at DATETIME NULL,
 
+    laps_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+
+    laps_attempted_at DATETIME NULL,
+
     updated_at DATETIME NOT NULL
         DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,

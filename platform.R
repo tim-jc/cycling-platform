@@ -86,6 +86,24 @@ tryCatch(
       )
     }
 
+    lap_activity_ids <- get_pending_lap_activity_ids(
+      connection = connection
+    )
+
+    if (length(lap_activity_ids) == 0) {
+      message(
+        "No activities require lap ingestion."
+      )
+    } else {
+      ingest_activity_laps(
+        connection = connection,
+        run_id = run_id,
+        source_id = 1L,
+        activity_ids = lap_activity_ids,
+        config = config
+      )
+    }
+
     update_etl_run(
       connection = connection,
       run_id = run_id,

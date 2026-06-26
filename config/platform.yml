@@ -42,6 +42,9 @@ ingestion:
   # Number of activity IDs processed per detail ingestion transaction
   detail_activity_batch_size: 10
 
+  # Number of activity IDs processed per lap ingestion transaction
+  lap_activity_batch_size: 25
+
   # Maximum retries before failing an ingestion run
   max_retries: 3
 
@@ -53,6 +56,9 @@ ingestion:
 
   # Detail endpoint appears to have a lower practical throttle than app limits
   detail_request_pause_seconds: 10
+
+  # Default pause between lap endpoint requests
+  lap_request_pause_seconds: 0.25
 
 scheduling:
 

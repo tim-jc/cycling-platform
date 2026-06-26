@@ -34,6 +34,7 @@ INSERT INTO cycling_platform_silver.activities (
     is_trainer,
     has_streams,
     has_details,
+    has_laps,
     raw_activity_retrieved_at,
     raw_detail_retrieved_at,
     transformed_at
@@ -82,6 +83,11 @@ SELECT
         WHERE s.activity_id = a.activity_id
     ) AS has_streams,
     d.activity_id IS NOT NULL AS has_details,
+    EXISTS (
+        SELECT 1
+        FROM cycling_platform_raw.activity_laps l
+        WHERE l.activity_id = a.activity_id
+    ) AS has_laps,
     a.retrieved_at AS raw_activity_retrieved_at,
     d.retrieved_at AS raw_detail_retrieved_at,
     UTC_TIMESTAMP() AS transformed_at

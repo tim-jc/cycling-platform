@@ -13,6 +13,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Implement `upsert_activity_details()`
 * [x] Add `details_status` to `raw.activities`
 * [x] Implement resumable activity details ingestion
+* [x] Implement resumable activity laps ingestion
 * [ ] Load full activity details history
 
 ### Exit Criteria
@@ -32,13 +33,14 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Implement `athlete`
 * [ ] Implement `zones`
 * [ ] Implement `routes`
+* [x] Implement `activity_laps`
 * [ ] Implement activity detail refresh policy for already-loaded activities
 * [ ] Mark activity details stale when activity summary payload changes
 
 ### Silver Layer
 
 * [x] Design conformed entities
-* [x] Build `silver.activities`
+* [ ] Update `silver.activities` to add `has_laps`
 * [x] Build `silver.activity_streams`
 * [x] Add repair mode for interrupted `silver.activity_streams` rebuilds
 * [x] Add transform logging for `silver.activity_streams`
@@ -46,6 +48,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Implement incremental refresh for `silver.activity_streams`
 * [ ] Build `silver.gear`
 * [ ] Build `silver.athlete`
+* [ ] Build `silver.laps`
 * [ ] Repoint existing dashboards to conformed silver activities and streams
 * [ ] Decommission legacy dashboard data-preparation code
 
@@ -95,3 +98,4 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Externalise schema names
 * [ ] Standardise SQL construction patterns
 * [ ] Add rate-limit usage summary to notifications once usage is stored structurally
+* [ ] Method to detect new fields being returned by any API endpoint

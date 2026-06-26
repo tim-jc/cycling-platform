@@ -34,6 +34,7 @@ Current fields:
 
 * `stream_status`
 * `details_status`
+* `laps_status`
 
 | Status | Meaning | Retry Behaviour |
 | --- | --- | --- |
@@ -51,7 +52,8 @@ and `trainer`.
 
 `SUCCESS` should reconcile to actual child table data. For example,
 `stream_status = 'SUCCESS'` should have corresponding rows in
-`raw.activity_streams`.
+`raw.activity_streams`; `laps_status = 'SUCCESS'` should have corresponding
+rows in `raw.activity_laps`.
 
 ## Future Enforcement
 

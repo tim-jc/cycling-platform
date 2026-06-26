@@ -105,7 +105,11 @@ send_notification <- function(
             COALESCE(
               SUM(details_status IN ('PENDING', 'FAILED')),
               0
-            ) AS details_remaining
+            ) AS details_remaining,
+            COALESCE(
+              SUM(laps_status IN ('PENDING', 'FAILED')),
+              0
+            ) AS laps_remaining
           FROM cycling_platform_raw.activities
         "
       )
@@ -157,7 +161,8 @@ send_notification <- function(
 
       pending_line <- glue::glue(
         "Pending: streams {pending_summary$streams_remaining[[1]]} · ",
-        "details {pending_summary$details_remaining[[1]]}"
+        "details {pending_summary$details_remaining[[1]]} · ",
+        "laps {pending_summary$laps_remaining[[1]]}"
       )
 
       body_lines <- c(

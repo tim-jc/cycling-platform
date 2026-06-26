@@ -9,8 +9,8 @@ Each execution creates a single `run_id` in `admin.etl_run`.
 All entity-level processing is associated with that `run_id` through `admin.etl_run_entity`.
 
 Execution mode controls only the activity refresh window. Child entities are
-always selected by status from `raw.activities`, so pending or failed stream and
-detail work resumes on any platform run.
+always selected by status from `raw.activities`, so pending or failed stream,
+detail, and lap work resumes on any platform run.
 
 ## Happy Path
 
@@ -79,6 +79,25 @@ ingest_activity_details()
         ↓
     update_etl_run_entity()
     ↓
+get_pending_lap_activity_ids()
+    ↓
+ingest_activity_laps()
+        ↓
+    create_etl_run_entity()
+        ↓
+    split activity IDs into batches
+        ↓
+    for each batch:
+        get_activity_laps()
+            ↓
+        upsert_activity_laps()
+            ↓
+        update laps_status
+            ↓
+        commit batch transaction
+        ↓
+    update_etl_run_entity()
+    ↓
 update_etl_run()
     ↓
 send_notification()
@@ -102,6 +121,10 @@ send_notification()
 | `ingest_activity_details()` | Orchestrate batched activity detail ingestion.        |
 | `get_activity_details()`  | Extract full activity details from the Strava API.      |
 | `upsert_activity_details()` | Load details into `raw.activity_details`.             |
+| `get_pending_lap_activity_ids()` | Return activities requiring lap ingestion.       |
+| `ingest_activity_laps()` | Orchestrate batched activity lap ingestion.             |
+| `get_activity_laps()`    | Extract activity laps from the Strava API.              |
+| `upsert_activity_laps()` | Load laps into `raw.activity_laps`.                     |
 | `update_etl_run_entity()` | Record entity execution outcomes.                       |
 | `update_etl_run()`        | Record overall execution outcomes.                      |
 | `send_notification()`     | Send a summary notification.                            |
@@ -120,7 +143,7 @@ Send notification
 
 All failures should be logged with sufficient detail to support troubleshooting and reruns.
 
-For streams and activity details, each batch is committed independently. If a
-later batch fails because of a Strava rate limit or another transient issue,
-completed batches remain marked `SUCCESS`; the current and remaining activity
-IDs are marked `FAILED` and selected again on the next run.
+For streams, activity details, and activity laps, each batch is committed
+independently. If a later batch fails because of a Strava rate limit or another
+transient issue, completed batches remain marked `SUCCESS`; the current and
+remaining activity IDs are marked `FAILED` and selected again on the next run.

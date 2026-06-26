@@ -149,6 +149,7 @@ expected_tables <- c(
   "raw/100_create_activities.sql" = "cycling_platform_raw.activities",
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
+  "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
 )

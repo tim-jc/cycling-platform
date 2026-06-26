@@ -71,6 +71,17 @@ report_raw_status <- function(connection) {
     "
   )
 
+  lap_status_counts <- get_query(
+    "
+    SELECT
+      laps_status,
+      COUNT(*) AS activity_count
+    FROM cycling_platform_raw.activities
+    GROUP BY laps_status
+    ORDER BY laps_status
+    "
+  )
+
   raw_row_counts <- get_query(
     "
     SELECT 'activities' AS table_name, COUNT(*) AS row_count
@@ -81,6 +92,9 @@ report_raw_status <- function(connection) {
     UNION ALL
     SELECT 'activity_details' AS table_name, COUNT(*) AS row_count
     FROM cycling_platform_raw.activity_details
+    UNION ALL
+    SELECT 'activity_laps' AS table_name, COUNT(*) AS row_count
+    FROM cycling_platform_raw.activity_laps
     "
   )
 
@@ -89,6 +103,7 @@ report_raw_status <- function(connection) {
     recent_failed_entities = recent_failed_entities,
     stream_status_counts = stream_status_counts,
     detail_status_counts = detail_status_counts,
+    lap_status_counts = lap_status_counts,
     raw_row_counts = raw_row_counts
   )
 
@@ -100,6 +115,9 @@ report_raw_status <- function(connection) {
 
   message("Detail status counts")
   print(detail_status_counts)
+
+  message("Lap status counts")
+  print(lap_status_counts)
 
   message("Raw row counts")
   print(raw_row_counts)

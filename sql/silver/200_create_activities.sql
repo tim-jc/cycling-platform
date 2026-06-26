@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activities (
 
     has_details BOOLEAN NOT NULL,
 
+    has_laps BOOLEAN NOT NULL,
+
     raw_activity_retrieved_at DATETIME NOT NULL,
 
     raw_detail_retrieved_at DATETIME NULL,
