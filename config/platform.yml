@@ -88,4 +88,4 @@ transforms:
   silver_stream_activity_batch_size: 10
 
   # Maximum expected stream rows processed per silver stream batch
-  silver_stream_batch_max_expected_rows: 20000
+  silver_stream_batch_max_expected_rows: 5000

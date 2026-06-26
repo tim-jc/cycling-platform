@@ -270,6 +270,11 @@ Expected row count comes from `MAX(original_size)` in
 `raw.activity_streams`. This keeps short activities grouped efficiently while
 long rides are isolated into smaller database statements.
 
+The expected-row cap should be conservative on the Raspberry Pi-hosted MariaDB
+because large JSON expansion statements can cause the server connection to drop.
+If a single activity still exceeds the practical limit, the next refinement is
+sample-range batching within an activity.
+
 Run modes:
 
 ```sh

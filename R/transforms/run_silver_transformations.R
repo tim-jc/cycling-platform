@@ -24,7 +24,7 @@ run_silver_transformations <- function(
   }
 
   if (is.null(silver_stream_batch_max_expected_rows)) {
-    silver_stream_batch_max_expected_rows <- 20000L
+    silver_stream_batch_max_expected_rows <- 5000L
   }
 
   run_sql_directory(

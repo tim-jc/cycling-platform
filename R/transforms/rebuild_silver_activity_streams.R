@@ -379,7 +379,7 @@ insert_silver_activity_stream_batch <- function(
 rebuild_silver_activity_streams <- function(
   connection,
   batch_size = 10L,
-  max_expected_rows = 20000L,
+  max_expected_rows = 5000L,
   mode = c(
     "full",
     "repair"
