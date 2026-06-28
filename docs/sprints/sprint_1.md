@@ -57,6 +57,14 @@ Establish the platform foundation and prove end-to-end ingestion from the Strava
 * [x] Complete historical stream backfill
 * [x] Verify stream idempotency
 
+### Later Correction
+
+The first historical stream backfill proved the ingestion pattern, but those
+raw payloads were later found to have insufficient `latlng` precision because
+stream JSON was serialized without `digits = NA`. The stream ingestion code now
+preserves full numeric precision, and the raw stream history needs a full
+reload before map/location analytics are considered complete.
+
 ## Sprint 1 Exit Criteria
 
 * [x] Activities can be ingested repeatedly without creating duplicates.

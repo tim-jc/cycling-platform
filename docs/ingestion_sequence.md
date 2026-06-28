@@ -8,9 +8,13 @@ Each execution creates a single `run_id` in `admin.etl_run`.
 
 All entity-level processing is associated with that `run_id` through `admin.etl_run_entity`.
 
-Execution mode controls only the activity refresh window. Child entities are
-always selected by status from `raw.activities`, so pending or failed stream,
-detail, and lap work resumes on any platform run.
+For `manual` and `backfill`, execution mode controls only the activity refresh
+window. Child entities are selected by status from `raw.activities`, so pending
+or failed stream, detail, and lap work resumes on any standard platform run.
+
+`streams_only` is a recovery mode. It creates an ETL run as usual, skips
+activities, details, and laps, then runs only pending or failed stream ingestion
+with a safe activity cap.
 
 ## Happy Path
 
@@ -103,6 +107,30 @@ update_etl_run()
 send_notification()
 ```
 
+## Streams-Only Recovery Path
+
+```text id="streams-only"
+platform.R streams_only
+    ↓
+load_config()
+    ↓
+resolve execution mode
+    ↓
+get_connection()
+    ↓
+create_etl_run(run_mode = STREAMS_ONLY)
+    ↓
+get_pending_stream_activity_ids()
+    ↓
+cap pending stream activity IDs
+    ↓
+ingest_streams()
+    ↓
+update_etl_run()
+    ↓
+send_notification()
+```
+
 ## Responsibilities
 
 | Function                  | Responsibility                                          |
@@ -128,6 +156,10 @@ send_notification()
 | `update_etl_run_entity()` | Record entity execution outcomes.                       |
 | `update_etl_run()`        | Record overall execution outcomes.                      |
 | `send_notification()`     | Send a summary notification.                            |
+
+In `streams_only` mode, `ingest_activities()`,
+`ingest_activity_details()`, and `ingest_activity_laps()` are intentionally
+skipped.
 
 ## Error Handling
 

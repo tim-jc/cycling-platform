@@ -15,12 +15,14 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Implement resumable activity details ingestion
 * [x] Implement resumable activity laps ingestion
 * [ ] Load full activity details history
+* [ ] Reload full raw activity stream history after coordinate precision fix
 
 ### Exit Criteria
 
 * [x] Activity details can be ingested repeatedly without duplicates
 * [x] Historical backfills can be resumed safely
 * [ ] `details_status` is fully populated for full history
+* [ ] `stream_status` is fully reloaded after `digits = NA` stream payload fix
 * [x] Failed runs record actionable error information
 
 ---
@@ -36,6 +38,11 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Implement `activity_laps`
 * [ ] Implement activity detail refresh policy for already-loaded activities
 * [ ] Mark activity details stale when activity summary payload changes
+* [x] Add streams-only recovery mode with safe daily activity cap
+* [x] Add central proactive Strava throttling around the practical 100 request
+  per 15-minute limit
+* [ ] Complete full raw stream reload to replace rounded historical `latlng`
+  payloads
 
 ### Silver Layer
 
@@ -45,6 +52,7 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Add repair mode for interrupted `silver.activity_streams` rebuilds
 * [x] Add transform logging for `silver.activity_streams`
 * [x] Add transform logging for `silver.activities`
+* [x] Add local R-side silver stream backfill for Mac-to-Pi recovery
 * [ ] Implement incremental refresh for `silver.activity_streams`
 * [ ] Build `silver.gear`
 * [ ] Build `silver.athlete`
@@ -76,9 +84,9 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [x] Implement ntfy heartbeat notifications for platform run outcomes
 * [x] Include entity insert/update summary and pending child work in notifications
 * [x] Suppress batch-level notifications to avoid notification fatigue
-* [ ] Define MariaDB backup and restore procedure
+* [x] Define MariaDB backup and restore procedure
 * [ ] Take raw/admin backup before further schema changes
-* [ ] Add backup runbook to docs
+* [x] Add backup runbook to docs
 * [ ] Decide migration strategy for existing databases
 * [ ] Implement raw-layer data quality checks
 * [ ] Add DQ checks comparing promoted raw columns to source payload values
@@ -86,8 +94,9 @@ Expand the raw layer with additional Strava entities required for analytics and 
 
 ### Medium Priority
 
-* [ ] Introduce automated testing (`testthat`)
+* [ ] Expand automated testing (`testthat`)
 * [x] Add smoke checks for raw-layer structural regressions
+* [x] Add stream JSON precision regression test
 * [ ] Improve notification content
 * [ ] Replace SQL statement parser
 
@@ -99,3 +108,5 @@ Expand the raw layer with additional Strava entities required for analytics and 
 * [ ] Standardise SQL construction patterns
 * [ ] Add rate-limit usage summary to notifications once usage is stored structurally
 * [ ] Method to detect new fields being returned by any API endpoint
+* [ ] Track whether raw entities were loaded with current payload serialization
+  rules

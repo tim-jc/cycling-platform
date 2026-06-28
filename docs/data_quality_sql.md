@@ -23,6 +23,11 @@ SELECT activity_id, COUNT(*) AS row_count
 FROM cycling_platform_raw.activity_details
 GROUP BY activity_id
 HAVING COUNT(*) > 1;
+
+SELECT activity_id, lap_index, COUNT(*) AS row_count
+FROM cycling_platform_raw.activity_laps
+GROUP BY activity_id, lap_index
+HAVING COUNT(*) > 1;
 ```
 
 ## Orphaned Child Rows
@@ -41,6 +46,12 @@ SELECT d.activity_id
 FROM cycling_platform_raw.activity_details d
 LEFT JOIN cycling_platform_raw.activities a
   ON a.activity_id = d.activity_id
+WHERE a.activity_id IS NULL;
+
+SELECT l.activity_id, l.lap_index
+FROM cycling_platform_raw.activity_laps l
+LEFT JOIN cycling_platform_raw.activities a
+  ON a.activity_id = l.activity_id
 WHERE a.activity_id IS NULL;
 ```
 
@@ -62,6 +73,14 @@ LEFT JOIN cycling_platform_raw.activity_details d
 WHERE a.details_status = 'SUCCESS'
 GROUP BY a.activity_id
 HAVING COUNT(d.activity_id) = 0;
+
+SELECT a.activity_id
+FROM cycling_platform_raw.activities a
+LEFT JOIN cycling_platform_raw.activity_laps l
+  ON l.activity_id = a.activity_id
+WHERE a.laps_status = 'SUCCESS'
+GROUP BY a.activity_id
+HAVING COUNT(l.activity_id) = 0;
 ```
 
 ## Data Exists But Status Is Not Success
@@ -78,6 +97,12 @@ FROM cycling_platform_raw.activities a
 JOIN cycling_platform_raw.activity_details d
   ON d.activity_id = a.activity_id
 WHERE a.details_status <> 'SUCCESS';
+
+SELECT DISTINCT a.activity_id, a.laps_status
+FROM cycling_platform_raw.activities a
+JOIN cycling_platform_raw.activity_laps l
+  ON l.activity_id = a.activity_id
+WHERE a.laps_status <> 'SUCCESS';
 ```
 
 ## Stale Pending Statuses
@@ -96,6 +121,12 @@ FROM cycling_platform_raw.activities
 WHERE details_status = 'PENDING'
   AND details_attempted_at IS NOT NULL
   AND details_attempted_at < CURRENT_TIMESTAMP - INTERVAL 1 DAY;
+
+SELECT activity_id, laps_status, laps_attempted_at
+FROM cycling_platform_raw.activities
+WHERE laps_status = 'PENDING'
+  AND laps_attempted_at IS NOT NULL
+  AND laps_attempted_at < CURRENT_TIMESTAMP - INTERVAL 1 DAY;
 ```
 
 ## Unexplained Not Found Candidates
@@ -125,6 +156,17 @@ SELECT
 FROM cycling_platform_raw.activities
 WHERE details_status = 'NOT_FOUND'
   AND COALESCE(JSON_VALUE(raw_payload, '$.manual'), false) <> true;
+
+SELECT
+  activity_id,
+  sport_type,
+  JSON_VALUE(raw_payload, '$.manual') AS is_manual,
+  JSON_VALUE(raw_payload, '$.upload_id') AS upload_id,
+  JSON_VALUE(raw_payload, '$.device_name') AS device_name,
+  laps_status
+FROM cycling_platform_raw.activities
+WHERE laps_status = 'NOT_FOUND'
+  AND COALESCE(JSON_VALUE(raw_payload, '$.manual'), false) <> true;
 ```
 
 ## Payload Presence
@@ -144,6 +186,30 @@ SELECT activity_id
 FROM cycling_platform_raw.activity_details
 WHERE details_payload IS NULL
    OR details_payload = '';
+
+SELECT activity_id, lap_index
+FROM cycling_platform_raw.activity_laps
+WHERE lap_payload IS NULL
+   OR lap_payload = '';
+```
+
+## Stream Coordinate Precision
+
+These checks help identify stream payloads affected by earlier JSON
+serialization that rounded `latlng` values. They are heuristics: the definitive
+fix is a full raw stream reload from Strava after `digits = NA` was added.
+
+```sql
+SELECT
+  activity_id,
+  JSON_UNQUOTE(JSON_EXTRACT(stream_payload, '$[0][0]')) AS first_latitude,
+  JSON_UNQUOTE(JSON_EXTRACT(stream_payload, '$[0][1]')) AS first_longitude
+FROM cycling_platform_raw.activity_streams
+WHERE stream_type = 'latlng'
+  AND (
+    JSON_UNQUOTE(JSON_EXTRACT(stream_payload, '$[0][0]')) REGEXP '^-?[0-9]+\\.[0-9]{4}$'
+    OR JSON_UNQUOTE(JSON_EXTRACT(stream_payload, '$[0][1]')) REGEXP '^-?[0-9]+\\.[0-9]{4}$'
+  );
 ```
 
 ## Promoted Column Reconciliation
@@ -202,4 +268,10 @@ SELECT
   activity_id,
   SHA2(details_payload, 256) AS details_payload_sha256
 FROM cycling_platform_raw.activity_details;
+
+SELECT
+  activity_id,
+  lap_index,
+  SHA2(lap_payload, 256) AS lap_payload_sha256
+FROM cycling_platform_raw.activity_laps;
 ```

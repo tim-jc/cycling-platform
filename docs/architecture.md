@@ -94,21 +94,29 @@ Notify
 
 ## Execution Modes
 
-The platform currently supports two execution modes:
+The platform currently supports three execution modes:
 
 * `manual`: refreshes the routine activity window using
   `ingestion.activity_refresh_days`.
 * `backfill`: refreshes the historical activity window using
   `ingestion.activity_backfill_days`.
+* `streams_only`: recovery mode that creates an ETL run, skips activities,
+  details, and laps, then attempts pending stream ingestion only.
 
-Execution mode only controls the activity refresh window. Stream and activity
-detail ingestion are always state-driven across the full `raw.activities` table:
-all activities with `PENDING` or `FAILED` child-entity status are selected,
-regardless of whether they were included in the current activity refresh window.
+For `manual` and `backfill`, execution mode controls the activity refresh
+window. Stream, detail, and lap ingestion are state-driven across the full
+`raw.activities` table: all activities with `PENDING` or `FAILED` child-entity
+status are selected, regardless of whether they were included in the current
+activity refresh window.
+
+`streams_only` exists for recovery after stream-specific issues. It caps the
+number of attempted activities using `ingestion.streams_only_activity_limit`
+when configured, otherwise it defaults to 900 pending stream activities.
 
 ```sh
 Rscript platform.R
 Rscript platform.R backfill
+Rscript platform.R streams_only
 ```
 
 ---
@@ -198,6 +206,14 @@ backfills can resume after rate limits or interruptions.
 Pending stream work is discovered from `raw.activities.stream_status`, not from
 the current activity refresh window.
 
+Stream payload JSON is serialised with `digits = NA` so Strava latitude and
+longitude values retain full numeric precision. Earlier historical stream
+payloads were written with jsonlite's default numeric precision, which rounded
+`latlng` coordinates to around four decimal places. Existing raw stream data
+loaded before that fix should be treated as insufficiently precise for mapping
+and location-sensitive analytics until the raw stream payloads are fully
+reloaded from Strava.
+
 ## Raw Data Retention
 
 - Retain the complete stream payload returned by the API.
@@ -247,3 +263,31 @@ the current activity refresh window.
 - Support idempotent ingestion.
 - Keep raw activity details available for future silver/gold modelling.
 - Support resumable historical backfills.
+
+# `raw.activity_laps` Design
+
+## Grain
+
+One row per `activity_id` x `lap_index`.
+
+## Business Key
+
+(`activity_id`, `lap_index`)
+
+## Load Strategy
+
+UPSERT using (`activity_id`, `lap_index`) as the business key.
+
+Activity laps are ingested in configurable activity ID batches. Each batch is
+committed independently and updates `raw.activities.laps_status` for
+successful, missing, or failed activity IDs.
+
+Pending lap work is discovered from `raw.activities.laps_status`, not from the
+current activity refresh window.
+
+## Raw Data Retention
+
+- Retain the complete lap payload returned by the API.
+- Store the payload in `lap_payload`.
+- Preserve lap order using `lap_index`.
+- Keep raw lap data available for future silver/gold modelling.

@@ -16,6 +16,11 @@
 
 The platform preserves source-system fidelity by treating Strava as the authoritative source for activity data.
 
+Raw payload serialization must preserve the values returned by Strava. If a
+serialization bug changes source values, such as the earlier stream coordinate
+rounding issue, the affected raw entity should be reloaded rather than repaired
+only in curated layers.
+
 ### Curated Data
 
 Dashboards, analytics, coaching workflows, and MCP integrations consume data from the `silver` and `gold` layers only.

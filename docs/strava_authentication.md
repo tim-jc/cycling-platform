@@ -80,3 +80,14 @@ A corresponding `.Renviron.example` file should be maintained without values.
 * Secrets are externalised.
 * Token refresh is automatic.
 * Credential rotation is transparent to ingestion workflows.
+
+## Rate Limit Handling
+
+Strava rate-limit handling is centralised in `perform_strava_request()`.
+Successful responses log the `x-ratelimit-limit` and `x-ratelimit-usage`
+headers.
+
+Historical ingestion showed a practical 15-minute cap of around 100 requests,
+even where the public app quota header reported 200. The request helper
+therefore sleeps proactively at 95 requests in the current 15-minute window and
+allows one request after waking so fresh headers can be read.

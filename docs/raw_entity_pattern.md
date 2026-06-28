@@ -21,6 +21,9 @@ Entities discovered from another entity may also need:
 * `R/database/get_pending_<entity>_ids.R`
 * status columns on the parent raw table, or a dedicated ingestion queue table
 
+For child activity endpoints, current parent status fields are
+`stream_status`, `details_status`, and `laps_status` on `raw.activities`.
+
 ## Raw Table Rules
 
 Each raw table should define:
@@ -48,8 +51,12 @@ should focus on:
 * response-to-raw-row shaping
 * endpoint-specific not-found handling
 
-Retry, timeout, bearer auth, and transient HTTP handling belong in the shared
-request helper.
+Retry, timeout, bearer auth, proactive Strava throttling, and transient HTTP
+handling belong in the shared request helper.
+
+When serialising source payloads, preserve source numeric fidelity. For stream
+payloads, use the existing stream serialization helper so `latlng` coordinates
+are written with `digits = NA` rather than jsonlite's default numeric rounding.
 
 ## Ingestion Rules
 

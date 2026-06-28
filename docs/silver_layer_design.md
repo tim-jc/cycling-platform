@@ -254,6 +254,11 @@ Include enough lineage to trace back to raw stream records:
 
 Raw stream payloads remain in `raw.activity_streams`.
 
+Location columns depend on raw `latlng` payload precision. Historical raw
+stream payloads loaded before the `digits = NA` serialization fix have rounded
+coordinates and should be fully reloaded before silver stream latitude and
+longitude are used for map or route analysis.
+
 ### Rebuild Behaviour
 
 `silver.activity_streams` is rebuilt by `rebuild_silver_activity_streams()` in
@@ -286,6 +291,12 @@ The default mode truncates and fully rebuilds `silver.activity_streams`.
 `repair` mode compares raw stream `original_size` values with existing silver
 row counts, then deletes and rebuilds only missing or incomplete activities.
 This is the preferred recovery path after an interrupted silver stream rebuild.
+
+For the historical Mac-to-Pi recovery path, a temporary local R backfill helper
+can parse raw stream JSON in R and rebuild `silver.activity_streams` one
+activity at a time. It is useful when MariaDB-side JSON expansion is too slow or
+causes connection drops, but it should remain a recovery tool rather than the
+long-term orchestration pattern.
 
 Silver stream rebuilds write run and batch progress to
 `cycling_platform_admin.transform_run` and

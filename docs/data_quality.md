@@ -32,6 +32,7 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
 * `raw.activities.activity_id` is unique.
 * `raw.activity_streams` is unique by `activity_id`, `stream_type`.
 * `raw.activity_details.activity_id` is unique.
+* `raw.activity_laps` is unique by `activity_id`, `lap_index`.
 * Child rows have matching parent activities.
 * Raw child tables contain no orphaned records.
 
@@ -40,9 +41,28 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
 * `raw.activities.raw_payload` contains valid JSON.
 * `raw.activity_streams.stream_payload` contains valid JSON.
 * `raw.activity_details.details_payload` contains valid JSON.
+* `raw.activity_laps.lap_payload` contains valid JSON.
 * Payload columns are not empty strings.
 * Stream payload checksums are stable across repeated ingestion when the source
   payload has not changed.
+* Stream `latlng` payloads retain source numeric precision and are not rounded
+  by JSON serialization.
+
+### Known Payload Issue: Stream Coordinate Precision
+
+Historical `raw.activity_streams` payloads loaded before the stream JSON
+serialization fix have insufficient coordinate precision. `jsonlite::toJSON()`
+was previously called without `digits = NA`, so values such as `53.196583`
+could be stored as `53.1966`.
+
+The production serializer now preserves full numeric precision for newly loaded
+stream payloads. Existing raw stream data should be fully reloaded from Strava
+before map views, route matching, or other location-sensitive outputs are
+treated as reliable.
+
+Near-term quality checks should flag suspicious `latlng` values that appear to
+have only four decimal places, and should separately record whether a full raw
+stream reload has been completed after the precision fix.
 
 ### Payload Integrity Checks
 
@@ -53,6 +73,7 @@ Initial checksum candidates:
 
 * checksum of `raw.activity_streams.stream_payload`
 * checksum of `raw.activity_details.details_payload`
+* checksum of `raw.activity_laps.lap_payload`
 * optional checksum of `raw.activities.raw_payload`
 
 The checksum should be computed from a canonical representation of the payload.
@@ -84,6 +105,7 @@ used for efficiency only when they remain equivalent to the source payload.
 * Activities in scope for a run are loaded.
 * Activities requiring streams are not left indefinitely `PENDING`.
 * Activities requiring details are not left indefinitely `PENDING`.
+* Activities requiring laps are not left indefinitely `PENDING`.
 * `FAILED` statuses are visible and recoverable.
 * `NOT_FOUND` statuses are reconciled against activity metadata to distinguish
   expected source behaviour from suspicious gaps.
@@ -100,10 +122,14 @@ Examples:
   `raw.activity_streams`.
 * `details_status = 'SUCCESS'` should have one matching row in
   `raw.activity_details`.
+* `laps_status = 'SUCCESS'` should have at least one matching row in
+  `raw.activity_laps`, unless Strava returns a valid empty lap collection.
 * `stream_status = 'NOT_FOUND'` should have no matching stream rows unless a
   later source response has changed the outcome.
 * `details_status = 'NOT_FOUND'` should have no matching detail row unless a
   later source response has changed the outcome.
+* `laps_status = 'NOT_FOUND'` should have no matching lap rows unless a later
+  source response has changed the outcome.
 * `PENDING` records should not have complete child data unless status updates
   failed after a successful load.
 
@@ -134,7 +160,8 @@ Useful activity metadata for reconciliation may include:
 
 Near-term classifications:
 
-* `NOT_FOUND_EXPECTED`: metadata indicates streams or details are not expected.
+* `NOT_FOUND_EXPECTED`: metadata indicates streams, details, or laps are not
+  expected.
 * `NOT_FOUND_UNEXPLAINED`: activity appears to have source/device data, but the
   child endpoint returned no payload.
 
@@ -189,12 +216,13 @@ Near-term checks:
 1. duplicate business keys
 2. child rows without parent activities
 3. invalid or empty payloads
-4. stream and detail payload checksum drift
-5. promoted raw columns that do not match source payload values
-6. status fields that do not match child table data
-7. stale `PENDING` statuses
-8. unexplained `NOT_FOUND` statuses
-9. recent failed entity runs
+4. stream, detail, and lap payload checksum drift
+5. stream coordinate precision checks
+6. promoted raw columns that do not match source payload values
+7. status fields that do not match child table data
+8. stale `PENDING` statuses
+9. unexplained `NOT_FOUND` statuses
+10. recent failed entity runs
 
 Possible implementation:
 

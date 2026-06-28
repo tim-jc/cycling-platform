@@ -6,6 +6,11 @@ The historical raw load is expensive to recreate because activity details and
 streams require one API request per activity. Once populated, the raw and admin
 databases should be treated as valuable platform state.
 
+The known raw stream coordinate precision issue is an exception where a full
+raw stream reload is required. Backups still matter before that work begins:
+they preserve current state if the reload is interrupted or exposes a migration
+problem.
+
 ## Current Position
 
 Backup configuration exists in `config/platform.yml`.

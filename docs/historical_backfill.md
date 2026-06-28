@@ -17,17 +17,19 @@ Backfill mode uses:
 * `ingestion.activity_backfill_days`
 * `ingestion.stream_activity_batch_size`
 * `ingestion.detail_activity_batch_size`
+* `ingestion.lap_activity_batch_size`
 
-Backfill mode only changes the activity discovery window. Stream and activity
-detail ingestion remain status-driven and are not limited to activities returned
-by the current activity refresh.
+Backfill mode only changes the activity discovery window. Stream, activity
+detail, and lap ingestion remain status-driven and are not limited to activities
+returned by the current activity refresh.
 
 ## Behaviour
 
 The platform refreshes activities first. It then discovers activities requiring
-stream and detail ingestion using status columns on `raw.activities`.
+stream, detail, and lap ingestion using status columns on `raw.activities`.
 
-Streams and activity details are processed in activity ID batches. Each batch:
+Streams, activity details, and activity laps are processed in activity ID
+batches. Each batch:
 
 1. fetches source data from Strava
 2. loads rows into the raw table
@@ -37,10 +39,11 @@ Streams and activity details are processed in activity ID batches. Each batch:
 If a batch fails, completed batches remain committed. The current and remaining
 activity IDs are marked `FAILED` and selected again by the next backfill run.
 
-Activity detail batches are deliberately smaller than stream batches because
-rate limits often occur during long detail backfills. Smaller batches reduce
-the number of successfully fetched responses that are lost when a later request
-in the same batch fails.
+Activity detail and lap batches are deliberately smaller than stream batches
+because those endpoints require one request per activity and can hit practical
+rate limits during long historical backfills. Smaller batches reduce the number
+of successfully fetched responses that are lost when a later request in the
+same batch fails.
 
 Activity detail requests also use a slower endpoint-specific pause. During the
 historical load, Strava returned `429` responses around 100 detail requests per
@@ -56,6 +59,38 @@ Strava rate-limit headers are logged for successful API responses:
 The log message reports both the 15-minute and daily usage windows. These
 headers are the source of truth for the current app quota and usage.
 
+`perform_strava_request()` also applies central proactive throttling. The
+platform treats the practical 15-minute cap as 100 requests, sleeps at or above
+95 requests, clears stale local usage after waking, and lets one request through
+so fresh Strava headers can be read.
+
+## Streams-Only Recovery
+
+For stream-only recovery runs:
+
+```sh
+Rscript platform.R streams_only
+```
+
+This mode creates an ETL run as usual, skips activity, detail, and lap
+ingestion, then selects pending or failed stream work only. It caps attempted
+activities using `ingestion.streams_only_activity_limit` when configured,
+otherwise it defaults to 900.
+
+Use this mode when recovering stream ingestion without spending API budget on
+the other child endpoints.
+
+## Raw Stream Precision Issue
+
+Raw stream payloads loaded before the `digits = NA` serialization fix have
+insufficient `latlng` precision. Strava returns coordinates with around six
+decimal places, but the earlier raw JSON serialization rounded examples such as
+`53.196583` to `53.1966`.
+
+The code now preserves full numeric precision for new stream payloads. Existing
+raw stream data should be fully reloaded from Strava before relying on maps,
+route matching, or any location-sensitive silver/gold outputs.
+
 ## Useful Status Checks
 
 ```sql
@@ -67,11 +102,18 @@ SELECT details_status, COUNT(*)
 FROM cycling_platform_raw.activities
 GROUP BY details_status;
 
+SELECT laps_status, COUNT(*)
+FROM cycling_platform_raw.activities
+GROUP BY laps_status;
+
 SELECT COUNT(*)
 FROM cycling_platform_raw.activity_streams;
 
 SELECT COUNT(*)
 FROM cycling_platform_raw.activity_details;
+
+SELECT COUNT(*)
+FROM cycling_platform_raw.activity_laps;
 ```
 
 ## Recovery

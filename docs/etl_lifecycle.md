@@ -39,7 +39,7 @@ Insert a record into `admin.etl_run` with:
 
 * `run_status = RUNNING`
 * `started_at = CURRENT_TIMESTAMP`
-* `run_mode = MANUAL | SCHEDULED | BACKFILL`
+* `run_mode = MANUAL | SCHEDULED | BACKFILL | STREAMS_ONLY`
 
 Capture the generated `run_id`.
 
@@ -104,6 +104,7 @@ Send a notification summarising:
 * Number of entities processed
 * Total rows inserted
 * Total rows updated
+* Pending stream, detail, and lap work
 * Error summary, if applicable
 
 ## Principles

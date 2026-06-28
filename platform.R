@@ -13,9 +13,9 @@ if (length(args) > 0) {
   execution_mode <- tolower(args[[1]])
 }
 
-if (!execution_mode %in% c("manual", "backfill")) {
+if (!execution_mode %in% c("manual", "backfill", "streams_only")) {
   stop(
-    "Unknown execution mode. Use 'manual' or 'backfill'.",
+    "Unknown execution mode. Use 'manual', 'backfill', or 'streams_only'.",
     call. = FALSE
   )
 }
@@ -23,6 +23,9 @@ if (!execution_mode %in% c("manual", "backfill")) {
 if (execution_mode == "backfill") {
   run_mode <- "BACKFILL"
   activity_refresh_days <- config$ingestion$activity_backfill_days
+} else if (execution_mode == "streams_only") {
+  run_mode <- "STREAMS_ONLY"
+  activity_refresh_days <- 0L
 } else {
   run_mode <- "MANUAL"
   activity_refresh_days <- config$ingestion$activity_refresh_days
@@ -42,17 +45,39 @@ platform_error <- NULL
 
 tryCatch(
   {
-    ingest_activities(
-      connection = connection,
-      run_id = run_id,
-      source_id = 1L,
-      refresh_days = activity_refresh_days,
-      config = config
-    )
+    if (execution_mode != "streams_only") {
+      ingest_activities(
+        connection = connection,
+        run_id = run_id,
+        source_id = 1L,
+        refresh_days = activity_refresh_days,
+        config = config
+      )
+    }
 
     stream_activity_ids <- get_pending_stream_activity_ids(
       connection = connection
     )
+
+    pending_stream_count <- length(stream_activity_ids)
+
+    stream_recovery_limit <- config$ingestion$streams_only_activity_limit
+
+    if (is.null(stream_recovery_limit)) {
+      stream_recovery_limit <- 900L
+    }
+
+    if (execution_mode == "streams_only") {
+      stream_activity_ids <- head(
+        stream_activity_ids,
+        stream_recovery_limit
+      )
+
+      message(glue::glue(
+        "Streams-only mode: {pending_stream_count} pending stream activities; ",
+        "attempting {length(stream_activity_ids)}."
+      ))
+    }
 
     if (length(stream_activity_ids) == 0) {
       message(
@@ -68,40 +93,42 @@ tryCatch(
       )
     }
 
-    detail_activity_ids <- get_pending_detail_activity_ids(
-      connection = connection
-    )
+    if (execution_mode != "streams_only") {
+      detail_activity_ids <- get_pending_detail_activity_ids(
+        connection = connection
+      )
 
-    if (length(detail_activity_ids) == 0) {
-      message(
-        "No activities require detail ingestion."
-      )
-    } else {
-      ingest_activity_details(
-        connection = connection,
-        run_id = run_id,
-        source_id = 1L,
-        activity_ids = detail_activity_ids,
-        config = config
-      )
-    }
+      if (length(detail_activity_ids) == 0) {
+        message(
+          "No activities require detail ingestion."
+        )
+      } else {
+        ingest_activity_details(
+          connection = connection,
+          run_id = run_id,
+          source_id = 1L,
+          activity_ids = detail_activity_ids,
+          config = config
+        )
+      }
 
-    lap_activity_ids <- get_pending_lap_activity_ids(
-      connection = connection
-    )
+      lap_activity_ids <- get_pending_lap_activity_ids(
+        connection = connection
+      )
 
-    if (length(lap_activity_ids) == 0) {
-      message(
-        "No activities require lap ingestion."
-      )
-    } else {
-      ingest_activity_laps(
-        connection = connection,
-        run_id = run_id,
-        source_id = 1L,
-        activity_ids = lap_activity_ids,
-        config = config
-      )
+      if (length(lap_activity_ids) == 0) {
+        message(
+          "No activities require lap ingestion."
+        )
+      } else {
+        ingest_activity_laps(
+          connection = connection,
+          run_id = run_id,
+          source_id = 1L,
+          activity_ids = lap_activity_ids,
+          config = config
+        )
+      }
     }
 
     update_etl_run(

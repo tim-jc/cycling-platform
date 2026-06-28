@@ -68,11 +68,22 @@ Current entities:
 
 * `activity_streams`
 * `activity_details`
+* `activity_laps`
 
 Likely future entities:
 
 * `gear`
 * `routes`, if route IDs are available and useful
+
+## Recovery Modes
+
+Recovery modes should be narrow and explicit. `platform.R streams_only` is the
+current example: it creates a normal ETL run, skips activity, detail, and lap
+ingestion, then processes only pending or failed stream work.
+
+The streams-only run caps attempted activity IDs using
+`ingestion.streams_only_activity_limit` when configured, otherwise it defaults
+to 900. This protects daily API budget during recovery runs.
 
 ## Load-Layer Convention
 
@@ -86,3 +97,14 @@ Current shared helpers:
 
 This keeps entity code readable while reducing copy-paste differences in
 business-key handling.
+
+## Payload Serialization
+
+Raw payload serialization is part of source fidelity. Endpoint functions should
+avoid default JSON numeric rounding when the source payload contains precise
+coordinates or other high-precision numeric values.
+
+`get_streams()` serializes stream payloads with `jsonlite::toJSON(..., digits =
+NA)` so `latlng` values retain the precision returned by Strava. Raw stream
+payloads loaded before this convention need a full stream reload before silver
+or dashboard map outputs should be treated as location-accurate.
