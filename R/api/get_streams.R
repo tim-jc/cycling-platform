@@ -10,6 +10,17 @@
 #' @return Named list containing:
 #'   - streams: tibble containing one row per activity_id × stream_type
 #'   - not_found_ids: integer64 vector of activity IDs with no streams
+stream_payload_to_json <- function(x) {
+  as.character(
+    jsonlite::toJSON(
+      x,
+      auto_unbox = TRUE,
+      null = "null",
+      digits = NA
+    )
+  )
+}
+
 get_streams <- function(
   run_id,
   source_id,
@@ -151,12 +162,8 @@ get_streams <- function(
 
             resolution = stream$resolution,
 
-            stream_payload = as.character(
-              jsonlite::toJSON(
-                stream$data,
-                auto_unbox = TRUE,
-                null = "null"
-              )
+            stream_payload = stream_payload_to_json(
+              stream$data
             )
           )
         }

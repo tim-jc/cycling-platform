@@ -37,6 +37,75 @@ perform_strava_request <- function(
       as.integer()
   }
 
+  practical_15_minute_limit <- 100L
+
+  safety_buffer_threshold <- 95L
+
+  rate_limit_window_seconds <- 15L * 60L
+
+  throttle_if_needed <- function() {
+    state <- getOption(
+      "cycling_platform.strava_rate_limit_state"
+    )
+
+    if (!is.null(state$allow_next_request) && isTRUE(state$allow_next_request)) {
+      options(
+        cycling_platform.strava_rate_limit_state = NULL
+      )
+
+      return(invisible(NULL))
+    }
+
+    if (is.null(state) || is.null(state$usage_15_minute)) {
+      return(invisible(NULL))
+    }
+
+    if (is.null(state$observed_at)) {
+      return(invisible(NULL))
+    }
+
+    if (state$usage_15_minute < safety_buffer_threshold) {
+      return(invisible(NULL))
+    }
+
+    elapsed_seconds <- as.numeric(
+      difftime(
+        Sys.time(),
+        state$observed_at,
+        units = "secs"
+      )
+    )
+
+    sleep_seconds <- max(
+      1,
+      min(
+        910,
+        ceiling(rate_limit_window_seconds - elapsed_seconds)
+      )
+    )
+
+    message(glue::glue(
+      "Strava practical 15-minute rate limit usage ",
+      "{state$usage_15_minute}/{practical_15_minute_limit}; ",
+      "sleeping {sleep_seconds}s before next request."
+    ))
+
+    Sys.sleep(sleep_seconds)
+
+    message(
+      "Strava practical 15-minute rate limit sleep complete; ",
+      "allowing one request for fresh headers."
+    )
+
+    options(
+      cycling_platform.strava_rate_limit_state = list(
+        allow_next_request = TRUE
+      )
+    )
+
+    invisible(NULL)
+  }
+
   log_rate_limit_headers <- function(response) {
     limit_header <- httr2::resp_header(
       response,
@@ -57,6 +126,13 @@ perform_strava_request <- function(
     if (length(limits) < 2 || length(usage) < 2) {
       return(invisible(NULL))
     }
+
+    options(
+      cycling_platform.strava_rate_limit_state = list(
+        usage_15_minute = usage[[1]],
+        observed_at = Sys.time()
+      )
+    )
 
     message(glue::glue(
       "Strava rate limit usage: ",
@@ -102,6 +178,8 @@ perform_strava_request <- function(
   total_attempts <- max_retries + 1
 
   for (attempt in seq_len(total_attempts)) {
+    throttle_if_needed()
+
     response <- tryCatch(
       httr2::req_perform(request),
       error = function(e) e
