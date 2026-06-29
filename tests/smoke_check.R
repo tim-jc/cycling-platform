@@ -16,6 +16,7 @@ r_files <- c(
   "bootstrap.R",
   "bootstrap_platform.R",
   "platform.R",
+  "run_google_health_heart_rate.R",
   "run_silver.R"
 )
 
@@ -81,6 +82,8 @@ api_files <- list.files(
 
 direct_request_allowed <- c(
   file.path("R", "api", "get_access_token.R"),
+  file.path("R", "api", "get_google_health_access_token.R"),
+  file.path("R", "api", "perform_google_health_request.R"),
   file.path("R", "api", "perform_strava_request.R")
 )
 
@@ -150,6 +153,7 @@ expected_tables <- c(
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
   "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
+  "raw/140_create_google_health_data_points.sql" = "cycling_platform_raw.google_health_data_points",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
 )

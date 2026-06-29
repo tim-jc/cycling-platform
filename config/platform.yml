@@ -22,6 +22,17 @@ sources:
       - moving
       - grade_smooth
 
+  google_health:
+
+    enabled: false
+
+    api_base_url: https://health.googleapis.com/v4
+
+    user_id: me
+
+    data_types:
+      - heart-rate
+
 ingestion:
 
   # Number of days refreshed during routine ingestion runs
@@ -59,6 +70,21 @@ ingestion:
 
   # Default pause between lap endpoint requests
   lap_request_pause_seconds: 0.25
+
+  # Number of days refreshed during routine Google Health ingestion runs
+  google_health_refresh_days: 7
+
+  # Number of days refreshed during Google Health historical backfills
+  google_health_backfill_days: 365
+
+  # Maximum Google Health data points returned per API page
+  google_health_page_size: 10000
+
+  # Number of date windows processed per Google Health transaction
+  google_health_date_batch_size: 1
+
+  # Default pause between Google Health API requests
+  google_health_request_pause_seconds: 0.25
 
 scheduling:
 

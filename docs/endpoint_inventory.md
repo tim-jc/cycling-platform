@@ -4,6 +4,7 @@
 | Activity Streams | `/activities/{id}/streams` | `raw.activity_streams` | `activity_id`, `stream_type` | High     | Batched conditional           | Implemented | Requires full raw reload for pre-fix coordinate precision |
 | Activity Details | `/activities/{id}`         | `raw.activity_details` | `activity_id`                | High     | Batched conditional           | Implemented | Full activity detail payload       |
 | Activity Laps    | `/activities/{id}/laps`    | `raw.activity_laps`    | `activity_id`, `lap_index`   | Medium   | Batched conditional           | Implemented | Full lap payloads in source order  |
+| Google Health Heart Rate | `/users/me/dataTypes/heart-rate/dataPoints` | `raw.google_health_data_points` | `data_point_key` | High | Date-window refresh + backfill | Implemented | First Google Health data type; full DataPoint payload retained |
 | Athlete          | `/athlete`                 | `raw.athlete`          | `athlete_id`                 | High     | Full refresh                  | Planned    | Current athlete snapshot           |
 | Gear             | `/gear/{id}`               | `raw.gear`             | `gear_id`                    | Medium   | On demand                     | Planned    | Retrieved from activity references |
 | Routes           | `/routes/{id}`             | `raw.routes`           | `route_id`                   | Low      | On demand                     | Planned    | Optional route enrichment          |
