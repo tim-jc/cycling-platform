@@ -74,10 +74,17 @@ testthat::test_that("Google Health heart-rate data points are shaped for raw loa
         sampleTime = list(
           physicalTime = "2026-06-27T06:30:00Z",
           utcOffset = "+01:00",
-          civilDate = list(
-            year = 2026,
-            month = 6,
-            day = 27
+          civilTime = list(
+            date = list(
+              year = 2026,
+              month = 6,
+              day = 27
+            ),
+            time = list(
+              hours = 7,
+              minutes = 30,
+              seconds = 0
+            )
           )
         )
       )
@@ -106,6 +113,13 @@ testthat::test_that("Google Health heart-rate data points are shaped for raw loa
     64L
   )
 
+  testthat::expect_false(
+    inherits(
+      shaped$data_point_key,
+      "hash"
+    )
+  )
+
   testthat::expect_equal(
     shaped$data_type[[1]],
     "heart-rate"
@@ -119,6 +133,15 @@ testthat::test_that("Google Health heart-rate data points are shaped for raw loa
   testthat::expect_equal(
     shaped$value_numeric[[1]],
     61
+  )
+
+  testthat::expect_equal(
+    format(
+      shaped$sample_physical_time[[1]],
+      "%Y-%m-%d %H:%M:%S",
+      tz = "UTC"
+    ),
+    "2026-06-27 06:30:00"
   )
 
   testthat::expect_equal(

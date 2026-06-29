@@ -24,7 +24,7 @@ sources:
 
   google_health:
 
-    enabled: false
+    enabled: true
 
     api_base_url: https://health.googleapis.com/v4
 

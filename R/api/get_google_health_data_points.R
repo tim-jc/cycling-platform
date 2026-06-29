@@ -97,6 +97,23 @@ google_health_civil_date <- function(value) {
   )
 }
 
+google_health_physical_time <- function(value) {
+  value <- google_health_null_to_na(value)
+
+  if (is.na(value) || !nzchar(value)) {
+    return(as.POSIXct(NA))
+  }
+
+  as.POSIXct(
+    strptime(
+      value,
+      format = "%Y-%m-%dT%H:%M:%SZ",
+      tz = "UTC"
+    ),
+    tz = "UTC"
+  )
+}
+
 google_health_data_point_key <- function(
   data_type,
   data_point_name,
@@ -113,11 +130,15 @@ google_health_data_point_key <- function(
     sep = "|"
   )
 
-  as.character(
+  data_point_key <- as.character(
     openssl::sha256(
       charToRaw(key_material)
     )
   )
+
+  attributes(data_point_key) <- NULL
+
+  data_point_key
 }
 
 google_health_empty_data_points <- function() {
@@ -202,7 +223,7 @@ google_health_shape_data_points <- function(
       sample_civil_date <- google_health_extract_first(
         data_point,
         list(
-          c("heartRate", "sampleTime", "civilDate"),
+          c("heartRate", "sampleTime", "civilTime", "date"),
           c("heart_rate", "sample_time", "civil_date"),
           c("sampleTime", "civilDate"),
           c("sample_time", "civil_date")
@@ -254,9 +275,8 @@ google_health_shape_data_points <- function(
 
         source_name = google_health_null_to_na(source_name),
 
-        sample_physical_time = as.POSIXct(
-          google_health_null_to_na(sample_physical_time),
-          tz = "UTC"
+        sample_physical_time = google_health_physical_time(
+          sample_physical_time
         ),
 
         sample_utc_offset = google_health_null_to_na(
