@@ -102,6 +102,22 @@ ingest_activity_laps()
         ↓
     update_etl_run_entity()
     ↓
+if Google Health enabled:
+    ingest_google_health_heart_rate()
+        ↓
+    create_etl_run_entity()
+        ↓
+    split date windows into batches
+        ↓
+    for each date:
+        get_google_health_heart_rate()
+            ↓
+        upsert_google_health_data_points()
+            ↓
+        commit batch transaction
+        ↓
+    update_etl_run_entity()
+    ↓
 update_etl_run()
     ↓
 send_notification()
@@ -153,6 +169,9 @@ send_notification()
 | `ingest_activity_laps()` | Orchestrate batched activity lap ingestion.             |
 | `get_activity_laps()`    | Extract activity laps from the Strava API.              |
 | `upsert_activity_laps()` | Load laps into `raw.activity_laps`.                     |
+| `ingest_google_health_heart_rate()` | Orchestrate Google/Fitbit heart-rate response ingestion. |
+| `get_google_health_heart_rate()` | Extract Google/Fitbit heart-rate responses.       |
+| `upsert_google_health_data_points()` | Load response-grain rows into `raw.google_health_heart_rate_responses`. |
 | `update_etl_run_entity()` | Record entity execution outcomes.                       |
 | `update_etl_run()`        | Record overall execution outcomes.                      |
 | `send_notification()`     | Send a summary notification.                            |

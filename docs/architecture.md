@@ -3,7 +3,9 @@
 ## Data Flow
 
 ```text
-Strava API
+Source APIs
+  - Strava
+  - Google Health / Fitbit
     ↓
     Raw
     ↓
@@ -29,6 +31,25 @@ The platform is organised into the following logical layers:
 * `gold`
 
 Silver layer design is documented in `docs/silver_layer_design.md`.
+
+## Current Operating Position
+
+The platform is in a stabilisation phase. The immediate goal is to replace the
+legacy scraper database for existing dashboards.
+
+Current status:
+
+* Strava raw endpoints are deployed for activities, details, streams, and laps.
+* Strava activities, details, and streams are backfilled.
+* Strava laps backfill is still in progress because of API limits.
+* Google/Fitbit heart-rate and sleep raw ingestion exists, but is early and not
+  yet fully validated.
+* Silver transforms exist for activities and streams.
+* Local silver stream transform/backfill is in progress.
+* Platform automation is not yet in place.
+
+MCP development is deliberately paused until the cycling platform is stable,
+automated, and no longer needs immediate revisiting.
 
 ## Bootstrap and Derived Layers
 
