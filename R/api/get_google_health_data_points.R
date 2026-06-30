@@ -20,7 +20,13 @@ google_health_extract_path <- function(x, path) {
   value <- x
 
   for (part in path) {
-    if (is.null(value) || is.null(value[[part]])) {
+    if (
+      is.null(value) ||
+      !is.list(value) ||
+      is.null(names(value)) ||
+      !part %in% names(value) ||
+      is.null(value[[part]])
+    ) {
       return(NULL)
     }
 
@@ -104,206 +110,76 @@ google_health_physical_time <- function(value) {
     return(as.POSIXct(NA))
   }
 
-  as.POSIXct(
-    strptime(
+  parsed_time <- strptime(
+    value,
+    format = "%Y-%m-%dT%H:%M:%OSZ",
+    tz = "UTC"
+  )
+
+  if (is.na(parsed_time)) {
+    parsed_time <- strptime(
       value,
       format = "%Y-%m-%dT%H:%M:%SZ",
       tz = "UTC"
-    ),
+    )
+  }
+
+  as.POSIXct(
+    parsed_time,
     tz = "UTC"
   )
 }
 
-google_health_data_point_key <- function(
-  data_type,
-  data_point_name,
-  sample_physical_time,
-  source_name,
-  payload
-) {
-  key_material <- paste(
-    data_type,
-    google_health_null_to_na(data_point_name),
-    google_health_null_to_na(sample_physical_time),
-    google_health_null_to_na(source_name),
-    payload,
-    sep = "|"
-  )
-
-  data_point_key <- as.character(
-    openssl::sha256(
-      charToRaw(key_material)
-    )
-  )
-
-  attributes(data_point_key) <- NULL
-
-  data_point_key
-}
-
 google_health_empty_data_points <- function() {
   tibble::tibble(
-    data_point_key = character(),
-
-    data_type = character(),
-
-    google_user_id = character(),
+    source_id = integer(),
 
     run_id = bit64::integer64(),
-
-    source_id = integer(),
 
     retrieved_at = as.POSIXct(
       character(),
       tz = "UTC"
     ),
 
-    source_name = character(),
+    fitbit_user_id = character(),
 
-    sample_physical_time = as.POSIXct(
-      character(),
-      tz = "UTC"
-    ),
+    activity_date = as.Date(character()),
 
-    sample_utc_offset = character(),
+    detail_level = character(),
 
-    sample_civil_date = as.Date(character()),
+    dataset_interval = integer(),
 
-    value_numeric = numeric(),
-
-    value_name = character(),
-
-    data_point_name = character(),
-
-    data_point_payload = character()
+    heart_rate_payload = character()
   )
 }
 
-google_health_shape_data_points <- function(
-  data_points,
-  data_type,
-  google_user_id,
+google_health_shape_heart_rate_response <- function(
+  response_payload,
+  fitbit_user_id,
+  activity_date,
+  detail_level,
   run_id,
   source_id,
   retrieved_at
 ) {
-  if (length(data_points) == 0) {
-    return(
-      google_health_empty_data_points()
+  tibble::tibble(
+    source_id = source_id,
+
+    run_id = run_id,
+
+    retrieved_at = retrieved_at,
+
+    fitbit_user_id = fitbit_user_id,
+
+    activity_date = as.Date(activity_date),
+
+    detail_level = detail_level,
+
+    dataset_interval = NA_integer_,
+
+    heart_rate_payload = google_health_payload_to_json(
+      response_payload
     )
-  }
-
-  purrr::map_dfr(
-    data_points,
-    \(data_point) {
-      payload <- google_health_payload_to_json(
-        data_point
-      )
-
-      sample_physical_time <- google_health_extract_first(
-        data_point,
-        list(
-          c("heartRate", "sampleTime", "physicalTime"),
-          c("heart_rate", "sample_time", "physical_time"),
-          c("sampleTime", "physicalTime"),
-          c("sample_time", "physical_time")
-        )
-      )
-
-      sample_utc_offset <- google_health_extract_first(
-        data_point,
-        list(
-          c("heartRate", "sampleTime", "utcOffset"),
-          c("heart_rate", "sample_time", "utc_offset"),
-          c("sampleTime", "utcOffset"),
-          c("sample_time", "utc_offset")
-        )
-      )
-
-      sample_civil_date <- google_health_extract_first(
-        data_point,
-        list(
-          c("heartRate", "sampleTime", "civilTime", "date"),
-          c("heart_rate", "sample_time", "civil_date"),
-          c("sampleTime", "civilDate"),
-          c("sample_time", "civil_date")
-        )
-      )
-
-      value_numeric <- google_health_extract_first(
-        data_point,
-        list(
-          c("heartRate", "beatsPerMinute"),
-          c("heart_rate", "beats_per_minute")
-        )
-      )
-
-      data_point_name <- google_health_extract_first(
-        data_point,
-        list(
-          c("name")
-        )
-      )
-
-      source_name <- google_health_extract_first(
-        data_point,
-        list(
-          c("dataSource", "name"),
-          c("data_source", "name"),
-          c("source", "name")
-        )
-      )
-
-      tibble::tibble(
-        data_point_key = google_health_data_point_key(
-          data_type = data_type,
-          data_point_name = data_point_name,
-          sample_physical_time = sample_physical_time,
-          source_name = source_name,
-          payload = payload
-        ),
-
-        data_type = data_type,
-
-        google_user_id = google_user_id,
-
-        run_id = run_id,
-
-        source_id = source_id,
-
-        retrieved_at = retrieved_at,
-
-        source_name = google_health_null_to_na(source_name),
-
-        sample_physical_time = google_health_physical_time(
-          sample_physical_time
-        ),
-
-        sample_utc_offset = google_health_null_to_na(
-          sample_utc_offset
-        ),
-
-        sample_civil_date = google_health_civil_date(
-          sample_civil_date
-        ),
-
-        value_numeric = as.numeric(
-          google_health_null_to_na(value_numeric)
-        ),
-
-        value_name = if (identical(data_type, "heart-rate")) {
-          "beats_per_minute"
-        } else {
-          NA_character_
-        },
-
-        data_point_name = google_health_null_to_na(
-          data_point_name
-        ),
-
-        data_point_payload = payload
-      )
-    }
   )
 }
 
@@ -318,7 +194,7 @@ google_health_shape_data_points <- function(
 #' @param end_datetime Exclusive UTC window end.
 #' @param config Platform configuration.
 #'
-#' @return Tibble of raw Google Health data points.
+#' @return Tibble containing one raw response row for the requested window.
 get_google_health_data_points <- function(
   run_id,
   source_id,
@@ -343,6 +219,11 @@ get_google_health_data_points <- function(
   page_size <- value_or_default(
     config$ingestion$google_health_page_size,
     10000
+  )
+
+  detail_level <- value_or_default(
+    config$ingestion$google_health_heart_rate_detail_level,
+    "data_points"
   )
 
   token <- get_google_health_access_token()
@@ -372,7 +253,7 @@ get_google_health_data_points <- function(
 
   retrieved_at <- Sys.time()
 
-  all_data_points <- list()
+  response_pages <- list()
 
   repeat {
     query <- list(
@@ -396,19 +277,9 @@ get_google_health_data_points <- function(
       simplifyVector = FALSE
     )
 
-    page_data_points <- body$dataPoints
-
-    if (is.null(page_data_points)) {
-      page_data_points <- body$data_points
-    }
-
-    if (is.null(page_data_points)) {
-      page_data_points <- list()
-    }
-
-    all_data_points <- c(
-      all_data_points,
-      page_data_points
+    response_pages <- c(
+      response_pages,
+      list(body)
     )
 
     next_page_token <- body$nextPageToken
@@ -422,10 +293,18 @@ get_google_health_data_points <- function(
     }
   }
 
-  google_health_shape_data_points(
-    data_points = all_data_points,
+  response_payload <- list(
     data_type = data_type,
-    google_user_id = google_user_id,
+    filter = as.character(filter),
+    page_count = length(response_pages),
+    pages = response_pages
+  )
+
+  google_health_shape_heart_rate_response(
+    response_payload = response_payload,
+    fitbit_user_id = google_user_id,
+    activity_date = as.Date(start_datetime),
+    detail_level = detail_level,
     run_id = run_id,
     source_id = source_id,
     retrieved_at = retrieved_at

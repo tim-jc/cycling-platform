@@ -1,9 +1,9 @@
-#' Upsert Google Health Data Points
+#' Upsert Google Health Heart Rate Responses
 #'
-#' Insert new Google Health raw data points and update existing rows.
+#' Insert new Google Health raw heart-rate response rows and update existing rows.
 #'
 #' @param connection DBI connection object.
-#' @param data_points Tibble returned by Google Health API functions.
+#' @param data_points Tibble returned by Google Health heart-rate API functions.
 #'
 #' @return Named list containing rows_inserted and rows_updated.
 upsert_google_health_data_points <- function(
@@ -21,13 +21,18 @@ upsert_google_health_data_points <- function(
 
   existing_keys <- get_existing_google_health_data_point_keys(
     connection = connection,
-    data_point_keys = unique(data_points$data_point_key)
+    heart_rate_responses = data_points
   )
 
   split_rows <- split_existing_rows(
     data = data_points,
     existing_keys = existing_keys,
-    key_columns = "data_point_key"
+    key_columns = c(
+      "source_id",
+      "fitbit_user_id",
+      "activity_date",
+      "detail_level"
+    )
   )
 
   data_points_to_insert <- split_rows$to_insert

@@ -68,6 +68,40 @@ perform_google_health_request <- function(
 
   total_attempts <- max_retries + 1
 
+  google_health_error_message <- function(response) {
+    if (is.null(response$resp)) {
+      return(conditionMessage(response))
+    }
+
+    body <- tryCatch(
+      httr2::resp_body_json(
+        response$resp,
+        simplifyVector = TRUE
+      ),
+      error = function(e) NULL
+    )
+
+    if (!is.null(body)) {
+      return(
+        paste(
+          unlist(body),
+          collapse = " "
+        )
+      )
+    }
+
+    body <- tryCatch(
+      httr2::resp_body_string(response$resp),
+      error = function(e) NULL
+    )
+
+    if (!is.null(body) && nzchar(body)) {
+      return(body)
+    }
+
+    conditionMessage(response)
+  }
+
   for (attempt in seq_len(total_attempts)) {
     response <- tryCatch(
       httr2::req_perform(request),
@@ -110,7 +144,13 @@ perform_google_health_request <- function(
       inherits(response, "httr2_http_504")
 
     if (!is_retryable) {
-      stop(response)
+      stop(
+        paste(
+          "Google Health request failed:",
+          google_health_error_message(response)
+        ),
+        call. = FALSE
+      )
     }
 
     if (attempt == total_attempts) {

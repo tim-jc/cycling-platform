@@ -17,6 +17,7 @@ r_files <- c(
   "bootstrap_platform.R",
   "platform.R",
   "run_google_health_heart_rate.R",
+  "run_google_health_sleep.R",
   "run_silver.R"
 )
 
@@ -153,7 +154,8 @@ expected_tables <- c(
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
   "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
-  "raw/140_create_google_health_data_points.sql" = "cycling_platform_raw.google_health_data_points",
+  "raw/140_create_google_health_data_points.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
+  "raw/150_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
 )

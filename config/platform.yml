@@ -32,6 +32,7 @@ sources:
 
     data_types:
       - heart-rate
+      - sleep
 
 ingestion:
 
@@ -76,6 +77,15 @@ ingestion:
 
   # Number of days refreshed during Google Health historical backfills
   google_health_backfill_days: 365
+
+  # Logical detail level for raw Google/Fitbit heart-rate response rows
+  google_health_heart_rate_detail_level: data_points
+
+  # Number of days refreshed during routine Google Health sleep ingestion runs
+  google_health_sleep_refresh_days: 7
+
+  # Number of days refreshed during Google Health sleep historical backfills
+  google_health_sleep_backfill_days: 365
 
   # Maximum Google Health data points returned per API page
   google_health_page_size: 10000

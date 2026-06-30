@@ -1,9 +1,9 @@
-#' Insert Google Health Data Points
+#' Insert Google Health Heart Rate Responses
 #'
-#' Insert new Google Health raw data points.
+#' Insert new Google Health raw heart-rate response rows.
 #'
 #' @param connection DBI connection object.
-#' @param data_points Tibble of Google Health data points to insert.
+#' @param data_points Tibble of Google Health heart-rate responses to insert.
 #'
 #' @return Number of rows inserted.
 insert_google_health_data_points <- function(
@@ -18,7 +18,7 @@ insert_google_health_data_points <- function(
     conn = connection,
     name = DBI::Id(
       schema = "cycling_platform_raw",
-      table = "google_health_data_points"
+      table = "google_health_heart_rate_responses"
     ),
     value = data_points,
     append = TRUE,
