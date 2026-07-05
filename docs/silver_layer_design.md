@@ -15,7 +15,7 @@ truth for ingestion, auditability, and reprocessing.
 * Use stable business keys from Strava.
 * Standardise naming, units, and timestamp handling.
 * Keep silver close to source semantics, but remove raw ingestion concerns.
-* Make dashboard migration easy by exposing activities and streams in familiar
+* Make consumer migration easy by exposing activities and streams in familiar
   analytical shapes.
 * Ensure transformations are reproducible from raw data.
 
@@ -322,6 +322,14 @@ The first useful silver milestone is:
 * `silver.activities`
 * `silver.activity_streams`
 
-Once those exist, existing dashboards can be repointed away from legacy
-preparation code. Gold models can wait until the dashboard migration surface is
-stable.
+Those two tables are sufficient for the Coastal project. Coastal is fully
+migrated to `cycling-platform`, complete, and no longer depends on the legacy
+scraper database.
+
+Broader legacy scraper replacement moves into `cycling-analytics` and should
+not recreate old scraper tables one-for-one. Legacy objects should be treated
+as requirements and examples. Analytical work should adapt to the platform
+model, with reusable gold objects built where the old scraper exposed derived
+concepts such as peaks and power summaries.
+
+Gold design notes are tracked in `docs/gold_layer_design.md`.

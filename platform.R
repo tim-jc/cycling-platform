@@ -152,6 +152,25 @@ tryCatch(
           start_date = Sys.Date() - as.integer(google_health_refresh_days),
           end_date = Sys.Date()
         )
+
+        if (execution_mode == "backfill") {
+          google_health_sleep_refresh_days <- config$ingestion$google_health_sleep_backfill_days
+        } else {
+          google_health_sleep_refresh_days <- config$ingestion$google_health_sleep_refresh_days
+        }
+
+        if (is.null(google_health_sleep_refresh_days)) {
+          google_health_sleep_refresh_days <- 7L
+        }
+
+        ingest_google_health_sleep_logs(
+          connection = connection,
+          run_id = run_id,
+          source_id = 2L,
+          config = config,
+          start_date = Sys.Date() - as.integer(google_health_sleep_refresh_days),
+          end_date = Sys.Date()
+        )
       }
     }
 

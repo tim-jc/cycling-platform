@@ -5,9 +5,15 @@
 Planning is now organised around outcome-based milestones rather than loose
 sprints.
 
-The current product goal is to replace the legacy scraper database as the data
-source for existing dashboards. MCP work is deliberately paused until the
-cycling platform is stable, automated, and no longer needs immediate revisiting.
+The current product goal is to finish the platform foundation needed for
+`cycling-analytics` to replace the old scraper project. MCP work is deliberately
+paused until the cycling platform is stable, automated, and no longer needs
+immediate revisiting.
+
+`cycling-platform` owns ingestion, raw, silver, gold, automation, and
+operational monitoring. `cycling-analytics` owns dashboards, reports,
+exploratory analysis, reusable analytics, MCP server work, AI coaching, and the
+legacy scraper replacement.
 
 Do not treat experimental ingestion paths as production-ready until they have
 been backfilled, rerun idempotently, monitored, and validated against dashboard
@@ -28,9 +34,7 @@ Implemented:
 
 Status:
 
-* Strava activities, details, and streams are backfilled.
-* Strava laps backfill is still in progress because of API limits and is
-  expected to take a few more days.
+* Strava activities, details, streams, and laps are complete.
 * Google/Fitbit heart-rate and sleep ingestion exists, but is early and not yet
   fully validated.
 
@@ -45,9 +49,12 @@ Implemented:
 
 Status:
 
-* Local silver stream transform/backfill is in progress and expected to
-  complete soon.
-* Existing dashboards are not yet repointed to `cycling-platform`.
+* `silver.activities` is complete.
+* `silver.activity_streams` backfill is in the final stages.
+* Coastal project is fully migrated to `cycling-platform`, complete, and no
+  longer depends on the legacy scraper database.
+* `cycling-analytics` has been created as an empty replacement project for the
+  old scraper.
 
 ### Operations
 
@@ -68,59 +75,102 @@ Not yet complete:
 
 ## Immediate Goal
 
-Build everything needed to repoint existing dashboards from the old scraper
-database to `cycling-platform`, then decommission the old scraper database.
+Finish the remaining silver stream backfill, build the first reusable gold
+analytical objects, introduce platform automation, and begin migration into
+`cycling-analytics`.
 
-The old scraper database should not be decommissioned until dashboards are
-migrated, platform runs are stable, and operational visibility is in place.
+The old scraper should be treated as a migration source only. It should not
+drive the target architecture, and its tables should not be recreated
+one-for-one unless they represent reusable analytical concepts.
 
-## Active Milestone: Dashboard Migration Readiness
+## Active Milestone: Platform Foundation for Analytics
 
-Outcome: existing dashboards can read from `cycling-platform` instead of the
-old scraper database.
+Outcome: `cycling-platform` provides the stable raw, silver, and gold objects
+needed for `cycling-analytics` to replace the old scraper project.
 
 Work:
 
-1. Complete Strava laps historical backfill.
-2. Complete and validate silver transforms required by existing dashboards.
-3. Finish local silver stream backfill.
-4. Validate Google/Fitbit heart-rate and sleep raw ingestion.
-5. Inventory existing dashboards and identify required silver/gold tables.
-6. Repoint dashboards to `cycling-platform`.
-7. Add automation, monitoring, retries, and notifications.
-8. Decommission the old scraper database only after dashboard migration and
-   stable platform operation.
+1. Complete the remaining silver stream backfill.
+2. Design and build `gold.activity_best_efforts`.
+3. Design and build `gold.activity_training_metrics`.
+4. Add and curate `gold.ftp_history`.
+5. Introduce platform automation.
+6. Begin `cycling-analytics` migration using platform objects.
+7. Validate Google/Fitbit heart-rate and sleep raw ingestion.
 
 Exit criteria:
 
 * Strava child-entity statuses are understood and no unexpected long-term
   `PENDING` or `FAILED` backlog remains for dashboard-critical entities.
-* Silver activities and streams are complete enough for existing dashboard
-  needs.
-* Dashboard dependencies are documented.
-* At least one dashboard runs from `cycling-platform` without legacy scraper
-  inputs.
+* Silver activities and streams are complete.
+* Coastal runs from `cycling-platform` objects and no longer depends on the
+  legacy scraper database.
+* Priority gold objects exist for reusable scraper replacement concepts.
+* `cycling-analytics` has started consuming platform objects.
 * Manual recovery steps are documented for ingestion and silver refreshes.
 
-## Phase 1: Platform Stabilisation / Legacy Scraper Replacement
+### Scraper Repointing and Gold Objects
 
-Outcome: the platform reliably replaces the old scraper database for existing
-dashboard workloads.
+Legacy scraper tables should not be recreated one-for-one. They are source
+requirements and examples for the new platform model.
+
+The Coastal project only needs `silver.activities` and
+`silver.activity_streams`, and its migration is complete. Broader scraper
+replacement moves into `cycling-analytics` and needs product-neutral gold
+analytical objects that dashboards, MCP resources, and future coaching features
+can share.
+
+Current identified gold objects:
+
+* `gold.activity_best_efforts`: flagship gold object replacing and extending
+  the legacy peaks table. Grain is `activity_id` x `metric_name` x
+  `duration_seconds`. Include peak value plus effort provenance/location:
+  start/end sample index, time, distance, and latitude/longitude where
+  available.
+* `gold.activity_training_metrics`: successor to the legacy power summaries
+  object. Grain is one row per activity. Include FTP used, moving time, mean
+  power, normalised power, VI, IF, TSS, and work where available.
+* `gold.ftp_history`: authoritative FTP timeline, maintained separately from
+  activities, for historical IF/TSS calculations.
+
+Gold design notes are tracked in `docs/gold_layer_design.md`.
+
+## Phase 1: Platform Foundation
+
+Outcome: Strava raw and silver platform foundations are complete.
 
 Priority work:
 
-* complete Strava laps backfill
 * complete silver stream backfill
 * validate `silver.activities` and `silver.activity_streams`
-* decide whether `silver.laps` is needed before dashboard migration
-* inventory dashboard table and column dependencies
-* repoint dashboards
-* retire duplicate legacy dashboard preparation code
+* keep raw Strava activities, details, streams, and laps idempotent
 
-## Phase 2: Automation and Operational Reliability
+## Phase 2: Gold Analytical Layer
+
+Outcome: reusable gold analytical objects exist on top of conformed silver data.
+
+Priority order:
+
+* build `gold.activity_best_efforts`
+* build `gold.activity_training_metrics`
+* add and curate `gold.ftp_history`
+* add further gold summaries only after the first objects are stable
+
+## Phase 3: Platform Automation and Operational Readiness
 
 Outcome: routine ingestion and transformation can run unattended on the
 Raspberry Pi with enough visibility to trust it.
+
+### Platform Operational
+
+Success criteria:
+
+* `platform.R` executes automatically on a schedule
+* execution remains idempotent
+* ingestion is incremental
+* failures recover without manual database repair
+* notifications report success and failure
+* downstream projects never need to trigger ingestion manually
 
 Priority work:
 
@@ -132,19 +182,21 @@ Priority work:
 * finalise notification content and thresholds
 * add data quality result storage and reporting
 
-## Phase 3: Gold Analytics Layer
+Automation should be completed before significant MCP development resumes.
 
-Outcome: reusable analytics models exist on top of conformed silver data.
+## Phase 4: `cycling-analytics` Migration
 
-Candidate models:
+Outcome: dashboards, reports, exploratory analysis, and reusable analytics move
+out of the old scraper project and into `cycling-analytics`.
 
-* training load
-* weekly and monthly activity summaries
-* equipment and mileage analytics
-* health and sleep summaries once Google/Fitbit ingestion is validated
-* dashboard-facing aggregate tables
+Priority work:
 
-## Phase 4: MCP Learning and Development
+* consume silver and gold platform objects
+* migrate reusable analytical code from the old scraper where it still has value
+* avoid compatibility tables that only preserve old implementation details
+* retire scraper dependencies once replacement analytics are stable
+
+## Phase 5: MCP Development
 
 Outcome: an MCP server exposes stable platform data to local LLM workflows.
 
@@ -152,12 +204,13 @@ This phase starts only after the platform is stable and automated.
 
 Candidate work:
 
-* design MCP resources around silver/gold entities
+* design MCP resources around silver/gold entities and `cycling-analytics`
+  outputs
 * expose read-only tools for athlete, activity, stream, health, and training
   summaries
 * document MCP lessons as a learning artefact
 
-## Phase 5: AI Coaching Features
+## Phase 6: AI Coaching
 
 Outcome: coaching workflows use the MCP server and platform analytics rather
 than raw operational tables.
@@ -171,7 +224,8 @@ Candidate work:
 
 ## Deferred Raw Endpoints
 
-These remain useful but are lower priority than dashboard migration:
+These remain useful but are lower priority than platform stabilisation, gold
+objects, and `cycling-analytics` migration:
 
 * Strava athlete
 * Strava gear

@@ -43,8 +43,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_streams (
 
     PRIMARY KEY (activity_id, sample_index),
 
-    KEY idx_silver_activity_streams_activity_id (activity_id),
-
     KEY idx_silver_activity_streams_time_seconds (time_seconds),
 
     KEY idx_silver_activity_streams_distance_metres (distance_metres)

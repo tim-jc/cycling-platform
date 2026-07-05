@@ -13,13 +13,14 @@ Source APIs
     ↓
     Gold
     ↓
- Consumers
+ cycling-analytics / other consumers
 ```
 
 ### Consumers
 
-* Dashboard
-* MCP
+* `cycling-analytics`
+* `coastal`
+* future MCP server
 
 ## Data Layers
 
@@ -32,21 +33,35 @@ The platform is organised into the following logical layers:
 
 Silver layer design is documented in `docs/silver_layer_design.md`.
 
+`cycling-platform` is responsible for ingestion, raw data, silver conformed
+data, gold analytical objects, automation, and operational monitoring.
+`cycling-analytics` is responsible for dashboards, reports, exploratory
+analysis, reusable analytics, MCP server work, AI coaching, and replacing the
+legacy scraper project.
+
 ## Current Operating Position
 
-The platform is in a stabilisation phase. The immediate goal is to replace the
-legacy scraper database for existing dashboards.
+The platform is in a stabilisation phase. The immediate goal is to provide the
+raw, silver, and gold foundation for `cycling-analytics`, which will replace
+the old scraper project.
 
 Current status:
 
 * Strava raw endpoints are deployed for activities, details, streams, and laps.
-* Strava activities, details, and streams are backfilled.
-* Strava laps backfill is still in progress because of API limits.
+* Strava activities, details, streams, and laps are complete.
 * Google/Fitbit heart-rate and sleep raw ingestion exists, but is early and not
   yet fully validated.
-* Silver transforms exist for activities and streams.
-* Local silver stream transform/backfill is in progress.
+* `silver.activities` is complete.
+* `silver.activity_streams` backfill is in the final stages.
+* Coastal project is fully migrated to `cycling-platform`, complete, and no
+  longer depends on the legacy scraper database.
+* `cycling-analytics` has been created as an empty replacement project for the
+  old scraper.
 * Platform automation is not yet in place.
+
+The old scraper is a migration source only, not the target architecture. Scraper
+tables should not be recreated one-for-one unless they represent reusable
+analytical concepts.
 
 MCP development is deliberately paused until the cycling platform is stable,
 automated, and no longer needs immediate revisiting.

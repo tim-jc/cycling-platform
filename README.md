@@ -3,9 +3,9 @@
 Personal cycling data platform for Strava and selected Google/Fitbit health
 data.
 
-The immediate goal is practical: build enough reliable raw and silver data to
-repoint existing dashboards from the old scraper database to
-`cycling-platform`, then decommission the old scraper database.
+The immediate goal is practical: finish the silver stream backfill, build the
+first gold analytical objects, and prepare `cycling-analytics` to replace the
+old scraper project.
 
 ## Current Status
 
@@ -20,13 +20,11 @@ Implemented and deployed:
 
 In progress:
 
-* Strava laps historical backfill. Activities, details, and streams are
-  substantially backfilled; laps remain API-limited and are expected to take a
-  few more days.
-* Local silver stream transformation/backfill. This is expected to complete
-  soon and is required for dashboard migration.
+* Local silver stream transformation/backfill is in the final stages.
 * Google/Fitbit raw ingestion for heart rate and sleep. This exists but is
   early and not yet production-ready.
+* `cycling-analytics` has been created as an empty replacement project for the
+  old scraper.
 
 Not yet in place:
 
@@ -38,19 +36,29 @@ Not yet in place:
 
 ## Current Priority
 
-The project is currently focused on platform stabilisation and legacy scraper
-replacement.
+The project is currently focused on platform stabilisation and the data
+foundation needed by `cycling-analytics`.
+
+The Coastal project repoint is complete. `cycling-platform` owns ingestion and
+the raw/silver/gold data foundation, plus automation and operational monitoring.
+`cycling-analytics` will own dashboards, reports, exploratory analysis,
+reusable analytics, MCP, AI coaching, and the legacy scraper replacement.
+
+The old scraper is a migration source only, not the target architecture. Do not
+recreate scraper tables one-for-one unless they represent reusable analytical
+concepts.
 
 MCP development is deliberately paused until the cycling platform is stable,
 automated, and no longer needs immediate revisiting.
 
 ## Roadmap
 
-1. Platform stabilisation and legacy scraper replacement.
-2. Automation and operational reliability.
-3. Gold analytics layer.
-4. MCP learning and development.
-5. AI coaching features built on top of MCP and platform analytics.
+1. Platform foundation: Strava raw and silver.
+2. Gold analytical layer.
+3. Platform automation and operational readiness.
+4. `cycling-analytics` migration.
+5. MCP development.
+6. AI coaching.
 
 Detailed milestones are tracked in `docs/backlog.md`.
 
