@@ -92,8 +92,9 @@ not need to trigger ingestion manually.
 
 Work:
 
-1. Schedule `platform.R`.
-2. Schedule raw and silver maintenance.
+1. Schedule `run_daily_platform.R`.
+2. Confirm raw, silver, validation, and notification behaviour under unattended
+   execution.
 3. Confirm idempotent incremental ETL.
 4. Define failure recovery that avoids manual database repair.
 5. Add success/failure notifications.

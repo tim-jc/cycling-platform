@@ -7,6 +7,16 @@ args <- commandArgs(
   trailingOnly = TRUE
 )
 
+send_run_notification <- TRUE
+
+if ("--no-notification" %in% args) {
+  send_run_notification <- FALSE
+  args <- setdiff(
+    args,
+    "--no-notification"
+  )
+}
+
 execution_mode <- "manual"
 
 if (length(args) > 0) {
@@ -197,10 +207,12 @@ tryCatch(
   }
 )
 
-send_notification(
-  run_id = run_id,
-  config = config
-)
+if (isTRUE(send_run_notification)) {
+  send_notification(
+    run_id = run_id,
+    config = config
+  )
+}
 
 if (!is.null(platform_error)) {
   stop(platform_error)

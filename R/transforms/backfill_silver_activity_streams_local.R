@@ -18,6 +18,9 @@
 #' @param source_id Source identifier used if `staging_repair` creates a run.
 #' @param merge_batch_activities Number of staged activity IDs merged per
 #'   transaction.
+#' @param allow_unscoped_staging_merge Allow manual rescue merge across all
+#'   staged rows when `run_id` is not provided. Automated merges should leave
+#'   this as FALSE.
 #'
 #' @return Invisibly returns a data frame of activity-level results.
 backfill_silver_activity_streams_local <- function(
@@ -35,7 +38,8 @@ backfill_silver_activity_streams_local <- function(
   max_runtime_minutes = NULL,
   run_id = NULL,
   source_id = 1L,
-  merge_batch_activities = 5L
+  merge_batch_activities = 5L,
+  allow_unscoped_staging_merge = FALSE
 ) {
   mode <- match.arg(mode)
 
@@ -44,6 +48,19 @@ backfill_silver_activity_streams_local <- function(
 
   stopifnot(insert_chunk_size > 0)
   stopifnot(merge_batch_activities > 0)
+
+  if (
+    mode == "staging_merge" &&
+      is.null(run_id) &&
+      !isTRUE(allow_unscoped_staging_merge)
+  ) {
+    stop(
+      "staging_merge requires run_id. ",
+      "For manual rescue across all staged rows, set ",
+      "allow_unscoped_staging_merge = TRUE.",
+      call. = FALSE
+    )
+  }
 
   if (!is.null(max_activities)) {
     stopifnot(max_activities > 0)
@@ -396,6 +413,34 @@ backfill_silver_activity_streams_local <- function(
         limit
       )
     )$activity_id
+  }
+
+  validate_staging_run_ownership <- function() {
+    create_staging_table()
+
+    duplicate_activity_runs <- DBI::dbGetQuery(
+      conn = connection,
+      statement = "
+        SELECT
+          activity_id,
+          COUNT(DISTINCT run_id) AS run_count
+        FROM cycling_platform_stage.activity_streams_build
+        GROUP BY activity_id
+        HAVING COUNT(DISTINCT run_id) > 1
+        LIMIT 10
+      "
+    )
+
+    if (nrow(duplicate_activity_runs) > 0) {
+      stop(
+        "Staging merge cannot continue because staged activity_id values ",
+        "exist under multiple run_id values. Clean up stale stage rows by ",
+        "run_id before merging.",
+        call. = FALSE
+      )
+    }
+
+    invisible(TRUE)
   }
 
   placeholders <- function(values) {
@@ -925,6 +970,14 @@ backfill_silver_activity_streams_local <- function(
 
   apply_staged_rows <- function() {
     ensure_connection("staging apply")
+    validate_staging_run_ownership()
+
+    if (is.null(run_id)) {
+      message(
+        "Staging merge: running explicit manual rescue mode across all ",
+        "staged rows because allow_unscoped_staging_merge = TRUE."
+      )
+    }
 
     staging_summary <- get_staging_summary()
 

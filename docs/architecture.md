@@ -99,6 +99,22 @@ Rscript run_silver.R
 This keeps raw/admin bootstrap safe to rerun without accidentally launching a
 large silver stream expansion.
 
+`platform.R` is currently a raw-ingestion orchestrator. Automation must run
+silver transforms only after successful raw ingestion, either by scheduling
+`run_silver.R` as the next step or by deliberately extending `platform.R` to
+own raw plus silver orchestration.
+
+The v1 unattended command is:
+
+```sh
+Rscript run_daily_platform.R
+```
+
+It runs raw ingestion through `platform.R`, then runs Silver transforms only if
+raw ingestion succeeds. Silver streams use repair mode for normal automation, so
+the large stream table is not truncated and historical staging repair tooling is
+not invoked.
+
 Silver stream samples are rebuilt in activity batches so long rebuilds provide
 progress feedback and avoid one large opaque database statement.
 
@@ -138,6 +154,15 @@ Silver / Gold
 Stage objects are safe to delete and should never be queried by dashboards,
 analytics, MCP tools, or coaching workflows. Persistent business data belongs
 only in raw, silver, or gold.
+
+Stage housekeeping should be explicit:
+
+* report orphaned stage rows before automated cleanup;
+* report old retained stage rows before age-based cleanup;
+* remove completed or obsolete stage data by `run_id`;
+* remove old retained stage rows by age when they are no longer useful for
+  investigation;
+* truncate all stage tables only as a deliberate manual action.
 
 ## Transform Logging
 

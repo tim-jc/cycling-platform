@@ -16,6 +16,8 @@ Implemented and deployed:
 * Silver transforms for activities and activity streams.
 * Coastal project migration to `cycling-platform`.
 * ETL run and entity logging.
+* Platform automation v1 for raw ingestion, Silver transforms, validation, and
+  notification.
 * Local smoke checks and focused regression tests.
 * Backup runbook and MariaDB dump script.
 
@@ -28,9 +30,7 @@ In progress:
 
 Not yet in place:
 
-* Platform automation.
 * Routine monitoring.
-* Fully validated notification workflow.
 * Gold analytics models.
 * MCP server or AI coaching features.
 
@@ -98,6 +98,12 @@ Run routine platform ingestion:
 
 ```sh
 Rscript platform.R
+```
+
+Run unattended raw-to-Silver platform automation:
+
+```sh
+Rscript run_daily_platform.R
 ```
 
 Run historical Strava activity discovery:

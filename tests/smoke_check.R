@@ -18,6 +18,7 @@ r_files <- c(
   "platform.R",
   "run_google_health_heart_rate.R",
   "run_google_health_sleep.R",
+  "run_daily_platform.R",
   "run_silver.R"
 )
 
@@ -155,11 +156,30 @@ expected_tables <- c(
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
   "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
-  "raw/140_create_google_health_data_points.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
+  "raw/140_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
   "raw/150_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
 )
+
+missing_expected_files <- setdiff(
+  names(expected_tables),
+  sub(
+    "^sql/",
+    "",
+    sql_files
+  )
+)
+
+if (length(missing_expected_files) > 0) {
+  stop(
+    "Expected SQL files missing from smoke check input: ",
+    paste(
+      missing_expected_files,
+      collapse = ", "
+    )
+  )
+}
 
 for (file in sql_files) {
   file_name <- sub(

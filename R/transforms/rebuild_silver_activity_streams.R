@@ -499,14 +499,35 @@ rebuild_silver_activity_streams <- function(
 
           batch_error <- tryCatch(
             {
-              rows_deleted <- delete_silver_activity_streams(
-                connection = connection,
-                activity_ids = activity_ids
-              )
+              DBI::dbBegin(connection)
 
-              rows_inserted <- insert_silver_activity_stream_batch(
-                connection = connection,
-                activity_ids = activity_ids
+              tryCatch(
+                {
+                  rows_deleted <- delete_silver_activity_streams(
+                    connection = connection,
+                    activity_ids = activity_ids
+                  )
+
+                  rows_inserted <- insert_silver_activity_stream_batch(
+                    connection = connection,
+                    activity_ids = activity_ids
+                  )
+
+                  DBI::dbCommit(connection)
+                },
+                error = function(e) {
+                  tryCatch(
+                    DBI::dbRollback(connection),
+                    error = function(rollback_error) {
+                      message(glue::glue(
+                        "Silver stream batch rollback failed: ",
+                        "{conditionMessage(rollback_error)}"
+                      ))
+                    }
+                  )
+
+                  stop(e)
+                }
               )
 
               NULL
