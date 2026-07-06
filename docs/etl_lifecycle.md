@@ -31,6 +31,21 @@ Complete etl_run
 Send notification
 ```
 
+Large rebuilds may use `cycling_platform_stage` between extraction and merge:
+
+```text
+Create etl_run
+        ↓
+Populate stage rows owned by run_id
+        ↓
+Validate staged data
+        ↓
+Bulk merge into raw, silver, or gold destination
+        ↓
+On success: remove stage rows for run_id
+On failure: retain stage rows for investigation
+```
+
 ## Run Lifecycle
 
 ### Start Run
@@ -114,3 +129,4 @@ Send a notification summarising:
 * All ingestion processes are idempotent.
 * Failures are logged and observable.
 * Notifications summarise operational outcomes.
+* Stage data is temporary, run-owned, and never a data product.

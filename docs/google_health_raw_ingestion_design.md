@@ -4,8 +4,8 @@ Status note: this document records the initial Google Health ingestion design.
 The implemented heart-rate raw grain has since been changed to one row per API
 response per user/date/detail level in
 `cycling_platform_raw.google_health_heart_rate_responses`. Sleep remains one
-row per sleep log/session where available. Google/Fitbit ingestion is still in
-early validation and is not production-ready.
+row per sleep log/session where available. Google/Fitbit raw ingestion is
+implemented; validation and silver transforms remain future work.
 
 ## Purpose
 

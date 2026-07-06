@@ -6,7 +6,7 @@ The gold layer provides reusable analytical objects for dashboards, coaching,
 MCP resources, and future reporting.
 
 Gold models should not recreate legacy scraper tables one-for-one. Existing
-scraper tables and dashboard code are source requirements and examples, but new
+scraper tables and dashboard code are frozen reference examples, but new
 objects should be product-neutral and built around stable platform concepts.
 Where legacy dashboards need changes, they should adapt to the platform model
 rather than forcing the platform to mimic the old scraper database.
@@ -22,11 +22,11 @@ The Coastal project repoint is complete. Broader scraper replacement moves into
 `cycling-analytics` and requires gold analytical objects on top of silver
 tables.
 
-The old scraper is a migration source only, not the target architecture. Do not
-recreate scraper tables one-for-one unless they represent reusable analytical
-concepts.
+The old scraper is frozen and is a migration source only, not the target
+architecture. Do not recreate scraper tables one-for-one unless they represent
+reusable analytical concepts.
 
-## Planned Gold Objects
+## Priority Gold Objects
 
 ### `gold.activity_best_efforts`
 

@@ -9,9 +9,13 @@ Source APIs
     ↓
     Raw
     ↓
-   Silver
+  Stage  ← operational workspace only
     ↓
-    Gold
+ Validate
+    ↓
+ Bulk merge
+    ↓
+ Silver / Gold
     ↓
  cycling-analytics / other consumers
 ```
@@ -27,6 +31,7 @@ Source APIs
 The platform is organised into the following logical layers:
 
 * `admin`
+* `stage`
 * `raw`
 * `silver`
 * `gold`
@@ -34,34 +39,46 @@ The platform is organised into the following logical layers:
 Silver layer design is documented in `docs/silver_layer_design.md`.
 
 `cycling-platform` is responsible for ingestion, raw data, silver conformed
-data, gold analytical objects, automation, and operational monitoring.
+data, gold analytical objects, operational automation, monitoring, and data
+quality.
 `cycling-analytics` is responsible for dashboards, reports, exploratory
-analysis, reusable analytics, MCP server work, AI coaching, and replacing the
-legacy scraper project.
+analysis, reusable analytical functions, MCP server work, AI coaching, and
+replacing the legacy scraper project.
+
+The `stage` schema is not part of the medallion architecture. It is temporary
+ETL workspace only.
+
+Schema responsibilities:
+
+* `admin`: ETL metadata, run logging, and configuration metadata.
+* `stage`: temporary ETL artefacts owned by `run_id`.
+* `raw`: retained source data.
+* `silver`: integrated and cleaned data.
+* `gold`: reusable analytical assets.
 
 ## Current Operating Position
 
-The platform is in a stabilisation phase. The immediate goal is to provide the
-raw, silver, and gold foundation for `cycling-analytics`, which will replace
-the old scraper project.
+The platform raw and silver foundation is in place. The immediate goal is to
+make that foundation operational through automation, monitoring, notifications,
+and data quality checks.
 
 Current status:
 
 * Strava raw endpoints are deployed for activities, details, streams, and laps.
 * Strava activities, details, streams, and laps are complete.
 * Google/Fitbit heart-rate and sleep raw ingestion exists, but is early and not
-  yet fully validated.
+  yet fully validated. Google/Fitbit silver transforms remain future work.
 * `silver.activities` is complete.
-* `silver.activity_streams` backfill is in the final stages.
+* `silver.activity_streams` is complete following local repair/backfill.
 * Coastal project is fully migrated to `cycling-platform`, complete, and no
   longer depends on the legacy scraper database.
 * `cycling-analytics` has been created as an empty replacement project for the
-  old scraper.
+  frozen legacy scraper.
 * Platform automation is not yet in place.
 
-The old scraper is a migration source only, not the target architecture. Scraper
-tables should not be recreated one-for-one unless they represent reusable
-analytical concepts.
+The legacy scraper is frozen. It is now a reference implementation and
+migration source only, not the target architecture. Scraper tables should not
+be recreated one-for-one unless they represent reusable analytical concepts.
 
 MCP development is deliberately paused until the cycling platform is stable,
 automated, and no longer needs immediate revisiting.
@@ -69,9 +86,9 @@ automated, and no longer needs immediate revisiting.
 ## Bootstrap and Derived Layers
 
 `bootstrap_platform.R` is for database and table setup. It runs install, admin,
-raw, and derived-layer create scripts only. It should not run silver or gold
-transformation scripts because those can be long-running rebuilds over existing
-raw data.
+stage, raw, and derived-layer create scripts only. It should not run silver or
+gold transformation scripts because those can be long-running rebuilds over
+existing raw data.
 
 Derived layers are refreshed explicitly:
 
@@ -90,6 +107,37 @@ Interrupted silver stream rebuilds can be resumed in repair mode:
 ```sh
 Rscript run_silver.R repair
 ```
+
+Gold processing is intentionally separate from `platform.R` at this stage.
+`platform.R` should remain focused on ingestion and raw/silver operational
+maintenance.
+
+## Operational Lessons
+
+Large historical repairs should not reuse the incremental ETL path. The Strava
+stream backfill showed that historical silver rebuilds are a separate workload:
+they need staging tables, bulk merge into indexed production tables, clear
+timing logs, and recovery-oriented tooling. Incremental daily processing should
+stay optimised for small reliable deltas; historical repair tooling should
+prioritise throughput and recoverability.
+
+Recommended pattern for large rebuilds:
+
+```text
+Raw
+ ↓
+Stage
+ ↓
+Validate
+ ↓
+Bulk merge
+ ↓
+Silver / Gold
+```
+
+Stage objects are safe to delete and should never be queried by dashboards,
+analytics, MCP tools, or coaching workflows. Persistent business data belongs
+only in raw, silver, or gold.
 
 ## Transform Logging
 

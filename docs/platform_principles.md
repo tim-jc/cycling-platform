@@ -9,6 +9,8 @@
 * Configuration is externalised.
 * Secrets are externalised and never hard-coded.
 * Recovery procedures are documented and tested.
+* Historical repairs and incremental ETL are different workloads.
+* Stage data is temporary ETL workspace, not a platform data product.
 
 ## Definitions
 
@@ -26,6 +28,10 @@ only in curated layers.
 Dashboards, analytics, coaching workflows, and MCP integrations consume data from the `silver` and `gold` layers only.
 
 The `raw` layer exists to support ingestion, auditability, and reprocessing.
+
+The `stage` schema exists only for temporary ETL workspace. Stage objects are
+owned by `run_id`, safe to delete, and must never be queried by dashboards,
+analytics, MCP tools, or coaching workflows.
 
 ### Externalised Configuration
 
@@ -56,3 +62,6 @@ Secrets are managed through environment variables and `.Renviron`.
 The platform must be recoverable from source control, configuration, and documented procedures.
 
 Recovery procedures should be version-controlled and regularly reviewed.
+
+Large historical repairs should prioritise throughput and recoverability.
+Incremental daily ETL should remain idempotent and optimised for small deltas.

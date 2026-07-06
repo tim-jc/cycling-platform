@@ -3,9 +3,9 @@
 Personal cycling data platform for Strava and selected Google/Fitbit health
 data.
 
-The immediate goal is practical: finish the silver stream backfill, build the
-first gold analytical objects, and prepare `cycling-analytics` to replace the
-old scraper project.
+The immediate goal is practical: automate the stable raw and silver foundation,
+build the first gold analytical objects, and prepare `cycling-analytics` to
+replace the frozen legacy scraper project.
 
 ## Current Status
 
@@ -14,17 +14,17 @@ Implemented and deployed:
 * Strava raw ingestion for activities, activity details, activity streams, and
   activity laps.
 * Silver transforms for activities and activity streams.
+* Coastal project migration to `cycling-platform`.
 * ETL run and entity logging.
 * Local smoke checks and focused regression tests.
 * Backup runbook and MariaDB dump script.
 
 In progress:
 
-* Local silver stream transformation/backfill is in the final stages.
 * Google/Fitbit raw ingestion for heart rate and sleep. This exists but is
-  early and not yet production-ready.
+  early; validation and silver transforms remain future work.
 * `cycling-analytics` has been created as an empty replacement project for the
-  old scraper.
+  frozen legacy scraper.
 
 Not yet in place:
 
@@ -40,13 +40,14 @@ The project is currently focused on platform stabilisation and the data
 foundation needed by `cycling-analytics`.
 
 The Coastal project repoint is complete. `cycling-platform` owns ingestion and
-the raw/silver/gold data foundation, plus automation and operational monitoring.
-`cycling-analytics` will own dashboards, reports, exploratory analysis,
-reusable analytics, MCP, AI coaching, and the legacy scraper replacement.
+the raw/silver/gold data foundation, plus operational automation, monitoring,
+and data quality. `cycling-analytics` will own dashboards, reports,
+exploratory analysis, reusable analytical functions, MCP, AI coaching, and the
+legacy scraper replacement.
 
-The old scraper is a migration source only, not the target architecture. Do not
-recreate scraper tables one-for-one unless they represent reusable analytical
-concepts.
+The legacy scraper is frozen and is now a reference implementation only. Do not
+recreate scraper architecture or tables one-for-one unless they represent
+reusable analytical concepts.
 
 MCP development is deliberately paused until the cycling platform is stable,
 automated, and no longer needs immediate revisiting.
@@ -54,8 +55,8 @@ automated, and no longer needs immediate revisiting.
 ## Roadmap
 
 1. Platform foundation: Strava raw and silver.
-2. Gold analytical layer.
-3. Platform automation and operational readiness.
+2. Platform automation and operational readiness.
+3. Gold analytical layer.
 4. `cycling-analytics` migration.
 5. MCP development.
 6. AI coaching.

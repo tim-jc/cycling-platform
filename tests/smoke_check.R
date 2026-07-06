@@ -150,6 +150,7 @@ sql_files <- list.files(
 expected_tables <- c(
   "admin/040_create_transform_run.sql" = "cycling_platform_admin.transform_run",
   "admin/050_create_transform_run_batch.sql" = "cycling_platform_admin.transform_run_batch",
+  "stage/060_create_activity_streams_build.sql" = "cycling_platform_stage.activity_streams_build",
   "raw/100_create_activities.sql" = "cycling_platform_raw.activities",
   "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",

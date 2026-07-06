@@ -23,6 +23,7 @@ tryCatch(
     sql_files <- list(
       list_sql_files("install"),
       list_sql_files("admin"),
+      list_sql_files("stage"),
       list_sql_files("raw"),
       list_sql_files("silver", "^[0-9]+_create_.*\\.sql$"),
       list_sql_files("gold", "^[0-9]+_create_.*\\.sql$")

@@ -127,3 +127,22 @@ Rscript platform.R backfill
 The run will select `PENDING` and `FAILED` activity IDs for child-entity
 ingestion from the full `raw.activities` table and continue from the remaining
 work.
+
+## Silver Repair Lessons
+
+Historical silver rebuilds are not the same workload as incremental daily
+processing. Large stream repairs should not reuse the normal incremental ETL
+path when indexed production writes become the bottleneck.
+
+For large historical silver repairs:
+
+* parse and rebuild rows with recovery-oriented tooling
+* write into `cycling_platform_stage` with `run_id` ownership
+* bulk delete and insert into the indexed production table in small batches
+* remove staged rows for successful batches
+* retain failed staged rows for investigation
+* preserve timing logs and resumability where practical
+
+Incremental daily processing should remain simple and reliable for small
+deltas. Historical repair tooling should prioritise throughput and
+recoverability.

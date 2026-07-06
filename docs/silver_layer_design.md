@@ -292,11 +292,21 @@ The default mode truncates and fully rebuilds `silver.activity_streams`.
 row counts, then deletes and rebuilds only missing or incomplete activities.
 This is the preferred recovery path after an interrupted silver stream rebuild.
 
-For the historical Mac-to-Pi recovery path, a temporary local R backfill helper
-can parse raw stream JSON in R and rebuild `silver.activity_streams` one
-activity at a time. It is useful when MariaDB-side JSON expansion is too slow or
-causes connection drops, but it should remain a recovery tool rather than the
-long-term orchestration pattern.
+For the historical Mac-to-Pi recovery path, a local R backfill helper can parse
+raw stream JSON in R. Large historical repairs should use a staging table and
+bulk merge into the indexed production table. This keeps historical repair
+workloads separate from the incremental daily ETL path.
+
+The reference implementation is
+`backfill_silver_activity_streams_local(mode = "staging_repair")`. It writes
+rebuilt rows to `cycling_platform_stage.activity_streams_build` using `run_id`
+ownership, validates staged row counts, bulk merges into
+`cycling_platform_silver.activity_streams` in small activity-ID batches, and
+removes staged rows for each batch only after a successful commit.
+
+If staging has already been populated, merge can be retried without rebuilding
+rows by running `backfill_silver_activity_streams_local(mode =
+"staging_merge", run_id = <run_id>)`.
 
 Silver stream rebuilds write run and batch progress to
 `cycling_platform_admin.transform_run` and
@@ -327,9 +337,9 @@ migrated to `cycling-platform`, complete, and no longer depends on the legacy
 scraper database.
 
 Broader legacy scraper replacement moves into `cycling-analytics` and should
-not recreate old scraper tables one-for-one. Legacy objects should be treated
-as requirements and examples. Analytical work should adapt to the platform
-model, with reusable gold objects built where the old scraper exposed derived
-concepts such as peaks and power summaries.
+not recreate old scraper tables one-for-one. The scraper is frozen and should
+be treated as a reference implementation only. Analytical work should adapt to
+the platform model, with reusable gold objects built where the old scraper
+exposed derived concepts such as peaks and power summaries.
 
 Gold design notes are tracked in `docs/gold_layer_design.md`.
