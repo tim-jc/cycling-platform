@@ -102,6 +102,7 @@ run_phase <- function(phase_name, expr) {
 }
 
 automation_error <- NULL
+publication_gate_results <- data.frame()
 
 tryCatch(
   {
@@ -138,44 +139,63 @@ tryCatch(
       {
         connection <- get_connection("mysql")
 
-        on.exit(
+        tryCatch(
           {
+            run_silver_transformations(
+              connection = connection,
+              config = config,
+              stream_rebuild_mode = "repair"
+            )
+          },
+          finally = {
             if (DBI::dbIsValid(connection)) {
               DBI::dbDisconnect(connection)
             }
-          },
-          add = TRUE
-        )
-
-        run_silver_transformations(
-          connection = connection,
-          config = config,
-          stream_rebuild_mode = "repair"
+          }
         )
       }
     )
 
     run_phase(
-      "validation",
+      "publication_gate",
       {
         connection <- get_connection("mysql")
 
-        on.exit(
+        tryCatch(
           {
+            publication_gate_results <<- run_platform_validation(
+              connection = connection,
+              config = config,
+              include_gold = FALSE,
+              validation_scope = "publication",
+              run_mode = "automated_publication_gate",
+              per_check_timeout_seconds =
+                config$validation$publication_gate_per_check_timeout_seconds,
+              overall_timeout_seconds =
+                config$validation$publication_gate_overall_timeout_seconds
+            )
+
+            print_platform_completeness_validation(
+              publication_gate_results
+            )
+          },
+          finally = {
             if (DBI::dbIsValid(connection)) {
               DBI::dbDisconnect(connection)
             }
-          },
-          add = TRUE
+          }
         )
-
-        validation_results <- run_platform_validation(
-          connection = connection
-        )
-
-        message("Platform validation results:")
-        print(validation_results)
       }
+    )
+
+    deep_validation_started_at <- Sys.time()
+
+    record_phase(
+      phase_name = "deep_validation",
+      phase_status = "NOT_RUN",
+      started_at = deep_validation_started_at,
+      completed_at = deep_validation_started_at,
+      error_message = "Run separately with Rscript run_platform_validation.R"
     )
   },
   error = function(e) {
@@ -229,6 +249,22 @@ tryCatch(
 
 message("Platform automation phase summary:")
 print(phase_results)
+
+if (nrow(publication_gate_results) > 0) {
+  message("Platform automation publication-gate checks:")
+  print(
+    publication_gate_results[
+      c(
+        "check_name",
+        "check_scope",
+        "severity",
+        "passed",
+        "issue_count",
+        "elapsed_seconds"
+      )
+    ]
+  )
+}
 
 if (!is.null(automation_error)) {
   stop(automation_error)

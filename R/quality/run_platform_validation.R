@@ -1,108 +1,152 @@
 #' Run Platform Validation
 #'
-#' Execute lightweight post-automation validation checks.
+#' Compatibility wrapper around validate_platform_completeness().
 #'
 #' @param connection DBI connection.
+#' @param config Platform configuration.
+#' @param include_gold Whether to include Gold completeness checks.
+#' @param validation_scope Validation scope: publication or deep.
+#' @param run_mode Run mode recorded in admin metadata.
+#' @param per_check_timeout_seconds Optional per-check timeout in seconds.
+#' @param overall_timeout_seconds Optional overall timeout in seconds.
+#' @param record_admin Whether to write validation status metadata.
 #'
-#' @return Data frame of validation results.
-run_platform_validation <- function(connection) {
-  validation_checks <- list(
-    list(
-      check_name = "silver_streams_have_silver_activities",
-      severity = "CRITICAL",
-      sql = "
-        SELECT COUNT(*) AS failure_count
-        FROM cycling_platform_silver.activity_streams streams
-        LEFT JOIN cycling_platform_silver.activities activities
-          ON activities.activity_id = streams.activity_id
-        WHERE activities.activity_id IS NULL
-      "
-    ),
-    list(
-      check_name = "silver_activity_has_streams_matches_rows",
-      severity = "CRITICAL",
-      sql = "
-        SELECT COUNT(*) AS failure_count
-        FROM cycling_platform_silver.activities activities
-        WHERE activities.has_streams <> EXISTS (
-          SELECT 1
-          FROM cycling_platform_silver.activity_streams streams
-          WHERE streams.activity_id = activities.activity_id
-        )
-      "
-    ),
-    list(
-      check_name = "silver_stream_sample_key_unique",
-      severity = "CRITICAL",
-      sql = "
-        SELECT COUNT(*) AS failure_count
-        FROM (
-          SELECT
-            activity_id,
-            sample_index
-          FROM cycling_platform_silver.activity_streams
-          GROUP BY
-            activity_id,
-            sample_index
-          HAVING COUNT(*) > 1
-        ) duplicate_samples
-      "
-    ),
-    list(
-      check_name = "raw_and_silver_activity_counts_match",
-      severity = "CRITICAL",
-      sql = "
-        SELECT
-          CASE
-            WHEN raw_counts.row_count = silver_counts.row_count THEN 0
-            ELSE 1
-          END AS failure_count
-        FROM (
-          SELECT COUNT(*) AS row_count
-          FROM cycling_platform_raw.activities
-        ) raw_counts
-        CROSS JOIN (
-          SELECT COUNT(*) AS row_count
-          FROM cycling_platform_silver.activities
-        ) silver_counts
-      "
+#' @return Completeness validation result tibble.
+run_platform_validation <- function(
+  connection,
+  config = list(),
+  include_gold = TRUE,
+  validation_scope = c(
+    "deep",
+    "publication"
+  ),
+  run_mode = "manual",
+  per_check_timeout_seconds = NULL,
+  overall_timeout_seconds = NULL,
+  record_admin = TRUE
+) {
+  validation_scope <- match.arg(validation_scope)
+
+  validation_run_id <- NULL
+  validation_results <- tibble::tibble()
+
+  if (isTRUE(record_admin)) {
+    ensure_validation_logging_tables(connection)
+
+    validation_run_id <- create_validation_run(
+      connection = connection,
+      validation_scope = validation_scope,
+      run_mode = run_mode,
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      overall_timeout_seconds = overall_timeout_seconds
     )
-  )
+  }
 
-  results <- lapply(
-    validation_checks,
-    \(validation_check) {
-      failure_count <- DBI::dbGetQuery(
-        conn = connection,
-        statement = validation_check$sql
-      )$failure_count[[1]]
+  validation_error <- NULL
 
-      data.frame(
-        check_name = validation_check$check_name,
-        severity = validation_check$severity,
-        failure_count = as.integer(failure_count),
-        check_status = if (failure_count == 0) "PASS" else "FAIL"
+  tryCatch(
+    {
+      validation_results <- validate_platform_completeness(
+        connection = connection,
+        config = config,
+        include_gold = include_gold,
+        validation_scope = validation_scope,
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        overall_timeout_seconds = overall_timeout_seconds
       )
+    },
+    error = function(e) {
+      validation_error <<- e
     }
   )
 
-  validation_results <- do.call(rbind, results)
+  if (
+    isTRUE(record_admin) &&
+      !is.null(validation_run_id) &&
+      nrow(validation_results) > 0
+  ) {
+    insert_validation_run_checks(
+      connection = connection,
+      validation_run_id = validation_run_id,
+      validation_results = validation_results
+    )
+  }
 
-  failed_critical <- validation_results[
-    validation_results$severity == "CRITICAL" &
-      validation_results$check_status == "FAIL",
-    ,
-    drop = FALSE
-  ]
+  checks_planned <- nrow(validation_results)
+  checks_completed <- nrow(validation_results)
+  checks_failed <- if (nrow(validation_results) == 0) {
+    0L
+  } else {
+    sum(!validation_results$passed)
+  }
 
-  if (nrow(failed_critical) > 0) {
+  if (!is.null(validation_error)) {
+    error_message <- conditionMessage(validation_error)
+    run_status <- if (grepl(
+      "timeout|max_statement_time|overall timeout",
+      error_message,
+      ignore.case = TRUE
+    )) {
+      "TIMED_OUT"
+    } else {
+      "FAILED"
+    }
+
+    if (
+      isTRUE(record_admin) &&
+        !is.null(validation_run_id)
+    ) {
+      update_validation_run(
+        connection = connection,
+        validation_run_id = validation_run_id,
+        run_status = run_status,
+        checks_planned = checks_planned,
+        checks_completed = checks_completed,
+        checks_failed = checks_failed,
+        error_message = error_message
+      )
+    }
+
+    stop(validation_error)
+  }
+
+  validation_failed <- platform_validation_has_critical_failures(
+    validation_results
+  )
+
+  if (
+    isTRUE(record_admin) &&
+      !is.null(validation_run_id)
+  ) {
+    update_validation_run(
+      connection = connection,
+      validation_run_id = validation_run_id,
+      run_status = if (validation_failed) {
+        "FAILED"
+      } else {
+        "SUCCESS"
+      },
+      checks_planned = checks_planned,
+      checks_completed = checks_completed,
+      checks_failed = checks_failed
+    )
+  }
+
+  if (validation_failed) {
+    failed_critical <- validation_results[
+      validation_results$severity == "CRITICAL" &
+        !validation_results$passed,
+      ,
+      drop = FALSE
+    ]
+
     stop(
       "Platform validation failed: ",
       paste(
         paste0(
           failed_critical$check_name,
           "=",
-          failed_critical$failure_count
+          failed_critical$issue_count
         ),
         collapse = "; "
       ),

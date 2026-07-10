@@ -106,11 +106,20 @@ GOOGLE_HEALTH_CLIENT_SECRET
 GOOGLE_HEALTH_REFRESH_TOKEN
 ```
 
-Required scope for heart-rate reads:
+Required scopes:
 
 ```text
 https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
+https://www.googleapis.com/auth/googlehealth.sleep.readonly
 ```
+
+Both scopes are required because the platform now ingests:
+
+* heart-rate data from Google/Fitbit health metrics;
+* sleep logs from Google/Fitbit sleep data.
+
+If a refresh token is generated with only one of these scopes, the other
+endpoint may fail even though token refresh itself succeeds.
 
 Proposed helper files:
 
@@ -122,10 +131,80 @@ R/api/perform_google_health_request.R
 Token approach:
 
 * refresh access tokens using Google's OAuth token endpoint
-* persist a rotated `GOOGLE_HEALTH_REFRESH_TOKEN` with existing
-  `update_renviron()` if Google returns one
+* read and write tokens through a single project `.Renviron` path
+* persist a rotated `GOOGLE_HEALTH_REFRESH_TOKEN` with `update_renviron()` if
+  Google returns one
+* update the current R process environment after writing a rotated refresh token
 * keep access tokens ephemeral
 * use bearer auth in `perform_google_health_request()`
+
+Manual auth diagnostics:
+
+```sh
+Rscript run_google_health_auth_check.R
+```
+
+This command prints the token file path, modified timestamp, whether the
+required secrets are present, and whether refresh succeeded. It never prints the
+full refresh token.
+
+### Obtaining a New Refresh Token
+
+The platform does not create the initial Google OAuth refresh token itself. When
+the current refresh token is revoked, expires, or was generated with the wrong
+scopes, generate a new token using the Google OAuth consent flow and then store
+it in the project `.Renviron`.
+
+The refresh token must be requested with:
+
+```text
+access_type=offline
+prompt=consent
+```
+
+The consent request must include both platform scopes:
+
+```text
+https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
+https://www.googleapis.com/auth/googlehealth.sleep.readonly
+```
+
+After completing the consent flow, paste the returned refresh token into the
+project `.Renviron`:
+
+```text
+GOOGLE_HEALTH_REFRESH_TOKEN=1//...
+```
+
+Then validate the token with:
+
+```sh
+Rscript run_google_health_auth_check.R
+```
+
+Expected successful output includes:
+
+```text
+Google Health refresh succeeded
+Google Health access token refresh succeeded
+```
+
+It is normal for the refresh response to say:
+
+```text
+response did not include a new refresh token
+```
+
+Google generally does not rotate refresh tokens on every access-token refresh.
+This differs from Strava.
+
+If the auth check fails with `invalid_grant`, the stored refresh token is no
+longer valid for this OAuth client and scope set. Generate a new refresh token,
+replace `GOOGLE_HEALTH_REFRESH_TOKEN` in `.Renviron`, and rerun the auth check.
+
+If the auth check succeeds but platform ingestion fails with a scope error,
+regenerate the refresh token and confirm both required scopes were present in the
+OAuth consent request.
 
 ## Endpoint
 

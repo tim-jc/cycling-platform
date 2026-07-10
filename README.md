@@ -16,8 +16,8 @@ Implemented and deployed:
 * Silver transforms for activities and activity streams.
 * Coastal project migration to `cycling-platform`.
 * ETL run and entity logging.
-* Platform automation v1 for raw ingestion, Silver transforms, validation, and
-  notification.
+* Platform automation v1 for raw ingestion, Silver transforms, publication-gate
+  validation, and notification.
 * Local smoke checks and focused regression tests.
 * Backup runbook and MariaDB dump script.
 
@@ -31,7 +31,6 @@ In progress:
 Not yet in place:
 
 * Routine monitoring.
-* Gold analytics models.
 * MCP server or AI coaching features.
 
 ## Current Priority
@@ -80,6 +79,7 @@ Consumers
 Logical schemas:
 
 * `cycling_platform_admin`
+* `cycling_platform_stage`
 * `cycling_platform_raw`
 * `cycling_platform_silver`
 * `cycling_platform_gold`
@@ -106,6 +106,9 @@ Run unattended raw-to-Silver platform automation:
 Rscript run_daily_platform.R
 ```
 
+This runs fast publication-gate checks only. Deep validation is scheduled
+separately so long-running audits cannot block successful Silver publication.
+
 Run historical Strava activity discovery:
 
 ```sh
@@ -124,6 +127,28 @@ Run silver transforms:
 Rscript run_silver.R
 Rscript run_silver.R repair
 ```
+
+Run Gold activity best efforts:
+
+```sh
+Rscript run_gold_activity_best_efforts.R repair
+Rscript run_gold_activity_best_efforts.R backfill
+```
+
+Check Google Health OAuth refresh:
+
+```sh
+Rscript run_google_health_auth_check.R
+```
+
+Run deep platform completeness validation:
+
+```sh
+Rscript run_platform_validation.R
+Rscript run_platform_validation.R --silver-only
+```
+
+`Rscript validate_platform.R` remains as a compatibility wrapper.
 
 Run smoke checks:
 

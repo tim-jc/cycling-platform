@@ -74,7 +74,8 @@ Current status:
   longer depends on the legacy scraper database.
 * `cycling-analytics` has been created as an empty replacement project for the
   frozen legacy scraper.
-* Platform automation is not yet in place.
+* Platform automation v1 is in place for raw ingestion, Silver transforms,
+  publication-gate validation, and notification.
 
 The legacy scraper is frozen. It is now a reference implementation and
 migration source only, not the target architecture. Scraper tables should not
@@ -99,10 +100,9 @@ Rscript run_silver.R
 This keeps raw/admin bootstrap safe to rerun without accidentally launching a
 large silver stream expansion.
 
-`platform.R` is currently a raw-ingestion orchestrator. Automation must run
-silver transforms only after successful raw ingestion, either by scheduling
-`run_silver.R` as the next step or by deliberately extending `platform.R` to
-own raw plus silver orchestration.
+`platform.R` is currently a raw-ingestion orchestrator. The unattended wrapper
+runs Silver transforms only after successful raw ingestion; `platform.R` itself
+does not own derived-layer orchestration.
 
 The v1 unattended command is:
 
@@ -114,6 +114,15 @@ It runs raw ingestion through `platform.R`, then runs Silver transforms only if
 raw ingestion succeeds. Silver streams use repair mode for normal automation, so
 the large stream table is not truncated and historical staging repair tooling is
 not invoked.
+
+After Silver transforms, `run_daily_platform.R` runs only fast publication-gate
+checks. Deep validation runs separately via:
+
+```sh
+Rscript run_platform_validation.R
+```
+
+Validation run and check status is recorded in `cycling_platform_admin`.
 
 Silver stream samples are rebuilt in activity batches so long rebuilds provide
 progress feedback and avoid one large opaque database statement.

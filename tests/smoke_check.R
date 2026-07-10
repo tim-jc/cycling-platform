@@ -16,10 +16,13 @@ r_files <- c(
   "bootstrap.R",
   "bootstrap_platform.R",
   "platform.R",
+  "run_google_health_auth_check.R",
   "run_google_health_heart_rate.R",
   "run_google_health_sleep.R",
   "run_daily_platform.R",
-  "run_silver.R"
+  "run_gold_activity_best_efforts.R",
+  "run_silver.R",
+  "validate_platform.R"
 )
 
 parse_failures <- lapply(
@@ -159,7 +162,8 @@ expected_tables <- c(
   "raw/140_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
   "raw/150_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
-  "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams"
+  "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
+  "gold/300_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts"
 )
 
 missing_expected_files <- setdiff(

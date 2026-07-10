@@ -124,6 +124,18 @@ backups:
 
   retention_days: 30
 
+validation:
+
+  # Fast checks that block daily publication after Silver transforms
+  publication_gate_per_check_timeout_seconds: 60
+
+  publication_gate_overall_timeout_seconds: 180
+
+  # Full validation suite run separately from daily publication
+  deep_per_check_timeout_seconds: 900
+
+  deep_overall_timeout_seconds: 7200
+
 transforms:
 
   # Maximum activities processed per silver stream transformation batch
@@ -131,3 +143,25 @@ transforms:
 
   # Maximum expected stream rows processed per silver stream batch
   silver_stream_batch_max_expected_rows: 5000
+
+  # Gold best effort metrics calculated in v1
+  gold_best_effort_metrics:
+    - watts
+    - cadence_rpm
+    - heartrate_bpm
+
+  # Gold best effort durations in seconds
+  gold_best_effort_durations:
+    - 5
+    - 10
+    - 20
+    - 60
+    - 120
+    - 300
+    - 600
+    - 1200
+    - 1800
+    - 3600
+
+  # Maximum activities processed per gold best effort batch
+  gold_best_effort_activity_batch_size: 25

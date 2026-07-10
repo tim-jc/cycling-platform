@@ -199,6 +199,83 @@ Potential checks:
 
 Gold checks should validate analytics-ready models.
 
+## Completeness Validation
+
+The platform includes a reusable completeness validation suite. It is split into
+two operational scopes.
+
+### Publication Gate
+
+The publication gate is blocking and runs inside `run_daily_platform.R` after
+Silver transforms:
+
+```sh
+Rscript run_daily_platform.R
+```
+
+It contains only fast checks required before downstream consumers should treat
+the refreshed Silver layer as published:
+
+* Raw activities must exist in `silver.activities`.
+* Silver activities with `has_streams = 1` must have Silver stream rows.
+
+If these checks fail, daily automation exits non-zero.
+
+### Deep Validation
+
+Deep validation is asynchronous and should be scheduled separately:
+
+```sh
+Rscript run_platform_validation.R
+```
+
+For Raw/Silver-only validation:
+
+```sh
+Rscript run_platform_validation.R --silver-only
+```
+
+For compatibility, `Rscript validate_platform.R` delegates to the same runner.
+
+Deep validation preserves the full completeness suite and checks that records do
+not disappear unexpectedly across layer boundaries:
+
+* Raw activities must exist in `silver.activities`.
+* Raw and Silver activity counts must match.
+* Silver activities with `has_streams = 1` must have Silver stream rows.
+* Silver stream rows must have parent Silver activities.
+* Silver stream `activity_id` and `sample_index` keys must be unique.
+* Raw activities with `stream_status = 'SUCCESS'` and raw stream payloads must
+  have Silver stream rows.
+* Raw stream expected sample counts must agree with Silver stream row counts.
+* `gold.activity_best_efforts` must contain expected watts, cadence, and
+  heartrate rows where the source Silver streams support them.
+* Gold best-effort keys, peak values, sample counts, window ordering, and GPS
+  provenance are validated.
+
+Critical publication-gate failures cause `run_daily_platform.R` to exit with a
+non-zero status. Critical deep-validation failures cause
+`run_platform_validation.R` to exit non-zero, but they do not roll back or hide a
+successful Silver transform.
+
+Both scopes record status and timing in:
+
+* `cycling_platform_admin.validation_run`
+* `cycling_platform_admin.validation_run_check`
+
+Use these tables to inspect validation freshness, failure status, timed-out
+checks, and the slowest checks from recent runs.
+
+Common failures:
+
+* Raw activity missing from Silver usually means the Silver activity transform
+  did not run after ingestion.
+* Raw/Silver stream count mismatch usually means the Silver stream repair
+  transform should be rerun.
+* Missing Gold best-effort rows usually means
+  `Rscript run_gold_activity_best_efforts.R repair` needs to run after Silver
+  streams are refreshed.
+
 Potential checks:
 
 * weekly and monthly aggregates reconcile to silver activity totals

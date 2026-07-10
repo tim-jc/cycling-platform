@@ -51,6 +51,38 @@ extends the legacy peaks table by recording both performance and provenance of
 every best effort. It unlocks dashboard power curves, maps, MCP resources, and
 AI coaching use cases.
 
+Version 1 is implemented as `cycling_platform_gold.activity_best_efforts`.
+
+Input:
+
+* `silver.activity_streams`
+
+Initial metrics:
+
+* `watts`
+* `cadence_rpm`
+* `heartrate_bpm`
+
+Initial durations:
+
+* 5, 10, 20, 60, 120, 300, 600, 1200, 1800, and 3600 seconds
+
+Output columns include the peak rolling mean plus provenance for the selected
+window: start/end sample index, time, distance, and latitude/longitude. This
+supersets the old scraper peaks concept rather than recreating the old table
+shape.
+
+Run the repair/backfill transform manually:
+
+```sh
+Rscript run_gold_activity_best_efforts.R repair
+Rscript run_gold_activity_best_efforts.R backfill
+```
+
+Gold transforms are not part of platform automation v1. They remain explicit
+until the first dashboard migration path has been validated in
+`cycling-analytics`.
+
 ### `gold.activity_training_metrics`
 
 Successor to the legacy power summaries object.
