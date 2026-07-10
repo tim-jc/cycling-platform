@@ -15,9 +15,9 @@ problem.
 
 Backup configuration exists in `config/platform.yml`.
 
-The initial backup implementation is `scripts/backup_mariadb.sh`. It creates
-timestamped compressed `mysqldump` backups for the admin and raw databases and
-applies local retention cleanup.
+The backup implementation is `scripts/backup_mariadb.sh`. It creates
+timestamped compressed `mysqldump` backups for the configured platform
+databases and applies local retention cleanup.
 
 Until restore testing is complete:
 
@@ -28,15 +28,15 @@ Until restore testing is complete:
 
 ## Databases to Back Up
 
-Minimum required databases:
+Configured databases:
 
 * `cycling_platform_admin`
 * `cycling_platform_raw`
-
-Future curated layers should add:
-
 * `cycling_platform_silver`
 * `cycling_platform_gold`
+
+`cycling_platform_stage` is deliberately excluded because stage objects are
+temporary ETL workspace and safe to delete.
 
 ## Manual Backup
 
@@ -58,8 +58,12 @@ Required values:
 
 Optional values:
 
-* `BACKUP_DIR`, default `backups`
-* `BACKUP_RETENTION_DAYS`, default `30`
+* `BACKUP_DIR`, defaults to `backups.directory`
+* `BACKUP_RETENTION_DAYS`, defaults to `backups.retention_days`
+* `BACKUP_TEMPORARY_FILE_RETENTION_DAYS`, defaults to
+  `backups.temporary_file_retention_days`
+* `BACKUP_LOCK_DIR`, defaults to `backups.lock_dir`
+* `BACKUP_LOCK_MAX_AGE_SECONDS`, defaults to `backups.lock_max_age_seconds`
 
 Output shape:
 
@@ -67,9 +71,29 @@ Output shape:
 backups/
   2026-06-23_230000_cycling_platform_admin.sql.gz
   2026-06-23_230000_cycling_platform_raw.sql.gz
+  2026-06-23_230000_cycling_platform_silver.sql.gz
+  2026-06-23_230000_cycling_platform_gold.sql.gz
 ```
 
 Backup files are ignored by git.
+
+## Verification and Cleanup
+
+For each configured database, the script writes to a `.tmp` file first. The file
+is promoted to the final `.sql.gz` name only after:
+
+* `mysqldump | gzip` exits successfully
+* the temporary file is non-empty
+* `gzip -t` passes
+
+This verifies that the compressed dump was written cleanly. It is not a full
+restore test; restore verification remains a separate operational task.
+
+Retention cleanup removes:
+
+* completed `*.sql.gz` backups older than `backups.retention_days`
+* stale `*.sql.gz.tmp` files older than
+  `backups.temporary_file_retention_days`
 
 ## Cron Automation
 
@@ -80,6 +104,10 @@ Example:
 ```cron
 30 2 * * * /path/to/cycling-platform/scripts/backup_mariadb.sh >> /path/to/cycling-platform/logs/backup.log 2>&1
 ```
+
+Cron should run the script through an absolute path. The script sets a minimal
+cron-safe `PATH`, loads project `.Renviron`, uses a lock directory to avoid
+overlapping backups, and removes stale locks after the configured maximum age.
 
 Suggested ordering:
 
@@ -100,6 +128,12 @@ gunzip -c backups/2026-06-23_230000_cycling_platform_admin.sql.gz \
 
 gunzip -c backups/2026-06-23_230000_cycling_platform_raw.sql.gz \
   | mysql cycling_platform_raw
+
+gunzip -c backups/2026-06-23_230000_cycling_platform_silver.sql.gz \
+  | mysql cycling_platform_silver
+
+gunzip -c backups/2026-06-23_230000_cycling_platform_gold.sql.gz \
+  | mysql cycling_platform_gold
 ```
 
 Use the same credential approach as backups: `.Renviron`, environment
@@ -110,7 +144,6 @@ variables, or a MariaDB option file such as `.my.cnf`.
 * copy backups off the Raspberry Pi
 * add backup success/failure notifications
 * add automated restore verification
-* add silver/gold dumps once those layers exist
 
 ## Migration Direction
 

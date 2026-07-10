@@ -116,13 +116,44 @@ logging:
 
   level: INFO
 
+  directory: logs
+
   retention_days: 30
+
+automation:
+
+  daily_lock_dir: /tmp/cycling-platform-daily.lock
+
+  validation_lock_dir: /tmp/cycling-platform-validation.lock
+
+  # Maximum age before cron lock directories are treated as stale
+  lock_max_age_seconds: 21600
+
+  # Common Rscript locations for local macOS and Raspberry Pi deployments
+  rscript_candidates:
+    - /usr/local/bin/Rscript
+    - /opt/homebrew/bin/Rscript
+    - /usr/bin/Rscript
 
 backups:
 
   enabled: true
 
+  directory: backups
+
   retention_days: 30
+
+  temporary_file_retention_days: 1
+
+  lock_dir: /tmp/cycling-platform-backup.lock
+
+  lock_max_age_seconds: 21600
+
+  databases:
+    - cycling_platform_admin
+    - cycling_platform_raw
+    - cycling_platform_silver
+    - cycling_platform_gold
 
 validation:
 

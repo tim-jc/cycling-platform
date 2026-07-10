@@ -43,17 +43,6 @@ send_platform_automation_notification <- function(
     base_url <- "https://ntfy.sh"
   }
 
-  format_phase <- function(phase_name, phase_status, duration_seconds) {
-    paste0(
-      phase_name,
-      ": ",
-      phase_status,
-      " (",
-      round(duration_seconds, 1),
-      "s)"
-    )
-  }
-
   phase_lines <- purrr::pmap_chr(
     phase_results[
       c(
@@ -62,7 +51,18 @@ send_platform_automation_notification <- function(
         "duration_seconds"
       )
     ],
-    format_phase
+    \(phase_name, phase_status, duration_seconds) {
+      format_platform_notification_status_line(
+        name = phase_name,
+        status = phase_status,
+        duration_seconds = duration_seconds
+      )
+    }
+  )
+
+  automation_duration_seconds <- sum(
+    phase_results$duration_seconds,
+    na.rm = TRUE
   )
 
   body_lines <- c(
@@ -70,7 +70,12 @@ send_platform_automation_notification <- function(
       "Status: ",
       run_status
     ),
+    paste0(
+      "Run: automation · ",
+      format_platform_duration(automation_duration_seconds)
+    ),
     "",
+    "Phases:",
     phase_lines
   )
 
@@ -103,9 +108,9 @@ send_platform_automation_notification <- function(
         )
       ) |>
         httr2::req_headers(
-          Title = paste0(
-            "cycling-platform automation ",
-            run_status
+          Title = format_platform_notification_title(
+            component = "automation",
+            status = run_status
           ),
           Priority = if (identical(run_status, "FAILED")) "high" else "default",
           Tags = if (identical(run_status, "FAILED")) "warning" else "white_check_mark"

@@ -114,26 +114,17 @@ send_notification <- function(
         "
       )
 
-      format_duration <- function(seconds) {
-        if (is.na(seconds)) {
-          return("unknown duration")
-        }
-
-        minutes <- seconds %/% 60
-        remaining_seconds <- seconds %% 60
-
-        paste0(
-          minutes,
-          "m ",
-          remaining_seconds,
-          "s"
-        )
-      }
-
-      format_entity <- function(entity_name, rows_inserted, rows_updated) {
+      format_entity <- function(
+        entity_name,
+        entity_status,
+        rows_inserted,
+        rows_updated
+      ) {
         paste0(
           entity_name,
-          ": +",
+          ": ",
+          entity_status,
+          " · +",
           rows_inserted,
           " / ~",
           rows_updated
@@ -147,6 +138,7 @@ send_notification <- function(
           entity_summary[
             c(
               "entity_name",
+              "entity_status",
               "rows_inserted",
               "rows_updated"
             )
@@ -166,11 +158,16 @@ send_notification <- function(
       )
 
       body_lines <- c(
-        glue::glue(
-          "Run {run$run_id[[1]]} · {run$run_mode[[1]]} · ",
-          "{format_duration(run$duration_seconds[[1]])}"
+        paste0(
+          "Status: ",
+          run$run_status[[1]]
         ),
-        ""
+        glue::glue(
+          "Run: raw #{run$run_id[[1]]} · {run$run_mode[[1]]} · ",
+          "{format_platform_duration(run$duration_seconds[[1]])}"
+        ),
+        "",
+        "Entities:"
       )
 
       if (no_raw_changes) {
@@ -230,8 +227,9 @@ send_notification <- function(
         )
       }
 
-      title <- glue::glue(
-        "cycling-platform {run$run_status[[1]]}"
+      title <- format_platform_notification_title(
+        component = "raw",
+        status = run$run_status[[1]]
       )
 
       priority <- if (identical(run$run_status[[1]], "FAILED")) {

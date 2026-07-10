@@ -5,6 +5,7 @@
 .Renviron
 
 logs/*
+*.log
 !logs/.gitkeep
 
 backups/*
