@@ -1,11 +1,21 @@
 # Google Health Raw Ingestion Design
 
-Status note: this document records the initial Google Health ingestion design.
-The implemented heart-rate raw grain has since been changed to one row per API
-response per user/date/detail level in
-`cycling_platform_raw.google_health_heart_rate_responses`. Sleep remains one
-row per sleep log/session where available. Google/Fitbit raw ingestion is
-implemented; validation and silver transforms remain future work.
+Status note: this document records the initial Google Health ingestion design
+and historical reasoning. The current implementation is more specific than the
+original generic-table proposal:
+
+* `cycling_platform_raw.google_health_heart_rate_responses`: one row per
+  heart-rate API response per user/date/detail level.
+* `cycling_platform_raw.google_health_sleep_logs`: one row per sleep
+  log/session, with full payload retained and stage metadata promoted on
+  refresh.
+* `cycling_platform_raw.google_health_daily_resting_heart_rate`: one row per
+  source-reported daily RHR data point.
+* `cycling_platform_raw.google_health_daily_heart_rate_variability`: one row
+  per source-reported daily HRV data point.
+
+Intraday HRV remains deferred. Google/Fitbit Raw ingestion exists; Silver
+transforms remain future work.
 
 ## Purpose
 
@@ -16,7 +26,7 @@ not a good new foundation because it is being deprecated. Google Health API is
 the better target because it provides a modern REST API for health data and is
 positioned as the Fitbit migration path.
 
-Initial scope:
+Original initial scope:
 
 * Google Health API only
 * heart-rate data points only
@@ -30,7 +40,34 @@ Relevant docs:
 * Data points list endpoint: <https://developers.google.com/health/reference/rest/v4/users.dataTypes.dataPoints/list>
 * Rate limits: <https://developers.google.com/health/rate-limits>
 
-## Recommended Shape
+## Current Implemented Shape
+
+The platform now uses explicit Raw objects rather than one generic health table.
+This keeps grains and business keys clear while still preserving full source
+payloads.
+
+Current standalone runners:
+
+```sh
+Rscript run_google_health_heart_rate.R manual
+Rscript run_google_health_sleep.R manual
+Rscript run_google_health_daily_resting_heart_rate.R refresh
+Rscript run_google_health_daily_resting_heart_rate.R backfill
+Rscript run_google_health_daily_resting_heart_rate.R 2026-07-01 2026-07-08
+Rscript run_google_health_daily_heart_rate_variability.R refresh
+Rscript run_google_health_daily_heart_rate_variability.R backfill
+Rscript run_google_health_daily_heart_rate_variability.R 2026-07-01 2026-07-08
+```
+
+The normal platform run ingests daily RHR and daily HRV when the corresponding
+data types are present in `config/platform.yml`.
+
+Successful empty daily requests are represented in
+`cycling_platform_admin.etl_request_log` with `request_status = 'SUCCESS'`,
+`returned_data_point_count = 0`, and `is_successfully_empty = 1`. No placeholder
+metric rows are written.
+
+## Original Recommended Shape
 
 Use a generic raw table:
 
@@ -59,10 +96,19 @@ sources:
     user_id: me
     data_types:
       - heart-rate
+      - sleep
+      - daily-resting-heart-rate
+      - daily-heart-rate-variability
 
 ingestion:
   google_health_refresh_days: 7
   google_health_backfill_days: 365
+  google_health_sleep_refresh_days: 7
+  google_health_sleep_backfill_days: 365
+  google_health_daily_resting_heart_rate_refresh_days: 14
+  google_health_daily_resting_heart_rate_backfill_days: 365
+  google_health_daily_heart_rate_variability_refresh_days: 14
+  google_health_daily_heart_rate_variability_backfill_days: 365
   google_health_page_size: 10000
   google_health_request_pause_seconds: 0.25
 ```

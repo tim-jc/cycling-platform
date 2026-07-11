@@ -68,8 +68,63 @@ google_health_empty_sleep_logs <- function() {
 
     end_civil_date = as.Date(character()),
 
+    sleep_type = character(),
+
+    stages_status = character(),
+
+    is_processed = integer(),
+
+    is_nap = integer(),
+
+    is_manually_edited = integer(),
+
+    has_sleep_stages = integer(),
+
+    sleep_stage_count = integer(),
+
+    has_sleep_summary = integer(),
+
     sleep_log_payload = character()
   )
+}
+
+google_health_logical_to_integer <- function(value) {
+  if (is.null(value) || length(value) == 0) {
+    return(NA_integer_)
+  }
+
+  value <- value[[1]]
+
+  if (is.logical(value)) {
+    return(as.integer(value))
+  }
+
+  if (is.character(value)) {
+    value <- tolower(value)
+
+    if (value %in% c("true", "1", "yes")) {
+      return(1L)
+    }
+
+    if (value %in% c("false", "0", "no")) {
+      return(0L)
+    }
+  }
+
+  NA_integer_
+}
+
+google_health_path_count <- function(x, paths) {
+  value <- google_health_extract_first(
+    x = x,
+    paths = paths
+  )
+
+  if (is.null(value)) {
+    return(0L)
+  }
+
+  length(value)
 }
 
 google_health_shape_sleep_logs <- function(
@@ -168,6 +223,59 @@ google_health_shape_sleep_logs <- function(
         )
       )
 
+      sleep_type <- google_health_extract_first(
+        sleep_log,
+        list(
+          c("sleep", "type")
+        )
+      )
+
+      stages_status <- google_health_extract_first(
+        sleep_log,
+        list(
+          c("sleep", "metadata", "stagesStatus"),
+          c("sleep", "metadata", "stages_status")
+        )
+      )
+
+      is_processed <- google_health_extract_first(
+        sleep_log,
+        list(
+          c("sleep", "metadata", "processed")
+        )
+      )
+
+      is_nap <- google_health_extract_first(
+        sleep_log,
+        list(
+          c("sleep", "metadata", "nap")
+        )
+      )
+
+      is_manually_edited <- google_health_extract_first(
+        sleep_log,
+        list(
+          c("sleep", "metadata", "manuallyEdited"),
+          c("sleep", "metadata", "manually_edited")
+        )
+      )
+
+      sleep_stage_count <- google_health_path_count(
+        sleep_log,
+        list(
+          c("sleep", "stages")
+        )
+      )
+
+      has_sleep_summary <- !is.null(
+        google_health_extract_first(
+          sleep_log,
+          list(
+            c("sleep", "summary")
+          )
+        )
+      )
+
       tibble::tibble(
         sleep_log_key = google_health_sleep_log_key(
           source_log_id = source_log_id,
@@ -215,6 +323,36 @@ google_health_shape_sleep_logs <- function(
 
         end_civil_date = google_health_civil_date(
           end_civil_date
+        ),
+
+        sleep_type = google_health_null_to_na(
+          sleep_type
+        ),
+
+        stages_status = google_health_null_to_na(
+          stages_status
+        ),
+
+        is_processed = google_health_logical_to_integer(
+          is_processed
+        ),
+
+        is_nap = google_health_logical_to_integer(
+          is_nap
+        ),
+
+        is_manually_edited = google_health_logical_to_integer(
+          is_manually_edited
+        ),
+
+        has_sleep_stages = as.integer(
+          sleep_stage_count > 0L
+        ),
+
+        sleep_stage_count = sleep_stage_count,
+
+        has_sleep_summary = as.integer(
+          has_sleep_summary
         ),
 
         sleep_log_payload = payload

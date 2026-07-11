@@ -141,6 +141,19 @@ Check Google Health OAuth refresh:
 Rscript run_google_health_auth_check.R
 ```
 
+Probe Google Health recovery data availability without writing to the database:
+
+```sh
+env RENV_CONFIG_AUTOLOADER_ENABLED=false Rscript run_google_health_capability_probe.R
+```
+
+Run the source-reported daily recovery Raw ingestions manually:
+
+```sh
+Rscript run_google_health_daily_resting_heart_rate.R refresh
+Rscript run_google_health_daily_heart_rate_variability.R refresh
+```
+
 Run deep platform completeness validation:
 
 ```sh

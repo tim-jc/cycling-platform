@@ -232,17 +232,17 @@ WHERE sport_type <> JSON_VALUE(raw_payload, '$.sport_type');
 
 SELECT
   activity_id,
-  distance,
+  distance_metres,
   JSON_VALUE(raw_payload, '$.distance') AS payload_distance
 FROM cycling_platform_raw.activities
-WHERE ABS(distance - CAST(JSON_VALUE(raw_payload, '$.distance') AS DECIMAL(18,6))) > 0.000001;
+WHERE ABS(distance_metres - CAST(JSON_VALUE(raw_payload, '$.distance') AS DECIMAL(18,6))) > 0.000001;
 
 SELECT
   activity_id,
-  moving_time,
+  moving_time_seconds,
   JSON_VALUE(raw_payload, '$.moving_time') AS payload_moving_time
 FROM cycling_platform_raw.activities
-WHERE moving_time <> CAST(JSON_VALUE(raw_payload, '$.moving_time') AS SIGNED);
+WHERE moving_time_seconds <> CAST(JSON_VALUE(raw_payload, '$.moving_time') AS SIGNED);
 
 SELECT
   d.activity_id,

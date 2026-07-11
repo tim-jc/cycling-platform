@@ -69,6 +69,27 @@ testthat::test_that("Google Health sleep logs are shaped for raw loading", {
               )
             )
           )
+        ),
+        type = "STAGES",
+        stages = list(
+          list(
+            stage = "DEEP",
+            interval = list()
+          ),
+          list(
+            stage = "LIGHT",
+            interval = list()
+          )
+        ),
+        metadata = list(
+          stagesStatus = "SUCCEEDED",
+          processed = TRUE
+        ),
+        summary = list(
+          stagesSummary = list(
+            list(stage = "DEEP"),
+            list(stage = "LIGHT")
+          )
         )
       )
     )
@@ -133,6 +154,40 @@ testthat::test_that("Google Health sleep logs are shaped for raw loading", {
   testthat::expect_equal(
     as.character(shaped$end_civil_date[[1]]),
     "2026-06-28"
+  )
+
+  testthat::expect_equal(
+    shaped$sleep_type[[1]],
+    "STAGES"
+  )
+
+  testthat::expect_equal(
+    shaped$stages_status[[1]],
+    "SUCCEEDED"
+  )
+
+  testthat::expect_equal(
+    shaped$is_processed[[1]],
+    1L
+  )
+
+  testthat::expect_true(
+    is.na(shaped$is_nap[[1]])
+  )
+
+  testthat::expect_equal(
+    shaped$has_sleep_stages[[1]],
+    1L
+  )
+
+  testthat::expect_equal(
+    shaped$sleep_stage_count[[1]],
+    2L
+  )
+
+  testthat::expect_equal(
+    shaped$has_sleep_summary[[1]],
+    1L
   )
 
   testthat::expect_true(

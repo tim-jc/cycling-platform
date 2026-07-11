@@ -314,7 +314,7 @@ count_platform_completeness_checks <- function(
     return(2L)
   }
 
-  check_count <- 8L
+  check_count <- 17L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -856,6 +856,270 @@ validate_platform_completeness <- function(
           WHERE raw_summary.expected_sample_count
             <> COALESCE(silver_summary.silver_row_count, 0)
           ORDER BY raw_summary.activity_id
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_duplicate_keys",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            daily_resting_heart_rate_key,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          GROUP BY daily_resting_heart_rate_key
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_required_fields_valid",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            daily_resting_heart_rate_key,
+            google_health_user_id,
+            activity_date,
+            resting_heart_rate_bpm,
+            run_id,
+            retrieved_at
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          WHERE google_health_user_id IS NULL
+             OR google_health_user_id = ''
+             OR activity_date IS NULL
+             OR resting_heart_rate_bpm IS NULL
+             OR resting_heart_rate_bpm <= 0
+             OR run_id IS NULL
+             OR retrieved_at IS NULL
+             OR daily_resting_heart_rate_payload IS NULL
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_duplicate_keys",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            daily_heart_rate_variability_key,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          GROUP BY daily_heart_rate_variability_key
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_required_fields_valid",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            daily_heart_rate_variability_key,
+            google_health_user_id,
+            activity_date,
+            average_hrv_milliseconds,
+            deep_sleep_rmssd_milliseconds,
+            non_rem_heart_rate_bpm,
+            entropy,
+            run_id,
+            retrieved_at
+          FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          WHERE google_health_user_id IS NULL
+             OR google_health_user_id = ''
+             OR activity_date IS NULL
+             OR run_id IS NULL
+             OR retrieved_at IS NULL
+             OR daily_heart_rate_variability_payload IS NULL
+             OR average_hrv_milliseconds < 0
+             OR deep_sleep_rmssd_milliseconds < 0
+             OR non_rem_heart_rate_bpm < 0
+             OR entropy < 0
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_multiple_records_per_date",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          GROUP BY
+            google_health_user_id,
+            activity_date
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_multiple_records_per_date",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          GROUP BY
+            google_health_user_id,
+            activity_date
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_hrv_sleep_date_overlap",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          WITH dates AS (
+            SELECT activity_date
+            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+            UNION
+            SELECT activity_date
+            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+            UNION
+            SELECT end_civil_date AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE end_civil_date IS NOT NULL
+          )
+          SELECT
+            dates.activity_date,
+            rhr.activity_date IS NOT NULL AS has_rhr,
+            hrv.activity_date IS NOT NULL AS has_hrv,
+            sleep.activity_date IS NOT NULL AS has_sleep
+          FROM dates
+          LEFT JOIN (
+            SELECT DISTINCT activity_date
+            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          ) rhr
+            ON rhr.activity_date = dates.activity_date
+          LEFT JOIN (
+            SELECT DISTINCT activity_date
+            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          ) hrv
+            ON hrv.activity_date = dates.activity_date
+          LEFT JOIN (
+            SELECT DISTINCT end_civil_date AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE end_civil_date IS NOT NULL
+          ) sleep
+            ON sleep.activity_date = dates.activity_date
+          WHERE rhr.activity_date IS NULL
+             OR hrv.activity_date IS NULL
+             OR sleep.activity_date IS NULL
+          ORDER BY dates.activity_date DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_sleep_stage_metadata_valid",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            sleep_log_key,
+            sleep_type,
+            stages_status,
+            has_sleep_stages,
+            sleep_stage_count,
+            has_sleep_summary
+          FROM cycling_platform_raw.google_health_sleep_logs
+          WHERE (sleep_type = 'STAGES' AND COALESCE(has_sleep_stages, 0) = 0)
+             OR (COALESCE(has_sleep_stages, 0) = 1 AND COALESCE(sleep_stage_count, 0) = 0)
+             OR (stages_status = 'SUCCEEDED' AND COALESCE(has_sleep_summary, 0) = 0)
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_daily_entities_recent_failures",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            run_entity_id,
+            run_id,
+            entity_name,
+            entity_status,
+            error_message
+          FROM cycling_platform_admin.etl_run_entity
+          WHERE entity_name IN (
+              'google_health_daily_resting_heart_rate',
+              'google_health_daily_heart_rate_variability'
+            )
+            AND entity_status = 'FAILED'
+            AND started_at >= UTC_TIMESTAMP() - INTERVAL 14 DAY
+          ORDER BY started_at DESC
           LIMIT 1000
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,

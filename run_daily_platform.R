@@ -30,6 +30,154 @@ phase_results <- data.frame(
   error_message = character()
 )
 
+raw_ingestion_summary <- NULL
+
+get_latest_etl_run_id <- function() {
+  connection <- get_connection("mysql")
+
+  tryCatch(
+    {
+      latest_run <- DBI::dbGetQuery(
+        conn = connection,
+        statement = "
+          SELECT COALESCE(MAX(run_id), 0) AS run_id
+          FROM cycling_platform_admin.etl_run
+        "
+      )
+
+      latest_run$run_id[[1]]
+    },
+    finally = {
+      if (DBI::dbIsValid(connection)) {
+        DBI::dbDisconnect(connection)
+      }
+    }
+  )
+}
+
+get_raw_ingestion_summary <- function(previous_run_id) {
+  connection <- get_connection("mysql")
+
+  tryCatch(
+    {
+      if (is.na(previous_run_id)) {
+        run <- DBI::dbGetQuery(
+          conn = connection,
+          statement = "
+            SELECT
+              run_id,
+              run_mode,
+              run_status,
+              duration_seconds
+            FROM cycling_platform_admin.etl_run
+            ORDER BY run_id DESC
+            LIMIT 1
+          "
+        )
+      } else {
+        run <- DBI::dbGetQuery(
+          conn = connection,
+          statement = "
+            SELECT
+              run_id,
+              run_mode,
+              run_status,
+              duration_seconds
+            FROM cycling_platform_admin.etl_run
+            WHERE run_id > ?
+            ORDER BY run_id DESC
+            LIMIT 1
+          ",
+          params = list(previous_run_id)
+        )
+      }
+
+      if (nrow(run) != 1) {
+        return(NULL)
+      }
+
+      entity_summary <- DBI::dbGetQuery(
+        conn = connection,
+        statement = "
+          SELECT
+            entity_name,
+            entity_status,
+            rows_inserted,
+            rows_updated
+          FROM cycling_platform_admin.etl_run_entity
+          WHERE run_id = ?
+          ORDER BY run_entity_id
+        ",
+        params = list(run$run_id[[1]])
+      )
+
+      pending_summary <- DBI::dbGetQuery(
+        conn = connection,
+        statement = "
+          SELECT
+            COALESCE(
+              SUM(stream_status IN ('PENDING', 'FAILED')),
+              0
+            ) AS streams_remaining,
+            COALESCE(
+              SUM(details_status IN ('PENDING', 'FAILED')),
+              0
+            ) AS details_remaining,
+            COALESCE(
+              SUM(laps_status IN ('PENDING', 'FAILED')),
+              0
+            ) AS laps_remaining
+          FROM cycling_platform_raw.activities
+        "
+      )
+
+      entity_lines <- character()
+
+      if (nrow(entity_summary) > 0) {
+        entity_lines <- purrr::pmap_chr(
+          entity_summary[
+            c(
+              "entity_name",
+              "entity_status",
+              "rows_inserted",
+              "rows_updated"
+            )
+          ],
+          \(entity_name, entity_status, rows_inserted, rows_updated) {
+            paste0(
+              entity_name,
+              ": ",
+              entity_status,
+              " · +",
+              rows_inserted,
+              " / ~",
+              rows_updated
+            )
+          }
+        )
+      }
+
+      list(
+        run_line = glue::glue(
+          "Run: raw #{run$run_id[[1]]} · {run$run_mode[[1]]} · ",
+          "{format_platform_duration(run$duration_seconds[[1]])}"
+        ),
+        entity_lines = entity_lines,
+        pending_line = glue::glue(
+          "Pending: streams {pending_summary$streams_remaining[[1]]} · ",
+          "details {pending_summary$details_remaining[[1]]} · ",
+          "laps {pending_summary$laps_remaining[[1]]}"
+        )
+      )
+    },
+    finally = {
+      if (DBI::dbIsValid(connection)) {
+        DBI::dbDisconnect(connection)
+      }
+    }
+  )
+}
+
 record_phase <- function(
   phase_name,
   phase_status,
@@ -109,6 +257,18 @@ tryCatch(
     run_phase(
       "raw_ingestion",
       {
+        previous_etl_run_id <- tryCatch(
+          get_latest_etl_run_id(),
+          error = function(e) {
+            message(
+              "Unable to snapshot latest ETL run before raw ingestion: ",
+              conditionMessage(e)
+            )
+
+            NA_integer_
+          }
+        )
+
         raw_status <- system2(
           command = file.path(
             R.home("bin"),
@@ -131,6 +291,20 @@ tryCatch(
             call. = FALSE
           )
         }
+
+        raw_ingestion_summary <<- tryCatch(
+          get_raw_ingestion_summary(
+            previous_run_id = previous_etl_run_id
+          ),
+          error = function(e) {
+            message(
+              "Unable to build raw ingestion notification summary: ",
+              conditionMessage(e)
+            )
+
+            NULL
+          }
+        )
       }
     )
 
@@ -217,6 +391,7 @@ tryCatch(
       config = config,
       run_status = run_status,
       phase_results = phase_results,
+      raw_ingestion_summary = raw_ingestion_summary,
       error_message = if (is.null(automation_error)) {
         NULL
       } else {

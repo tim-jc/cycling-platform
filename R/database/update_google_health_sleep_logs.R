@@ -29,6 +29,14 @@ update_google_health_sleep_logs <- function(
       end_utc_offset = ?,
       start_civil_date = ?,
       end_civil_date = ?,
+      sleep_type = ?,
+      stages_status = ?,
+      is_processed = ?,
+      is_nap = ?,
+      is_manually_edited = ?,
+      has_sleep_stages = ?,
+      sleep_stage_count = ?,
+      has_sleep_summary = ?,
       sleep_log_payload = ?
     WHERE sleep_log_key = ?
   "
@@ -52,6 +60,14 @@ update_google_health_sleep_logs <- function(
           sleep_logs$end_utc_offset[[i]],
           sleep_logs$start_civil_date[[i]],
           sleep_logs$end_civil_date[[i]],
+          sleep_logs$sleep_type[[i]],
+          sleep_logs$stages_status[[i]],
+          sleep_logs$is_processed[[i]],
+          sleep_logs$is_nap[[i]],
+          sleep_logs$is_manually_edited[[i]],
+          sleep_logs$has_sleep_stages[[i]],
+          sleep_logs$sleep_stage_count[[i]],
+          sleep_logs$has_sleep_summary[[i]],
           sleep_logs$sleep_log_payload[[i]],
           sleep_logs$sleep_log_key[[i]]
         )

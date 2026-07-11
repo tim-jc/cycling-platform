@@ -140,11 +140,16 @@ Current identified gold objects:
   `duration_seconds`. Include peak value plus effort provenance/location:
   start/end sample index, time, distance, and latitude/longitude where
   available.
-* `gold.activity_training_metrics`: successor to the legacy power summaries
-  object. Grain is one row per activity. Include FTP used, moving time, mean
-  power, normalised power, VI, IF, TSS, and work where available.
+* `gold.activity_power_metrics`: power-specific successor to reusable parts of
+  the legacy power summaries object. Grain is one row per activity. Include
+  `moving_time_seconds`, `average_power_watts`,
+  `weighted_average_power_watts`, `normalized_power_watts`,
+  `variability_index`, and `work_kilojoules` where available.
+* `gold.activity_training_load`: FTP-dependent training-load calculations.
+  Grain is one row per activity. Include `ftp_watts_used`,
+  `intensity_factor`, and `training_stress_score`.
 * `gold.ftp_history`: authoritative FTP timeline, maintained separately from
-  activities, for historical IF/TSS calculations.
+  activities, for historical training-load calculations.
 
 Gold design notes are tracked in `docs/gold_layer_design.md`.
 
@@ -191,7 +196,8 @@ Outcome: reusable analytical assets exist on top of conformed silver data.
 Priority order:
 
 * build `gold.activity_best_efforts`
-* build `gold.activity_training_metrics`
+* build `gold.activity_power_metrics`
+* build `gold.activity_training_load`
 * add and curate `gold.ftp_history`
 * add further gold summaries only after the first objects are stable
 

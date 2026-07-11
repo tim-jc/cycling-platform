@@ -5,6 +5,7 @@
 #' @param config Platform configuration.
 #' @param run_status Overall automation status.
 #' @param phase_results Data frame of phase timings and statuses.
+#' @param raw_ingestion_summary Optional raw ingestion summary lines.
 #' @param error_message Optional error message.
 #'
 #' @return Invisibly returns TRUE when a notification was sent, otherwise FALSE.
@@ -12,6 +13,7 @@ send_platform_automation_notification <- function(
   config,
   run_status,
   phase_results,
+  raw_ingestion_summary = NULL,
   error_message = NULL
 ) {
   notifications <- config$notifications
@@ -73,7 +75,23 @@ send_platform_automation_notification <- function(
     paste0(
       "Run: automation · ",
       format_platform_duration(automation_duration_seconds)
-    ),
+    )
+  )
+
+  if (!is.null(raw_ingestion_summary)) {
+    body_lines <- c(
+      body_lines,
+      "",
+      "Raw ingestion:",
+      raw_ingestion_summary$run_line,
+      raw_ingestion_summary$entity_lines,
+      "",
+      raw_ingestion_summary$pending_line
+    )
+  }
+
+  body_lines <- c(
+    body_lines,
     "",
     "Phases:",
     phase_lines

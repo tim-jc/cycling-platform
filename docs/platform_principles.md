@@ -11,6 +11,7 @@
 * Recovery procedures are documented and tested.
 * Historical repairs and incremental ETL are different workloads.
 * Stage data is temporary ETL workspace, not a platform data product.
+* Naming is an architectural contract.
 
 ## Definitions
 
@@ -65,3 +66,14 @@ Recovery procedures should be version-controlled and regularly reviewed.
 
 Large historical repairs should prioritise throughput and recoverability.
 Incremental daily ETL should remain idempotent and optimised for small deltas.
+
+### Naming
+
+Platform-defined names should follow `docs/naming-consistency-review.md`.
+
+Stable existing objects such as `silver.activities`,
+`silver.activity_streams`, `gold.activity_best_efforts`, `watts`,
+`cadence_rpm`, `heartrate_bpm`, `metric_name`, `peak_value`, and Admin status
+fields are preserved. New analytical objects should use explicit names such as
+`normalized_power_watts`, `variability_index`, `intensity_factor`,
+`training_stress_score`, `ftp_watts_used`, and `work_kilojoules`.

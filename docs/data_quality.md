@@ -33,6 +33,10 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
 * `raw.activity_streams` is unique by `activity_id`, `stream_type`.
 * `raw.activity_details.activity_id` is unique.
 * `raw.activity_laps` is unique by `activity_id`, `lap_index`.
+* `raw.google_health_daily_resting_heart_rate` is unique by
+  `daily_resting_heart_rate_key`.
+* `raw.google_health_daily_heart_rate_variability` is unique by
+  `daily_heart_rate_variability_key`.
 * Child rows have matching parent activities.
 * Raw child tables contain no orphaned records.
 
@@ -42,6 +46,12 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
 * `raw.activity_streams.stream_payload` contains valid JSON.
 * `raw.activity_details.details_payload` contains valid JSON.
 * `raw.activity_laps.lap_payload` contains valid JSON.
+* `raw.google_health_daily_resting_heart_rate.daily_resting_heart_rate_payload`
+  contains valid JSON.
+* `raw.google_health_daily_heart_rate_variability.daily_heart_rate_variability_payload`
+  contains valid JSON.
+* `raw.google_health_sleep_logs.sleep_log_payload` contains valid JSON and may
+  include source-reported stage arrays and stage summaries.
 * Payload columns are not empty strings.
 * Stream payload checksums are stable across repeated ingestion when the source
   payload has not changed.
@@ -174,6 +184,8 @@ data quality results or later curated metadata.
 * Every `run_id` exists in `admin.etl_run`.
 * Every `source_id` exists in `admin.data_source`.
 * Entity run counts reconcile with inserted and updated rows where practical.
+* Successful empty Google Health daily requests are represented in
+  `admin.etl_request_log`, not as placeholder Raw metric rows.
 
 ### Freshness Checks
 
@@ -248,6 +260,13 @@ not disappear unexpectedly across layer boundaries:
 * Raw activities with `stream_status = 'SUCCESS'` and raw stream payloads must
   have Silver stream rows.
 * Raw stream expected sample counts must agree with Silver stream row counts.
+* Google Health daily RHR and daily HRV Raw rows must have required lineage,
+  valid dates, non-null payloads, positive RHR values, and non-negative HRV
+  values where present.
+* Google Health daily request failures and successful empty responses are
+  visible through `admin.etl_request_log`.
+* Google Health sleep-stage metadata is checked against retained sleep payload
+  indicators where promoted columns are populated.
 * `gold.activity_best_efforts` must contain expected watts, cadence, and
   heartrate rows where the source Silver streams support them.
 * Gold best-effort keys, peak values, sample counts, window ordering, and GPS

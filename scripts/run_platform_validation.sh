@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VALIDATION_SCRIPT="${PROJECT_DIR}/run_platform_validation.R"
 RSCRIPT="${RSCRIPT:-}"
 LOG_DIR="${LOG_DIR:-}"
 DAILY_LOCK="${DAILY_LOCK:-}"
@@ -281,10 +282,17 @@ trap release_validation_lock EXIT
 echo "==================================================" >> "${LOG_FILE}"
 log "Starting platform validation."
 log "Using Rscript: ${RSCRIPT}"
+log "Using project dir: ${PROJECT_DIR}"
+log "Using validation script: ${VALIDATION_SCRIPT}"
 log "Log retention days: ${LOG_RETENTION_DAYS}; lock max age seconds: ${LOCK_MAX_AGE_SECONDS}"
 
+if [[ ! -r "${VALIDATION_SCRIPT}" ]]; then
+  log "Validation failed: validation script is not readable: ${VALIDATION_SCRIPT}"
+  exit 1
+fi
+
 set +e
-"${RSCRIPT}" run_platform_validation.R \
+"${RSCRIPT}" "${VALIDATION_SCRIPT}" \
   >> "${LOG_FILE}" 2>&1
 
 STATUS=$?

@@ -17,6 +17,9 @@ r_files <- c(
   "bootstrap_platform.R",
   "platform.R",
   "run_google_health_auth_check.R",
+  "run_google_health_capability_probe.R",
+  "run_google_health_daily_resting_heart_rate.R",
+  "run_google_health_daily_heart_rate_variability.R",
   "run_google_health_heart_rate.R",
   "run_google_health_sleep.R",
   "run_daily_platform.R",
@@ -161,6 +164,8 @@ expected_tables <- c(
   "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
   "raw/140_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
   "raw/150_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
+  "raw/151_create_google_health_daily_resting_heart_rate.sql" = "cycling_platform_raw.google_health_daily_resting_heart_rate",
+  "raw/152_create_google_health_daily_heart_rate_variability.sql" = "cycling_platform_raw.google_health_daily_heart_rate_variability",
   "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
   "gold/300_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts"

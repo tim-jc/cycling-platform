@@ -83,9 +83,10 @@ Gold transforms are not part of platform automation v1. They remain explicit
 until the first dashboard migration path has been validated in
 `cycling-analytics`.
 
-### `gold.activity_training_metrics`
+### `gold.activity_power_metrics`
 
-Successor to the legacy power summaries object.
+Power-specific successor to the reusable parts of the legacy power summaries
+object.
 
 Grain:
 
@@ -93,22 +94,36 @@ Grain:
 
 Expected content:
 
-* FTP used
-* moving time
-* mean power
-* normalised power
-* variability index
-* intensity factor
-* training stress score
-* work where available
+* `moving_time_seconds`
+* `average_power_watts`
+* `weighted_average_power_watts`, where source-provided and useful
+* `normalized_power_watts`
+* `variability_index`
+* `work_kilojoules`, where available
+
+### `gold.activity_training_load`
+
+FTP-dependent training-load calculations.
+
+Grain:
+
+* one row per activity
+
+Expected content:
+
+* `ftp_watts_used`
+* `intensity_factor`
+* `training_stress_score`
+* calculation metadata such as `calculation_version` and `computed_at`
 
 ### `gold.ftp_history`
 
 Authoritative FTP timeline.
 
 This should not be derived from activities. It should be maintained as a
-separate history so historical activity metrics can calculate IF and TSS using
-the FTP value valid at the time of the activity.
+separate history so historical activity metrics can calculate
+`intensity_factor` and `training_stress_score` using the FTP value valid at
+the time of the activity.
 
 ## Design Rules
 
@@ -118,3 +133,6 @@ the FTP value valid at the time of the activity.
 * Include provenance fields when gold calculations select a segment, peak, or
   derived result from stream samples.
 * Keep gold objects stable enough for dashboards and MCP resources to share.
+* Use the naming standard in `docs/naming-consistency-review.md` for all new
+  Gold columns. Do not introduce `NP`, `VI`, `IF`, `TSS`, `ftp`,
+  `mean_power`, or `normalised_power` as column names.

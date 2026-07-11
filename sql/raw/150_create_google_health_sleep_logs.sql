@@ -32,6 +32,22 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.google_health_sleep_logs (
 
     end_civil_date DATE NULL,
 
+    sleep_type VARCHAR(100) NULL,
+
+    stages_status VARCHAR(100) NULL,
+
+    is_processed TINYINT(1) NULL,
+
+    is_nap TINYINT(1) NULL,
+
+    is_manually_edited TINYINT(1) NULL,
+
+    has_sleep_stages TINYINT(1) NULL,
+
+    sleep_stage_count INT NULL,
+
+    has_sleep_summary TINYINT(1) NULL,
+
     sleep_log_payload JSON NOT NULL,
 
     created_at DATETIME NOT NULL

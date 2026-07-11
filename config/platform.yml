@@ -33,6 +33,9 @@ sources:
     data_types:
       - heart-rate
       - sleep
+      - daily-resting-heart-rate
+      - daily-heart-rate-variability
+      # Deferred: heart-rate-variability
 
 ingestion:
 
@@ -86,6 +89,18 @@ ingestion:
 
   # Number of days refreshed during Google Health sleep historical backfills
   google_health_sleep_backfill_days: 365
+
+  # Number of days refreshed during routine Google Health daily RHR runs
+  google_health_daily_resting_heart_rate_refresh_days: 14
+
+  # Number of days refreshed during Google Health daily RHR historical backfills
+  google_health_daily_resting_heart_rate_backfill_days: 365
+
+  # Number of days refreshed during routine Google Health daily HRV runs
+  google_health_daily_heart_rate_variability_refresh_days: 14
+
+  # Number of days refreshed during Google Health daily HRV historical backfills
+  google_health_daily_heart_rate_variability_backfill_days: 365
 
   # Maximum Google Health data points returned per API page
   google_health_page_size: 10000

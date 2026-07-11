@@ -144,6 +144,12 @@ tryCatch(
         !is.null(config$sources$google_health$enabled) &&
           isTRUE(config$sources$google_health$enabled)
       ) {
+        google_health_data_types <- config$sources$google_health$data_types
+
+        if (is.null(google_health_data_types)) {
+          google_health_data_types <- character()
+        }
+
         if (execution_mode == "backfill") {
           google_health_refresh_days <- config$ingestion$google_health_backfill_days
         } else {
@@ -181,6 +187,48 @@ tryCatch(
           start_date = Sys.Date() - as.integer(google_health_sleep_refresh_days),
           end_date = Sys.Date()
         )
+
+        if ("daily-resting-heart-rate" %in% google_health_data_types) {
+          if (execution_mode == "backfill") {
+            google_health_rhr_refresh_days <- config$ingestion$google_health_daily_resting_heart_rate_backfill_days
+          } else {
+            google_health_rhr_refresh_days <- config$ingestion$google_health_daily_resting_heart_rate_refresh_days
+          }
+
+          if (is.null(google_health_rhr_refresh_days)) {
+            google_health_rhr_refresh_days <- 14L
+          }
+
+          ingest_google_health_daily_resting_heart_rate(
+            connection = connection,
+            run_id = run_id,
+            source_id = 2L,
+            config = config,
+            start_date = Sys.Date() - as.integer(google_health_rhr_refresh_days),
+            end_date = Sys.Date()
+          )
+        }
+
+        if ("daily-heart-rate-variability" %in% google_health_data_types) {
+          if (execution_mode == "backfill") {
+            google_health_hrv_refresh_days <- config$ingestion$google_health_daily_heart_rate_variability_backfill_days
+          } else {
+            google_health_hrv_refresh_days <- config$ingestion$google_health_daily_heart_rate_variability_refresh_days
+          }
+
+          if (is.null(google_health_hrv_refresh_days)) {
+            google_health_hrv_refresh_days <- 14L
+          }
+
+          ingest_google_health_daily_heart_rate_variability(
+            connection = connection,
+            run_id = run_id,
+            source_id = 2L,
+            config = config,
+            start_date = Sys.Date() - as.integer(google_health_hrv_refresh_days),
+            end_date = Sys.Date()
+          )
+        }
       }
     }
 

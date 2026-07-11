@@ -132,10 +132,10 @@ Historical staging repair remains manual recovery tooling only.
 
 ## Scheduling Later
 
-Cron or systemd should call only:
+Cron or systemd should call the wrapper scripts, not `Rscript` directly:
 
 ```sh
-Rscript /path/to/cycling-platform/run_daily_platform.R
+/path/to/cycling-platform/scripts/run_daily_platform.sh
 ```
 
 Scheduling should happen after the command has been tested manually and
@@ -144,5 +144,13 @@ notifications have been confirmed.
 Deep validation should be scheduled separately, for example:
 
 ```sh
-Rscript /path/to/cycling-platform/run_platform_validation.R
+/path/to/cycling-platform/scripts/run_platform_validation.sh
 ```
+
+On macOS, cron jobs may fail with `Operation not permitted` if the scheduled
+process does not have permission to read files under protected locations such
+as `Documents`. If the wrapper log shows that the script path is readable by
+the shell but `Rscript` still cannot open it, grant Full Disk Access to the
+cron/terminal execution path or move the repository to a non-protected
+directory. The wrappers log the resolved project directory and absolute R
+script path to make this failure mode diagnosable.

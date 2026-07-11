@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUN_SCRIPT="${PROJECT_DIR}/run_daily_platform.R"
 RSCRIPT="${RSCRIPT:-}"
 LOG_DIR="${LOG_DIR:-}"
 LOCK_DIR="${LOCK_DIR:-}"
@@ -262,10 +263,17 @@ trap release_lock EXIT
 echo "==================================================" >> "${LOG_FILE}"
 log "Starting daily platform run."
 log "Using Rscript: ${RSCRIPT}"
+log "Using project dir: ${PROJECT_DIR}"
+log "Using run script: ${RUN_SCRIPT}"
 log "Log retention days: ${LOG_RETENTION_DAYS}; lock max age seconds: ${LOCK_MAX_AGE_SECONDS}"
 
+if [[ ! -r "${RUN_SCRIPT}" ]]; then
+  log "Daily platform run failed: run script is not readable: ${RUN_SCRIPT}"
+  exit 1
+fi
+
 set +e
-"${RSCRIPT}" run_daily_platform.R \
+"${RSCRIPT}" "${RUN_SCRIPT}" \
   >> "${LOG_FILE}" 2>&1
 
 STATUS=$?
