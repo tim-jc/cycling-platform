@@ -55,12 +55,12 @@ rebuild_silver_activities <- function(
 
   create_sql_file <- file.path(
     sql_dir,
-    "200_create_activities.sql"
+    "010_create_activities.sql"
   )
 
   transform_sql_file <- file.path(
     sql_dir,
-    "210_transform_activities.sql"
+    "020_transform_activities.sql"
   )
 
   execute_sql_file(

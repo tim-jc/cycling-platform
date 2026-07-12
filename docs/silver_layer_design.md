@@ -27,9 +27,9 @@ Proposed structure:
 
 ```text
 sql/silver/
-  200_create_activities.sql
-  210_transform_activities.sql
-  220_create_activity_streams.sql
+  010_create_activities.sql
+  020_transform_activities.sql
+  030_create_activity_streams.sql
 
 R/transforms/
   run_silver_transformations.R

@@ -146,6 +146,7 @@ automation:
 
   # Common Rscript locations for local macOS and Raspberry Pi deployments
   rscript_candidates:
+    - /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/bin/Rscript
     - /usr/local/bin/Rscript
     - /opt/homebrew/bin/Rscript
     - /usr/bin/Rscript

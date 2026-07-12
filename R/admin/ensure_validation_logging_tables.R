@@ -7,8 +7,8 @@
 #' @return Invisibly returns NULL.
 ensure_validation_logging_tables <- function(connection) {
   validation_log_sql_files <- c(
-    file.path("sql", "admin", "060_create_validation_run.sql"),
-    file.path("sql", "admin", "070_create_validation_run_check.sql")
+    file.path("sql", "admin", "050_create_validation_run.sql"),
+    file.path("sql", "admin", "051_create_validation_run_check.sql")
   )
 
   purrr::walk(

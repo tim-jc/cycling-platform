@@ -610,7 +610,7 @@ rebuild_gold_activity_best_efforts <- function(
   execute_sql_file(
     sql_file = file.path(
       sql_dir,
-      "300_create_activity_best_efforts.sql"
+      "010_create_activity_best_efforts.sql"
     ),
     connection = connection
   )

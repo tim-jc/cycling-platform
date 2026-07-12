@@ -156,19 +156,19 @@ sql_files <- list.files(
 
 expected_tables <- c(
   "admin/040_create_transform_run.sql" = "cycling_platform_admin.transform_run",
-  "admin/050_create_transform_run_batch.sql" = "cycling_platform_admin.transform_run_batch",
-  "stage/060_create_activity_streams_build.sql" = "cycling_platform_stage.activity_streams_build",
-  "raw/100_create_activities.sql" = "cycling_platform_raw.activities",
-  "raw/110_create_activity_streams.sql" = "cycling_platform_raw.activity_streams",
-  "raw/120_create_activity_details.sql" = "cycling_platform_raw.activity_details",
-  "raw/130_create_activity_laps.sql" = "cycling_platform_raw.activity_laps",
-  "raw/140_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
-  "raw/150_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
-  "raw/151_create_google_health_daily_resting_heart_rate.sql" = "cycling_platform_raw.google_health_daily_resting_heart_rate",
-  "raw/152_create_google_health_daily_heart_rate_variability.sql" = "cycling_platform_raw.google_health_daily_heart_rate_variability",
-  "silver/200_create_activities.sql" = "cycling_platform_silver.activities",
-  "silver/220_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
-  "gold/300_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts"
+  "admin/041_create_transform_run_batch.sql" = "cycling_platform_admin.transform_run_batch",
+  "stage/010_create_activity_streams_build.sql" = "cycling_platform_stage.activity_streams_build",
+  "raw/010_create_strava_activities.sql" = "cycling_platform_raw.activities",
+  "raw/020_create_strava_activity_streams.sql" = "cycling_platform_raw.activity_streams",
+  "raw/030_create_strava_activity_details.sql" = "cycling_platform_raw.activity_details",
+  "raw/040_create_strava_activity_laps.sql" = "cycling_platform_raw.activity_laps",
+  "raw/100_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
+  "raw/110_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
+  "raw/120_create_google_health_daily_resting_heart_rate.sql" = "cycling_platform_raw.google_health_daily_resting_heart_rate",
+  "raw/130_create_google_health_daily_heart_rate_variability.sql" = "cycling_platform_raw.google_health_daily_heart_rate_variability",
+  "silver/010_create_activities.sql" = "cycling_platform_silver.activities",
+  "silver/030_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
+  "gold/010_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts"
 )
 
 missing_expected_files <- setdiff(

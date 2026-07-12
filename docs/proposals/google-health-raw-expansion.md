@@ -669,8 +669,8 @@ The auth check should eventually report:
 
 Expected new or changed files:
 
-* `sql/raw/151_create_google_health_daily_resting_heart_rate.sql`
-* `sql/raw/152_create_google_health_daily_heart_rate_variability.sql`
+* `sql/raw/120_create_google_health_daily_resting_heart_rate.sql`
+* `sql/raw/130_create_google_health_daily_heart_rate_variability.sql`
 * `sql/raw/153_alter_google_health_sleep_logs_stage_metadata.sql`
 * optional later: `sql/raw/<next>_create_google_health_sleep_stage_segments.sql`
 * optional later: `sql/raw/<next>_create_google_health_heart_rate_variability_responses.sql`

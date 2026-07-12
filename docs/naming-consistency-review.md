@@ -234,13 +234,13 @@ refer back to Raw, for example `raw_stream_retrieved_at`.
 | `cycling_platform_raw` | `sql/install/001_create_databases.sql` | Raw | Source-retention schema | No | Preserve | High | Preserve |
 | `cycling_platform_silver` | `sql/install/001_create_databases.sql` | Silver | Conformed data schema | No | Preserve | High | Preserve |
 | `cycling_platform_gold` | `sql/install/001_create_databases.sql` | Gold | Analytical assets schema | No | Preserve | High | Preserve |
-| `activities` | `sql/raw/100_create_activities.sql`, `sql/silver/200_create_activities.sql` | Raw/Silver | Activity entity set | Mixed | Preserve | High | Preserve |
+| `activities` | `sql/raw/010_create_strava_activities.sql`, `sql/silver/010_create_activities.sql` | Raw/Silver | Activity entity set | Mixed | Preserve | High | Preserve |
 | `activity_streams` | Raw/Silver/Stage | Raw/Silver/Stage | Activity stream samples or stream payloads | Mixed | Preserve | High | Preserve |
-| `activity_laps` | `sql/raw/130_create_activity_laps.sql` | Raw | Strava lap payload rows | Yes | Preserve | Medium | Preserve |
-| `activity_details` | `sql/raw/120_create_activity_details.sql` | Raw | Strava detail payload row | Yes | Preserve | Medium | Preserve |
-| `activity_streams_build` | `sql/stage/060_create_activity_streams_build.sql` | Stage | Temporary stream rebuild rows | No | Preserve for staging pattern | Low | Recommended |
-| `google_health_heart_rate_responses` | `sql/raw/140_create_google_health_heart_rate_responses.sql` | Raw | One raw HR API response per user/date/detail level | Yes | Preserve for current raw object | Medium | Preserve |
-| `google_health_sleep_logs` | `sql/raw/150_create_google_health_sleep_logs.sql` | Raw | Raw sleep log/session payloads | Yes | Preserve | Medium | Preserve |
+| `activity_laps` | `sql/raw/040_create_strava_activity_laps.sql` | Raw | Strava lap payload rows | Yes | Preserve | Medium | Preserve |
+| `activity_details` | `sql/raw/030_create_strava_activity_details.sql` | Raw | Strava detail payload row | Yes | Preserve | Medium | Preserve |
+| `activity_streams_build` | `sql/stage/010_create_activity_streams_build.sql` | Stage | Temporary stream rebuild rows | No | Preserve for staging pattern | Low | Recommended |
+| `google_health_heart_rate_responses` | `sql/raw/100_create_google_health_heart_rate_responses.sql` | Raw | One raw HR API response per user/date/detail level | Yes | Preserve for current raw object | Medium | Preserve |
+| `google_health_sleep_logs` | `sql/raw/110_create_google_health_sleep_logs.sql` | Raw | Raw sleep log/session payloads | Yes | Preserve | Medium | Preserve |
 | `fitbit_user_id` | HR raw table and R helpers | Raw | Google Health user id for Fitbit-origin HR data | Partly | Consider `google_health_user_id` in future Silver | Medium | Recommended |
 | `google_user_id` | Sleep raw table and R helpers | Raw | Google Health user id for sleep data | Partly | Consider `google_health_user_id` in future Silver | Medium | Recommended |
 | `dataset_interval` | HR raw table | Raw | Source response interval metadata | Yes | Preserve in Raw; use `dataset_interval_seconds` in Silver if unit confirmed | Low | Optional |

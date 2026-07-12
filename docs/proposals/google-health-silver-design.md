@@ -21,7 +21,7 @@ without creating a large backlog of derived health metrics.
 
 Evidence:
 
-* DDL: `sql/raw/140_create_google_health_heart_rate_responses.sql`
+* DDL: `sql/raw/100_create_google_health_heart_rate_responses.sql`
 * API shaping: `R/api/get_google_health_data_points.R`
 * API wrapper: `R/api/get_google_health_heart_rate.R`
 * ingestion orchestration: `R/ingestion/ingest_google_health_heart_rate.R`
@@ -83,7 +83,7 @@ Notes:
 
 Evidence:
 
-* DDL: `sql/raw/150_create_google_health_sleep_logs.sql`
+* DDL: `sql/raw/110_create_google_health_sleep_logs.sql`
 * API shaping: `R/api/get_google_health_sleep_logs.R`
 * ingestion orchestration: `R/ingestion/ingest_google_health_sleep_logs.R`
 * DB helpers: `R/database/upsert_google_health_sleep_logs.R`

@@ -15,6 +15,7 @@ RSCRIPT_CANDIDATES=()
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export LANG="${LANG:-en_GB.UTF-8}"
 export LC_ALL="${LC_ALL:-en_GB.UTF-8}"
+export RENV_PROJECT="${RENV_PROJECT:-${PROJECT_DIR}}"
 
 LOG_FILE=""
 
@@ -283,6 +284,7 @@ echo "==================================================" >> "${LOG_FILE}"
 log "Starting platform validation."
 log "Using Rscript: ${RSCRIPT}"
 log "Using project dir: ${PROJECT_DIR}"
+log "Using RENV_PROJECT: ${RENV_PROJECT}"
 log "Using validation script: ${VALIDATION_SCRIPT}"
 log "Log retention days: ${LOG_RETENTION_DAYS}; lock max age seconds: ${LOCK_MAX_AGE_SECONDS}"
 
