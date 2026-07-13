@@ -4,6 +4,8 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_SCRIPT="${PROJECT_DIR}/run_daily_platform.R"
+RUNTIME_PROJECT_DIR=""
+RUNTIME_RUN_SCRIPT=""
 RSCRIPT="${RSCRIPT:-}"
 LOG_DIR="${LOG_DIR:-}"
 LOCK_DIR="${LOCK_DIR:-}"
@@ -243,6 +245,35 @@ release_lock() {
   rm -rf "${LOCK_DIR}"
 }
 
+cleanup_runtime_project() {
+  if [[ -n "${RUNTIME_PROJECT_DIR}" && -d "${RUNTIME_PROJECT_DIR}" ]]; then
+    rm -rf "${RUNTIME_PROJECT_DIR}"
+  fi
+}
+
+cleanup_on_exit() {
+  release_lock
+  cleanup_runtime_project
+}
+
+prepare_runtime_project() {
+  RUNTIME_PROJECT_DIR="/tmp/cycling-platform-daily-runtime-$$"
+  RUNTIME_RUN_SCRIPT="${RUNTIME_PROJECT_DIR}/run_daily_platform.R"
+
+  rm -rf "${RUNTIME_PROJECT_DIR}"
+  mkdir -p "${RUNTIME_PROJECT_DIR}"
+  chmod 700 "${RUNTIME_PROJECT_DIR}"
+
+  rsync -a \
+    --exclude ".git" \
+    --exclude "logs" \
+    --exclude "backups" \
+    "${PROJECT_DIR}/" \
+    "${RUNTIME_PROJECT_DIR}/"
+
+  export RENV_PROJECT="${RUNTIME_PROJECT_DIR}"
+}
+
 cd "${PROJECT_DIR}"
 
 load_script_config
@@ -259,23 +290,29 @@ fi
 cleanup_old_logs
 acquire_lock
 
-trap release_lock EXIT
+trap cleanup_on_exit EXIT
+
+prepare_runtime_project
 
 echo "==================================================" >> "${LOG_FILE}"
 log "Starting daily platform run."
 log "Using Rscript: ${RSCRIPT}"
 log "Using project dir: ${PROJECT_DIR}"
+log "Using runtime project dir: ${RUNTIME_PROJECT_DIR}"
 log "Using RENV_PROJECT: ${RENV_PROJECT}"
-log "Using run script: ${RUN_SCRIPT}"
+log "Using run script: ${RUNTIME_RUN_SCRIPT}"
+log "Using Rscript input mode: stdin"
 log "Log retention days: ${LOG_RETENTION_DAYS}; lock max age seconds: ${LOCK_MAX_AGE_SECONDS}"
 
-if [[ ! -r "${RUN_SCRIPT}" ]]; then
-  log "Daily platform run failed: run script is not readable: ${RUN_SCRIPT}"
+if [[ ! -r "${RUNTIME_RUN_SCRIPT}" ]]; then
+  log "Daily platform run failed: run script is not readable: ${RUNTIME_RUN_SCRIPT}"
   exit 1
 fi
 
 set +e
-"${RSCRIPT}" "${RUN_SCRIPT}" \
+cd "${RUNTIME_PROJECT_DIR}"
+"${RSCRIPT}" - \
+  < "${RUNTIME_RUN_SCRIPT}" \
   >> "${LOG_FILE}" 2>&1
 
 STATUS=$?
