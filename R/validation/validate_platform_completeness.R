@@ -314,13 +314,14 @@ count_platform_completeness_checks <- function(
     return(2L)
   }
 
-  check_count <- 17L
+  check_count <- 27L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
 
     if (isTRUE(gold_table_exists)) {
       check_count <- check_count +
+        9L +
         (length(gold_metrics) * 2L) +
         6L
     }
@@ -919,6 +920,45 @@ validate_platform_completeness <- function(
       checks,
       run_validation_query(
         connection = connection,
+        check_name = "raw_google_health_rhr_duplicate_source_grain",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COALESCE(source_data_point_id, '') AS source_data_point_id,
+            COALESCE(source_ecosystem, '') AS source_ecosystem,
+            COALESCE(source_platform, '') AS source_platform,
+            COALESCE(source_recording_method, '') AS source_recording_method,
+            COALESCE(source_device_manufacturer, '') AS source_device_manufacturer,
+            COALESCE(source_device_model, '') AS source_device_model,
+            SHA2(CAST(daily_resting_heart_rate_payload AS CHAR), 256)
+              AS payload_hash,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          GROUP BY
+            google_health_user_id,
+            activity_date,
+            COALESCE(source_data_point_id, ''),
+            COALESCE(source_ecosystem, ''),
+            COALESCE(source_platform, ''),
+            COALESCE(source_recording_method, ''),
+            COALESCE(source_device_manufacturer, ''),
+            COALESCE(source_device_model, ''),
+            SHA2(CAST(daily_resting_heart_rate_payload AS CHAR), 256)
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
         check_name = "raw_google_health_hrv_duplicate_keys",
         check_scope = "deep",
         severity = "CRITICAL",
@@ -928,6 +968,45 @@ validate_platform_completeness <- function(
             COUNT(*) AS issue_count
           FROM cycling_platform_raw.google_health_daily_heart_rate_variability
           GROUP BY daily_heart_rate_variability_key
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_duplicate_source_grain",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COALESCE(source_data_point_id, '') AS source_data_point_id,
+            COALESCE(source_ecosystem, '') AS source_ecosystem,
+            COALESCE(source_platform, '') AS source_platform,
+            COALESCE(source_recording_method, '') AS source_recording_method,
+            COALESCE(source_device_manufacturer, '') AS source_device_manufacturer,
+            COALESCE(source_device_model, '') AS source_device_model,
+            SHA2(CAST(daily_heart_rate_variability_payload AS CHAR), 256)
+              AS payload_hash,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          GROUP BY
+            google_health_user_id,
+            activity_date,
+            COALESCE(source_data_point_id, ''),
+            COALESCE(source_ecosystem, ''),
+            COALESCE(source_platform, ''),
+            COALESCE(source_recording_method, ''),
+            COALESCE(source_device_manufacturer, ''),
+            COALESCE(source_device_model, ''),
+            SHA2(CAST(daily_heart_rate_variability_payload AS CHAR), 256)
           HAVING COUNT(*) > 1
           LIMIT 1000
         ",
@@ -976,18 +1055,15 @@ validate_platform_completeness <- function(
       checks,
       run_validation_query(
         connection = connection,
-        check_name = "raw_google_health_rhr_multiple_records_per_date",
+        check_name = "raw_google_health_respiratory_rate_duplicate_keys",
         check_scope = "deep",
-        severity = "WARNING",
+        severity = "CRITICAL",
         query = "
           SELECT
-            google_health_user_id,
-            activity_date,
+            daily_respiratory_rate_key,
             COUNT(*) AS issue_count
-          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
-          GROUP BY
-            google_health_user_id,
-            activity_date
+          FROM cycling_platform_raw.google_health_daily_respiratory_rate
+          GROUP BY daily_respiratory_rate_key
           HAVING COUNT(*) > 1
           LIMIT 1000
         ",
@@ -1000,20 +1076,271 @@ validate_platform_completeness <- function(
       checks,
       run_validation_query(
         connection = connection,
-        check_name = "raw_google_health_hrv_multiple_records_per_date",
+        check_name = "raw_google_health_respiratory_rate_required_fields_valid",
         check_scope = "deep",
-        severity = "WARNING",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            daily_respiratory_rate_key,
+            google_health_user_id,
+            activity_date,
+            respiratory_rate_brpm,
+            run_id,
+            retrieved_at
+          FROM cycling_platform_raw.google_health_daily_respiratory_rate
+          WHERE google_health_user_id IS NULL
+             OR google_health_user_id = ''
+             OR activity_date IS NULL
+             OR respiratory_rate_brpm IS NULL
+             OR respiratory_rate_brpm <= 0
+             OR run_id IS NULL
+             OR retrieved_at IS NULL
+             OR daily_respiratory_rate_payload IS NULL
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_respiratory_rate_duplicate_source_grain",
+        check_scope = "deep",
+        severity = "CRITICAL",
         query = "
           SELECT
             google_health_user_id,
             activity_date,
+            COALESCE(source_data_point_id, '') AS source_data_point_id,
+            COALESCE(source_ecosystem, '') AS source_ecosystem,
+            COALESCE(source_platform, '') AS source_platform,
+            COALESCE(source_recording_method, '') AS source_recording_method,
+            COALESCE(source_device_manufacturer, '') AS source_device_manufacturer,
+            COALESCE(source_device_model, '') AS source_device_model,
+            SHA2(CAST(daily_respiratory_rate_payload AS CHAR), 256)
+              AS payload_hash,
             COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_daily_respiratory_rate
+          GROUP BY
+            google_health_user_id,
+            activity_date,
+            COALESCE(source_data_point_id, ''),
+            COALESCE(source_ecosystem, ''),
+            COALESCE(source_platform, ''),
+            COALESCE(source_recording_method, ''),
+            COALESCE(source_device_manufacturer, ''),
+            COALESCE(source_device_model, ''),
+            SHA2(CAST(daily_respiratory_rate_payload AS CHAR), 256)
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_source_provenance_missing",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            daily_resting_heart_rate_key,
+            google_health_user_id,
+            activity_date,
+            source_ecosystem,
+            source_platform,
+            source_recording_method
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          WHERE source_ecosystem IS NULL
+             OR source_ecosystem = ''
+             OR source_ecosystem = 'unknown'
+             OR source_platform IS NULL
+             OR source_platform = ''
+             OR source_recording_method IS NULL
+             OR source_recording_method = ''
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_source_provenance_missing",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            daily_heart_rate_variability_key,
+            google_health_user_id,
+            activity_date,
+            source_ecosystem,
+            source_platform,
+            source_recording_method
           FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          WHERE source_ecosystem IS NULL
+             OR source_ecosystem = ''
+             OR source_ecosystem = 'unknown'
+             OR source_platform IS NULL
+             OR source_platform = ''
+             OR source_recording_method IS NULL
+             OR source_recording_method = ''
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_respiratory_rate_source_provenance_missing",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            daily_respiratory_rate_key,
+            google_health_user_id,
+            activity_date,
+            source_ecosystem,
+            source_platform,
+            source_recording_method
+          FROM cycling_platform_raw.google_health_daily_respiratory_rate
+          WHERE source_ecosystem IS NULL
+             OR source_ecosystem = ''
+             OR source_ecosystem = 'unknown'
+             OR source_platform IS NULL
+             OR source_platform = ''
+             OR source_recording_method IS NULL
+             OR source_recording_method = ''
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_multiple_ecosystems_per_date",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COUNT(DISTINCT source_ecosystem) AS source_ecosystem_count,
+            GROUP_CONCAT(DISTINCT source_ecosystem ORDER BY source_ecosystem)
+              AS source_ecosystems
+          FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          WHERE source_ecosystem IS NOT NULL
+            AND source_ecosystem <> ''
+            AND source_ecosystem <> 'unknown'
           GROUP BY
             google_health_user_id,
             activity_date
-          HAVING COUNT(*) > 1
+          HAVING COUNT(DISTINCT source_ecosystem) > 1
+          ORDER BY activity_date DESC
           LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_hrv_multiple_ecosystems_per_date",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COUNT(DISTINCT source_ecosystem) AS source_ecosystem_count,
+            GROUP_CONCAT(DISTINCT source_ecosystem ORDER BY source_ecosystem)
+              AS source_ecosystems
+          FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          WHERE source_ecosystem IS NOT NULL
+            AND source_ecosystem <> ''
+            AND source_ecosystem <> 'unknown'
+          GROUP BY
+            google_health_user_id,
+            activity_date
+          HAVING COUNT(DISTINCT source_ecosystem) > 1
+          ORDER BY activity_date DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_respiratory_rate_multiple_ecosystems_per_date",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT
+            google_health_user_id,
+            activity_date,
+            COUNT(DISTINCT source_ecosystem) AS source_ecosystem_count,
+            GROUP_CONCAT(DISTINCT source_ecosystem ORDER BY source_ecosystem)
+              AS source_ecosystems
+          FROM cycling_platform_raw.google_health_daily_respiratory_rate
+          WHERE source_ecosystem IS NOT NULL
+            AND source_ecosystem <> ''
+            AND source_ecosystem <> 'unknown'
+          GROUP BY
+            google_health_user_id,
+            activity_date
+          HAVING COUNT(DISTINCT source_ecosystem) > 1
+          ORDER BY activity_date DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_respiratory_rate_recent_coverage",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            1 AS issue_count,
+            'No successful daily respiratory-rate request in the last 2 days'
+              AS issue
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM cycling_platform_admin.etl_request_log
+            WHERE entity_name = 'google_health_daily_respiratory_rate'
+              AND request_status = 'SUCCESS'
+              AND requested_start_date >= UTC_DATE() - INTERVAL 2 DAY
+          )
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,
         deadline = deadline
@@ -1035,6 +1362,10 @@ validate_platform_completeness <- function(
             SELECT activity_date
             FROM cycling_platform_raw.google_health_daily_heart_rate_variability
             UNION
+            SELECT start_civil_date AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE start_civil_date IS NOT NULL
+            UNION
             SELECT end_civil_date AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE end_civil_date IS NOT NULL
@@ -1043,7 +1374,8 @@ validate_platform_completeness <- function(
             dates.activity_date,
             rhr.activity_date IS NOT NULL AS has_rhr,
             hrv.activity_date IS NOT NULL AS has_hrv,
-            sleep.activity_date IS NOT NULL AS has_sleep
+            sleep_start.activity_date IS NOT NULL AS has_sleep_by_start_date,
+            sleep_end.activity_date IS NOT NULL AS has_sleep_by_end_date
           FROM dates
           LEFT JOIN (
             SELECT DISTINCT activity_date
@@ -1056,14 +1388,23 @@ validate_platform_completeness <- function(
           ) hrv
             ON hrv.activity_date = dates.activity_date
           LEFT JOIN (
+            SELECT DISTINCT start_civil_date AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE start_civil_date IS NOT NULL
+          ) sleep_start
+            ON sleep_start.activity_date = dates.activity_date
+          LEFT JOIN (
             SELECT DISTINCT end_civil_date AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE end_civil_date IS NOT NULL
-          ) sleep
-            ON sleep.activity_date = dates.activity_date
+          ) sleep_end
+            ON sleep_end.activity_date = dates.activity_date
           WHERE rhr.activity_date IS NULL
              OR hrv.activity_date IS NULL
-             OR sleep.activity_date IS NULL
+             OR (
+               sleep_start.activity_date IS NULL
+               AND sleep_end.activity_date IS NULL
+             )
           ORDER BY dates.activity_date DESC
           LIMIT 1000
         ",
@@ -1115,7 +1456,8 @@ validate_platform_completeness <- function(
           FROM cycling_platform_admin.etl_run_entity
           WHERE entity_name IN (
               'google_health_daily_resting_heart_rate',
-              'google_health_daily_heart_rate_variability'
+              'google_health_daily_heart_rate_variability',
+              'google_health_daily_respiratory_rate'
             )
             AND entity_status = 'FAILED'
             AND started_at >= UTC_TIMESTAMP() - INTERVAL 14 DAY
@@ -1128,15 +1470,31 @@ validate_platform_completeness <- function(
     )
 
     if (isTRUE(include_gold)) {
-      checks <- append_validation_result(
-        checks,
-        validation_table_exists_result(
-          table_exists = gold_table_exists,
-          check_scope = "deep"
-        )
+      gold_publication_results <- gold_activity_best_efforts_publication_checks(
+        connection = connection,
+        config = config,
+        check_scope = "deep",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
       )
 
-      if (gold_table_exists) {
+      checks <- append_validation_result(
+        checks,
+        gold_publication_results
+      )
+
+      gold_publication_failed <- platform_validation_has_critical_failures(
+        gold_publication_results
+      )
+
+      if (gold_publication_failed) {
+        message(
+          "Skipping downstream Gold completeness checks because required ",
+          "Gold publication checks failed."
+        )
+      }
+
+      if (gold_table_exists && !gold_publication_failed) {
         for (metric_name in gold_metrics) {
           source_sql <- gold_metric_source_sql(metric_name)
 

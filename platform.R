@@ -23,9 +23,9 @@ if (length(args) > 0) {
   execution_mode <- tolower(args[[1]])
 }
 
-if (!execution_mode %in% c("manual", "backfill", "streams_only")) {
+if (!execution_mode %in% c("manual", "scheduled", "backfill", "streams_only")) {
   stop(
-    "Unknown execution mode. Use 'manual', 'backfill', or 'streams_only'.",
+    "Unknown execution mode. Use 'manual', 'scheduled', 'backfill', or 'streams_only'.",
     call. = FALSE
   )
 }
@@ -36,6 +36,9 @@ if (execution_mode == "backfill") {
 } else if (execution_mode == "streams_only") {
   run_mode <- "STREAMS_ONLY"
   activity_refresh_days <- 0L
+} else if (execution_mode == "scheduled") {
+  run_mode <- "SCHEDULED"
+  activity_refresh_days <- config$ingestion$activity_refresh_days
 } else {
   run_mode <- "MANUAL"
   activity_refresh_days <- config$ingestion$activity_refresh_days
@@ -226,6 +229,27 @@ tryCatch(
             source_id = 2L,
             config = config,
             start_date = Sys.Date() - as.integer(google_health_hrv_refresh_days),
+            end_date = Sys.Date()
+          )
+        }
+
+        if ("daily-respiratory-rate" %in% google_health_data_types) {
+          if (execution_mode == "backfill") {
+            google_health_respiratory_rate_refresh_days <- config$ingestion$google_health_daily_respiratory_rate_backfill_days
+          } else {
+            google_health_respiratory_rate_refresh_days <- config$ingestion$google_health_daily_respiratory_rate_refresh_days
+          }
+
+          if (is.null(google_health_respiratory_rate_refresh_days)) {
+            google_health_respiratory_rate_refresh_days <- 14L
+          }
+
+          ingest_google_health_daily_respiratory_rate(
+            connection = connection,
+            run_id = run_id,
+            source_id = 2L,
+            config = config,
+            start_date = Sys.Date() - as.integer(google_health_respiratory_rate_refresh_days),
             end_date = Sys.Date()
           )
         }

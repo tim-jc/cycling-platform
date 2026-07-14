@@ -34,12 +34,16 @@ Implemented:
 * Strava activity laps
 * Google/Fitbit heart-rate raw response ingestion
 * Google/Fitbit sleep raw ingestion
+* Google Health daily resting heart-rate Raw ingestion
+* Google Health daily heart-rate-variability Raw ingestion
+* Google Health daily respiratory-rate Raw ingestion
 
 Status:
 
 * Strava activities, details, streams, and laps are complete.
-* Google/Fitbit heart-rate and sleep ingestion exists, but validation and
-  silver transforms remain future work.
+* Google Health/Fitbit Raw ingestion is implemented for the current observed
+  health endpoints. These entities remain in Raw observation; health Silver and
+  Gold transforms remain future work.
 
 ### Silver Layer
 
@@ -70,11 +74,11 @@ Implemented:
 
 Not yet complete:
 
-* scheduling / cron automation
+* scheduling / cron automation hardening
 * routine monitoring dashboard
-* production notification workflow
+* production notification workflow hardening
 * automated retries beyond current request-level retry behaviour
-* formal raw and silver data quality run outputs
+* expanded raw, silver, and health data quality run outputs
 
 ## Immediate Goal
 
@@ -93,8 +97,8 @@ not need to trigger ingestion manually.
 Work:
 
 1. Schedule `run_daily_platform.R`.
-2. Confirm raw, silver, validation, and notification behaviour under unattended
-   execution.
+2. Confirm raw, silver, required gold, validation, and notification behaviour
+   under unattended execution.
 3. Confirm idempotent incremental ETL.
 4. Define failure recovery that avoids manual database repair.
 5. Add success/failure notifications.
@@ -102,13 +106,14 @@ Work:
 
 Exit criteria:
 
-* Raw and silver layers are automated.
+* Raw, silver, and required production gold layers are automated.
 * Incremental ETL is reliable.
 * Failed runs recover cleanly.
 * Notifications report success and failure.
 * Downstream projects never interact directly with ingestion.
 
-Gold processing is intentionally separate from `platform.R` at this stage.
+Gold processing is orchestrated by `run_daily_platform.R` after successful
+Silver publication checks. `platform.R` itself remains Raw-focused.
 
 ## Migration Strategy
 

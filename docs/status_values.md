@@ -33,6 +33,7 @@ Used by `cycling_platform_admin.etl_run.run_mode`.
 | Mode | Meaning |
 | --- | --- |
 | `MANUAL` | Routine platform run using the configured activity refresh window. |
+| `SCHEDULED` | Routine platform run triggered by unattended automation. Uses the same activity refresh window as `MANUAL`, but records automation provenance explicitly. |
 | `BACKFILL` | Historical activity refresh window; child entities are still status-driven. |
 | `STREAMS_ONLY` | Recovery run that skips activities, details, and laps, then attempts capped pending stream ingestion only. |
 

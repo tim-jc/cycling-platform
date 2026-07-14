@@ -37,6 +37,17 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
   `daily_resting_heart_rate_key`.
 * `raw.google_health_daily_heart_rate_variability` is unique by
   `daily_heart_rate_variability_key`.
+* `raw.google_health_daily_respiratory_rate` is unique by
+  `daily_respiratory_rate_key`.
+* Google Health daily RHR/HRV/respiratory-rate may legitimately contain
+  multiple rows per user and date when Google Health returns multiple source
+  ecosystems such as `FITBIT` and `HEALTH_KIT`.
+* Google Health daily RHR/HRV/respiratory-rate provenance columns should expose
+  `source_ecosystem`, `source_platform` and `source_recording_method` where the
+  payload provides them.
+* Google Health daily RHR/HRV/respiratory-rate duplicate checks must use the
+  source data-point grain, not `google_health_user_id + activity_date`.
+  Same-day Apple Health and Fitbit observations are valid Raw records.
 * Child rows have matching parent activities.
 * Raw child tables contain no orphaned records.
 
@@ -49,6 +60,8 @@ ingestion status. Business interpretation belongs mostly in silver and gold.
 * `raw.google_health_daily_resting_heart_rate.daily_resting_heart_rate_payload`
   contains valid JSON.
 * `raw.google_health_daily_heart_rate_variability.daily_heart_rate_variability_payload`
+  contains valid JSON.
+* `raw.google_health_daily_respiratory_rate.daily_respiratory_rate_payload`
   contains valid JSON.
 * `raw.google_health_sleep_logs.sleep_log_payload` contains valid JSON and may
   include source-reported stage arrays and stage summaries.
@@ -260,13 +273,26 @@ not disappear unexpectedly across layer boundaries:
 * Raw activities with `stream_status = 'SUCCESS'` and raw stream payloads must
   have Silver stream rows.
 * Raw stream expected sample counts must agree with Silver stream row counts.
-* Google Health daily RHR and daily HRV Raw rows must have required lineage,
-  valid dates, non-null payloads, positive RHR values, and non-negative HRV
-  values where present.
+* Google Health daily RHR, daily HRV and daily respiratory-rate Raw rows must
+  have required lineage, valid dates, non-null payloads, positive RHR and
+  respiratory-rate values, and non-negative HRV values where present.
+* Google Health daily RHR, daily HRV and daily respiratory-rate Raw rows are
+  checked for duplicate source-grain records using source identifiers, promoted
+  provenance and payload hash fallback.
+* Dates containing multiple source ecosystems are reported as INFO diagnostics.
+  They are expected when Apple Health and Fitbit both contribute observations.
+* Missing or unknown Google Health source provenance is reported as a warning so
+  future Silver transforms do not silently lose source context.
 * Google Health daily request failures and successful empty responses are
   visible through `admin.etl_request_log`.
 * Google Health sleep-stage metadata is checked against retained sleep payload
   indicators where promoted columns are populated.
+* Google Health RHR/HRV/sleep date overlap is diagnostic only. Current live
+  inspection shows sleep payloads are present but promoted sleep interval dates
+  are null, so overlap warnings can indicate missing sleep metadata rather than
+  missing sleep ingestion.
+* Gold publication checks must confirm required Gold transforms are successful
+  and fresh before deep Gold completeness checks run.
 * `gold.activity_best_efforts` must contain expected watts, cadence, and
   heartrate rows where the source Silver streams support them.
 * Gold best-effort keys, peak values, sample counts, window ordering, and GPS
@@ -276,6 +302,12 @@ Critical publication-gate failures cause `run_daily_platform.R` to exit with a
 non-zero status. Critical deep-validation failures cause
 `run_platform_validation.R` to exit non-zero, but they do not roll back or hide a
 successful Silver transform.
+
+Deep-validation warnings do not make the scheduled validation process fail.
+Instead, the validation outcome is recorded as `PASSED_WITH_WARNINGS` and an
+attention notification is sent when `notifications.validation_notify_on_warning`
+is enabled. This keeps cron exit-code behaviour stable while avoiding manual log
+inspection for warning-only validation runs.
 
 Both scopes record status and timing in:
 
@@ -291,9 +323,11 @@ Common failures:
   did not run after ingestion.
 * Raw/Silver stream count mismatch usually means the Silver stream repair
   transform should be rerun.
-* Missing Gold best-effort rows usually means
-  `Rscript run_gold_activity_best_efforts.R repair` needs to run after Silver
-  streams are refreshed.
+* Stale Gold publication checks usually mean the daily Gold transform failed or
+  did not run after Silver streams were refreshed.
+* Missing Gold best-effort rows after a successful Gold publication usually
+  means `Rscript run_gold_activity_best_efforts.R repair` should be run and the
+  failing activities inspected for sparse or missing metric samples.
 
 Potential checks:
 
@@ -328,8 +362,10 @@ Possible implementation:
 * `admin.data_quality_check`
 * `admin.data_quality_check_result`
 
-Results should eventually be included in notifications so routine automation
-surfaces problems without manual database inspection.
+Validation results are surfaced through automation notifications. Fatal
+validation failures produce failure notifications; non-fatal warning outcomes
+produce attention notifications with affected check names, issue counts and
+sample rows.
 
 Initial SQL sketches are captured in `docs/data_quality_sql.md`.
 

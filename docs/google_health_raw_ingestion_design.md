@@ -13,20 +13,23 @@ original generic-table proposal:
   source-reported daily RHR data point.
 * `cycling_platform_raw.google_health_daily_heart_rate_variability`: one row
   per source-reported daily HRV data point.
+* `cycling_platform_raw.google_health_daily_respiratory_rate`: one row per
+  source-reported daily respiratory-rate data point.
 
 Intraday HRV remains deferred. Google/Fitbit Raw ingestion exists; Silver
 transforms remain future work.
 
 ## Purpose
 
-Design a future raw-layer ingestion path for Google Health API heart-rate data.
+Document the Google Health Raw ingestion design and the decisions that led to
+the current source-preserving Raw objects.
 
 This design replaces the earlier Fitbit Web API direction. Fitbit Web API is
 not a good new foundation because it is being deprecated. Google Health API is
 the better target because it provides a modern REST API for health data and is
 positioned as the Fitbit migration path.
 
-Original initial scope:
+Original initial scope, now superseded by the explicit Raw objects above:
 
 * Google Health API only
 * heart-rate data points only
@@ -57,15 +60,179 @@ Rscript run_google_health_daily_resting_heart_rate.R 2026-07-01 2026-07-08
 Rscript run_google_health_daily_heart_rate_variability.R refresh
 Rscript run_google_health_daily_heart_rate_variability.R backfill
 Rscript run_google_health_daily_heart_rate_variability.R 2026-07-01 2026-07-08
+Rscript run_google_health_daily_respiratory_rate.R refresh
+Rscript run_google_health_daily_respiratory_rate.R backfill
+Rscript run_google_health_daily_respiratory_rate.R repair
+Rscript run_google_health_daily_respiratory_rate.R 2026-07-01 2026-07-08
 ```
 
-The normal platform run ingests daily RHR and daily HRV when the corresponding
-data types are present in `config/platform.yml`.
+The normal platform run ingests daily RHR, daily HRV, and daily respiratory
+rate when the corresponding data types are present in `config/platform.yml`.
 
 Successful empty daily requests are represented in
 `cycling_platform_admin.etl_request_log` with `request_status = 'SUCCESS'`,
 `returned_data_point_count = 0`, and `is_successfully_empty = 1`. No placeholder
 metric rows are written.
+
+## Daily RHR/HRV Source Provenance
+
+Google Health is the ingestion API, but daily records can originate from
+different source ecosystems. Live payload inspection found:
+
+| Meaning | JSON path | Example values |
+| --- | --- | --- |
+| originating ecosystem | `$.dataSource.platform` | `FITBIT`, `HEALTH_KIT` |
+| recording method | `$.dataSource.recordingMethod` | `DERIVED`, `UNKNOWN`, `PASSIVELY_MEASURED` |
+| source device manufacturer | `$.dataSource.device.manufacturer` | `Apple Inc.` |
+| source device model | `$.dataSource.device.model` | not always present |
+| source data-point identifier | `$.name` | often absent for daily summaries |
+| measurement date | `$.dailyRestingHeartRate.date`, `$.dailyHeartRateVariability.date` | source civil date object |
+| ingestion source | `admin.data_source.source_name` via `source_id` | `google_health` |
+
+Promoted Raw columns:
+
+* `source_ecosystem`
+* `source_platform`
+* `source_recording_method`
+* `source_device_manufacturer`
+* `source_device_model`
+
+`source_ecosystem` is the platform-owned canonical mapping used for querying
+and validation:
+
+| Source evidence | Canonical `source_ecosystem` |
+| --- | --- |
+| `$.dataSource.platform = "FITBIT"` | `fitbit` |
+| `$.dataSource.platform = "HEALTH_KIT"` | `apple_health` |
+| `$.dataSource.platform = "GOOGLE_FIT"` | `google_fit` |
+| missing platform with Apple device manufacturer | `apple_health` |
+| missing platform with Fitbit device manufacturer | `fitbit` |
+| no recognised evidence | `unknown` |
+
+`source_name` and `source_data_point_id` remain available, but live daily
+summary payloads often have them as `NULL`.
+
+Multiple rows for the same user and date are expected. For example, Google
+Health can return both `FITBIT` and `HEALTH_KIT` daily observations for the
+same date, and HRV can contain more than one `HEALTH_KIT` source data point.
+The Raw grain is therefore the retained source data point, represented by the
+deterministic Raw key, not `google_health_user_id + activity_date`.
+
+When Google Health provides `$.name`, that source data-point identifier is the
+best business key. Where it is absent, the platform falls back to a deterministic
+key using the data type, user, activity date, source name, and retained payload
+hash. Validation uses the fuller source grain for diagnostics:
+
+* `google_health_user_id`
+* `activity_date`
+* `source_data_point_id` where present
+* `source_ecosystem`
+* `source_platform`
+* `source_recording_method`
+* `source_device_manufacturer`
+* `source_device_model`
+* retained payload hash
+
+This preserves Apple Health and Fitbit observations side by side. No Raw
+deduplication, preferred-source selection, or cross-ecosystem merge is performed.
+
+Existing rows can be backfilled from retained payloads without refetching the
+API:
+
+```sh
+Rscript run_google_health_daily_source_provenance_backfill.R --dry-run
+Rscript run_google_health_daily_source_provenance_backfill.R
+```
+
+The backfill reports examined, updated, already-populated, unknown-source, and
+unparseable counts for both daily RHR and daily HRV.
+
+## Daily Respiratory Rate
+
+Daily respiratory rate uses the same Google Health daily data-point pattern as
+RHR and HRV. Google defines this metric as a daily average respiratory rate in
+breaths per minute, one data point per day, calculated for the main sleep.
+
+Endpoint:
+
+```text
+GET /users/me/dataTypes/daily-respiratory-rate/dataPoints
+```
+
+Filter:
+
+```text
+daily_respiratory_rate.date >= "YYYY-MM-DD"
+AND daily_respiratory_rate.date < "YYYY-MM-DD"
+```
+
+Live capability probing returned daily records for the recent test window.
+Observed payload paths:
+
+| Meaning | JSON path | Observed values |
+| --- | --- | --- |
+| respiratory-rate value | `$.dailyRespiratoryRate.breathsPerMinute` | numeric breaths per minute |
+| unit | API field semantics | breaths per minute |
+| measurement date | `$.dailyRespiratoryRate.date` | source civil date object |
+| source ecosystem | `$.dataSource.platform` | `FITBIT` in the tested window |
+| recording method | `$.dataSource.recordingMethod` | `DERIVED` in the tested window |
+| source device | `$.dataSource.device` | present as an empty object in the tested window |
+| source application | `$.dataSource.application` | not observed in the tested window |
+| source record identifier | `$.name` | absent in the tested window |
+
+Raw grain:
+
+```text
+one row per Google Health daily respiratory-rate source data point
+```
+
+The physical primary key is `daily_respiratory_rate_key`. If Google Health
+provides `$.name`, that identifier is used as the stable source record
+identity. If `$.name` is absent, the key falls back to the data type, Google
+Health user, activity date, source name and retained payload hash. This avoids
+assuming one record per user/date and keeps same-day multi-ecosystem records
+representable if they appear later.
+
+Promoted columns include:
+
+* `google_health_user_id`
+* `activity_date`
+* `respiratory_rate_brpm`
+* `source_ecosystem`
+* `source_platform`
+* `source_recording_method`
+* `source_device_manufacturer`
+* `source_device_model`
+* `source_data_point_id`
+* `source_name`
+
+`daily_respiratory_rate_payload` remains the source of truth.
+
+Runner modes:
+
+* `refresh`: recent configured window.
+* `repair`: recent configured window, recorded as `REPAIR` in Admin metadata.
+* `backfill`: configured historical window.
+* explicit `start_date end_date`: bounded manual date window.
+
+Daily automation includes respiratory rate when `daily-respiratory-rate` is
+listed under `sources.google_health.data_types`. No Silver or Gold respiratory
+rate object exists yet; the metric remains in Raw observation.
+
+### Sleep Payload Date Note
+
+Live sleep payload inspection confirmed that retained sleep JSON contains
+interval timestamps at:
+
+* `$.sleep.interval.startTime`
+* `$.sleep.interval.startUtcOffset`
+* `$.sleep.interval.endTime`
+* `$.sleep.interval.endUtcOffset`
+
+The current stored rows have `start_civil_date` and `end_civil_date` as `NULL`,
+so overlap validation currently reports missing sleep dates even when sleep
+payloads are present. This is a promoted metadata repair issue, not evidence
+that sleep was not ingested. The retained sleep payload remains authoritative.
 
 ## Original Recommended Shape
 
@@ -99,6 +266,7 @@ sources:
       - sleep
       - daily-resting-heart-rate
       - daily-heart-rate-variability
+      - daily-respiratory-rate
 
 ingestion:
   google_health_refresh_days: 7
@@ -109,6 +277,8 @@ ingestion:
   google_health_daily_resting_heart_rate_backfill_days: 365
   google_health_daily_heart_rate_variability_refresh_days: 14
   google_health_daily_heart_rate_variability_backfill_days: 365
+  google_health_daily_respiratory_rate_refresh_days: 14
+  google_health_daily_respiratory_rate_backfill_days: 365
   google_health_page_size: 10000
   google_health_request_pause_seconds: 0.25
 ```
@@ -546,7 +716,7 @@ Payload reconciliation checks should compare promoted fields back to
   `platform.R` behind a config flag from the start?
 * What historical range is actually available after Fitbit migration/sync?
 
-## Recommendation
+## Historical Recommendation
 
 Build a generic Google Health raw data-point ingestion path with heart rate as
 the first enabled data type.
@@ -554,3 +724,8 @@ the first enabled data type.
 This keeps the initial implementation small while avoiding a dead-end
 Fitbit-specific design. It also gives the platform a reusable raw ingestion
 pattern for future health data without committing to silver/gold modelling yet.
+
+This recommendation is retained as history. The implemented design now uses
+explicit Raw objects for heart-rate responses, sleep logs, daily RHR, daily
+HRV, and daily respiratory rate so each object has a clear source grain,
+business key, and validation policy.

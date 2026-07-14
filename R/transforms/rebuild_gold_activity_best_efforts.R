@@ -16,6 +16,21 @@ default_best_effort_durations <- function() {
   )
 }
 
+#' Gold Activity Best Efforts Calculation Version
+#'
+#' @param config Platform configuration.
+#'
+#' @return Character calculation version.
+gold_activity_best_efforts_calculation_version <- function(config = list()) {
+  calculation_version <- config$transforms$gold_best_effort_calculation_version
+
+  if (is.null(calculation_version) || !nzchar(calculation_version)) {
+    return("activity_best_efforts_v1")
+  }
+
+  as.character(calculation_version)
+}
+
 #' Best Effort Metric Columns
 #'
 #' @return Named character vector mapping metric_name to silver stream column.
@@ -41,7 +56,8 @@ compute_activity_best_effort <- function(
   activity_streams,
   metric_column,
   metric_name,
-  duration_seconds
+  duration_seconds,
+  calculation_version = "activity_best_efforts_v1"
 ) {
   if (!metric_column %in% names(activity_streams)) {
     return(NULL)
@@ -126,6 +142,7 @@ compute_activity_best_effort <- function(
     end_latitude = end_row$latitude[[1]],
     end_longitude = end_row$longitude[[1]],
     sample_count = duration_seconds,
+    calculation_version = calculation_version,
     computed_at = as.POSIXct(
       Sys.time(),
       tz = "UTC"
@@ -143,7 +160,8 @@ compute_activity_best_effort <- function(
 compute_activity_best_efforts <- function(
   activity_streams,
   metrics = "watts",
-  durations = default_best_effort_durations()
+  durations = default_best_effort_durations(),
+  calculation_version = "activity_best_efforts_v1"
 ) {
   metric_columns <- best_effort_metric_columns()
 
@@ -171,7 +189,8 @@ compute_activity_best_efforts <- function(
         activity_streams = activity_streams,
         metric_column = metric_columns[[metric_name]],
         metric_name = metric_name,
-        duration_seconds = duration_seconds
+        duration_seconds = duration_seconds,
+        calculation_version = calculation_version
       )
 
       if (!is.null(result)) {
@@ -218,21 +237,84 @@ db_get_query_optional_params <- function(
   )
 }
 
+get_latest_successful_transform_completed_at <- function(
+  connection,
+  layer_name,
+  entity_name
+) {
+  result <- DBI::dbGetQuery(
+    conn = connection,
+    statement = "
+      SELECT MAX(completed_at) AS completed_at
+      FROM cycling_platform_admin.transform_run
+      WHERE layer_name = ?
+        AND entity_name = ?
+        AND run_status = 'SUCCESS'
+    ",
+    params = list(
+      layer_name,
+      entity_name
+    )
+  )
+
+  result$completed_at[[1]]
+}
+
+gold_activity_best_efforts_daily_can_skip <- function(connection) {
+  latest_gold_completed_at <- get_latest_successful_transform_completed_at(
+    connection = connection,
+    layer_name = "gold",
+    entity_name = "activity_best_efforts"
+  )
+
+  if (is.na(latest_gold_completed_at)) {
+    return(FALSE)
+  }
+
+  latest_silver_stream_completed_at <-
+    get_latest_successful_transform_completed_at(
+      connection = connection,
+      layer_name = "silver",
+      entity_name = "activity_streams"
+    )
+
+  if (is.na(latest_silver_stream_completed_at)) {
+    return(FALSE)
+  }
+
+  latest_gold_completed_at >= latest_silver_stream_completed_at
+}
+
 get_best_effort_activity_plan <- function(
   connection,
   mode,
   activity_ids,
   metrics,
-  durations
+  durations,
+  calculation_version
 ) {
   metric_columns <- best_effort_metric_columns()[metrics]
-  metric_presence_sql <- paste(
+
+  metric_source_sql <- paste(
     paste0(
-      "streams.",
+      "
+      SELECT
+        streams.activity_id,
+        '",
+      names(metric_columns),
+      "' AS metric_name,
+        COUNT(streams.",
       metric_columns,
-      " IS NOT NULL"
+      ") AS metric_sample_count,
+        MAX(streams.transformed_at) AS latest_silver_transformed_at
+      FROM cycling_platform_silver.activity_streams streams
+      GROUP BY streams.activity_id
+      HAVING COUNT(streams.",
+      metric_columns,
+      ") > 0
+      "
     ),
-    collapse = " OR "
+    collapse = "\nUNION ALL\n"
   )
 
   activity_filter_sql <- ""
@@ -251,16 +333,39 @@ get_best_effort_activity_plan <- function(
   if (identical(mode, "backfill")) {
     sql <- paste0(
       "
+      WITH metric_source AS (
+      ",
+      metric_source_sql,
+      "
+      ),
+      durations AS (
+      ",
+      gold_best_effort_duration_table_sql(durations),
+      "
+      ),
+      expected AS (
+        SELECT
+          metric_source.activity_id,
+          metric_source.metric_name,
+          durations.duration_seconds
+        FROM metric_source
+        INNER JOIN durations
+          ON durations.duration_seconds <= metric_source.metric_sample_count
+      )
       SELECT
-        streams.activity_id,
-        COUNT(*) AS stream_row_count
-      FROM cycling_platform_silver.activity_streams streams
-      WHERE ",
-      metric_presence_sql,
+        metric_source.activity_id,
+        MAX(metric_source.metric_sample_count) AS stream_row_count,
+        COUNT(expected.duration_seconds) AS expected_best_effort_count,
+        'backfill' AS repair_reason
+      FROM metric_source
+      INNER JOIN expected
+        ON expected.activity_id = metric_source.activity_id
+       AND expected.metric_name = metric_source.metric_name
+      WHERE 1 = 1",
       activity_filter_sql,
       "
-      GROUP BY streams.activity_id
-      ORDER BY streams.activity_id
+      GROUP BY metric_source.activity_id
+      ORDER BY metric_source.activity_id
       "
     )
 
@@ -275,15 +380,45 @@ get_best_effort_activity_plan <- function(
 
   sql <- paste0(
     "
-    SELECT
-      streams.activity_id,
-      COUNT(*) AS stream_row_count,
-      COALESCE(existing.best_effort_row_count, 0) AS best_effort_row_count
-    FROM cycling_platform_silver.activity_streams streams
-    LEFT JOIN (
+    WITH metric_source AS (
+    ",
+    metric_source_sql,
+    "
+    ),
+    durations AS (
+    ",
+    gold_best_effort_duration_table_sql(durations),
+    "
+    ),
+    expected AS (
+      SELECT
+        metric_source.activity_id,
+        metric_source.metric_name,
+        durations.duration_seconds,
+        metric_source.latest_silver_transformed_at
+      FROM metric_source
+      INNER JOIN durations
+        ON durations.duration_seconds <= metric_source.metric_sample_count
+    ),
+    source_summary AS (
+      SELECT
+        expected.activity_id,
+        COUNT(*) AS expected_best_effort_count,
+        MAX(expected.latest_silver_transformed_at) AS latest_silver_transformed_at
+      FROM expected
+      GROUP BY expected.activity_id
+    ),
+    gold_summary AS (
       SELECT
         activity_id,
-        COUNT(*) AS best_effort_row_count
+        COUNT(*) AS best_effort_row_count,
+        SUM(CASE
+          WHEN calculation_version IS NULL
+            OR calculation_version <> ?
+          THEN 1
+          ELSE 0
+        END) AS stale_version_row_count,
+        MAX(computed_at) AS latest_gold_computed_at
       FROM cycling_platform_gold.activity_best_efforts
       WHERE metric_name IN (",
     best_effort_placeholders(metrics),
@@ -292,20 +427,47 @@ get_best_effort_activity_plan <- function(
     best_effort_placeholders(durations),
     ")
       GROUP BY activity_id
-    ) existing
-      ON existing.activity_id = streams.activity_id
-    WHERE ",
-    metric_presence_sql,
+    )
+    SELECT
+      source_summary.activity_id,
+      source_summary.expected_best_effort_count AS stream_row_count,
+      source_summary.expected_best_effort_count,
+      COALESCE(gold_summary.best_effort_row_count, 0) AS best_effort_row_count,
+      CASE
+        WHEN COALESCE(gold_summary.best_effort_row_count, 0) = 0 THEN 'missing'
+        WHEN COALESCE(gold_summary.best_effort_row_count, 0)
+          < source_summary.expected_best_effort_count THEN 'incomplete'
+        WHEN COALESCE(gold_summary.stale_version_row_count, 0) > 0 THEN 'stale_version'
+        WHEN gold_summary.latest_gold_computed_at
+          < source_summary.latest_silver_transformed_at THEN 'updated_silver'
+        ELSE 'current'
+      END AS repair_reason
+    FROM source_summary
+    LEFT JOIN gold_summary
+      ON gold_summary.activity_id = source_summary.activity_id
+    WHERE 1 = 1",
     activity_filter_sql,
     "
+      AND (
+        COALESCE(gold_summary.best_effort_row_count, 0)
+          < source_summary.expected_best_effort_count
+        OR COALESCE(gold_summary.stale_version_row_count, 0) > 0
+        OR gold_summary.latest_gold_computed_at
+          < source_summary.latest_silver_transformed_at
+      )
     GROUP BY
-      streams.activity_id,
-      existing.best_effort_row_count
-    ORDER BY streams.activity_id
+      source_summary.activity_id,
+      source_summary.expected_best_effort_count,
+      gold_summary.best_effort_row_count,
+      gold_summary.stale_version_row_count,
+      gold_summary.latest_gold_computed_at,
+      source_summary.latest_silver_transformed_at
+    ORDER BY source_summary.activity_id
     "
   )
 
   params <- c(
+    list(calculation_version),
     as.list(metrics),
     as.list(as.integer(durations)),
     activity_filter_params
@@ -317,27 +479,7 @@ get_best_effort_activity_plan <- function(
     params = params
   )
 
-  if (nrow(activity_plan) == 0) {
-    return(activity_plan)
-  }
-
-  activity_plan$expected_best_effort_count <- vapply(
-    activity_plan$stream_row_count,
-    \(stream_row_count) {
-      length(metrics) * sum(as.integer(durations) <= as.integer(stream_row_count))
-    },
-    integer(1)
-  )
-
-  activity_plan[
-    activity_plan$best_effort_row_count <
-      activity_plan$expected_best_effort_count,
-    c(
-      "activity_id",
-      "stream_row_count"
-    ),
-    drop = FALSE
-  ]
+  activity_plan
 }
 
 fetch_activity_streams_for_best_efforts <- function(
@@ -437,7 +579,10 @@ insert_gold_activity_best_efforts <- function(
   )
 }
 
-validate_gold_activity_best_efforts <- function(connection) {
+validate_gold_activity_best_efforts <- function(
+  connection,
+  calculation_version = "activity_best_efforts_v1"
+) {
   checks <- list(
     list(
       check_name = "gold_best_efforts_primary_key_unique",
@@ -486,6 +631,23 @@ validate_gold_activity_best_efforts <- function(connection) {
              AND start_time_seconds > end_time_seconds
            )
       "
+    ),
+    list(
+      check_name = "gold_best_efforts_calculation_version_current",
+      sql = paste0(
+        "
+        SELECT COUNT(*) AS failure_count
+        FROM cycling_platform_gold.activity_best_efforts
+        WHERE calculation_version IS NULL
+           OR calculation_version = ''
+           OR calculation_version <> ",
+        DBI::dbQuoteString(
+          connection,
+          calculation_version
+        ),
+        "
+      "
+      )
     )
   )
 
@@ -540,7 +702,8 @@ validate_gold_activity_best_efforts <- function(connection) {
 #' @param durations Durations in seconds.
 #' @param batch_size Number of activities per batch.
 #' @param max_activities Optional maximum number of activities to process.
-#' @param mode `repair` for missing rows or `backfill` for requested activities.
+#' @param mode `daily`/`repair` for stale or missing rows, or `backfill` for
+#'   requested activities.
 #' @param sql_dir Directory containing Gold SQL scripts.
 #'
 #' @return Invisibly returns validation results.
@@ -553,6 +716,7 @@ rebuild_gold_activity_best_efforts <- function(
   batch_size = NULL,
   max_activities = NULL,
   mode = c(
+    "daily",
     "repair",
     "backfill"
   ),
@@ -607,6 +771,15 @@ rebuild_gold_activity_best_efforts <- function(
   stopifnot(batch_size > 0)
   stopifnot(all(durations > 0))
 
+  calculation_version <- gold_activity_best_efforts_calculation_version(
+    config = config
+  )
+
+  message(glue::glue(
+    "Gold object: activity_best_efforts; mode: {mode}; ",
+    "calculation version: {calculation_version}."
+  ))
+
   execute_sql_file(
     sql_file = file.path(
       sql_dir,
@@ -615,12 +788,55 @@ rebuild_gold_activity_best_efforts <- function(
     connection = connection
   )
 
+  ensure_transform_logging_tables(
+    connection = connection
+  )
+
+  if (
+    identical(mode, "daily") &&
+      is.null(activity_ids) &&
+      is.null(max_activities) &&
+      gold_activity_best_efforts_daily_can_skip(connection)
+  ) {
+    message(
+      "Skipping gold activity_best_efforts candidate scan: latest Gold ",
+      "transform is current with latest successful Silver stream transform."
+    )
+
+    transform_run_id <- create_transform_run(
+      connection = connection,
+      layer_name = "gold",
+      entity_name = "activity_best_efforts",
+      run_mode = mode,
+      total_batches = 0L,
+      activities_planned = 0L,
+      expected_rows_planned = 0L,
+      max_batch_activities = batch_size,
+      max_batch_expected_rows = batch_size * length(metrics) * length(durations)
+    )
+
+    update_transform_run(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      run_status = "SUCCESS",
+      completed_batches = 0L,
+      activities_completed = 0L,
+      rows_inserted = 0L,
+      rows_deleted = 0L
+    )
+
+    return(
+      invisible(data.frame())
+    )
+  }
+
   activity_plan <- get_best_effort_activity_plan(
     connection = connection,
     mode = mode,
     activity_ids = activity_ids,
     metrics = metrics,
-    durations = durations
+    durations = durations,
+    calculation_version = calculation_version
   )
 
   if (!is.null(max_activities)) {
@@ -630,28 +846,22 @@ rebuild_gold_activity_best_efforts <- function(
     )
   }
 
-  if (nrow(activity_plan) == 0) {
-    message("No gold activity best efforts require processing.")
+  candidate_activity_count <- nrow(activity_plan)
 
-    return(
-      invisible(
-        validate_gold_activity_best_efforts(
-          connection = connection
-        )
+  message(glue::glue(
+    "Gold activity_best_efforts candidates: {candidate_activity_count} activities."
+  ))
+
+  activity_batches <- if (nrow(activity_plan) == 0) {
+    list()
+  } else {
+    split(
+      activity_plan$activity_id,
+      ceiling(
+        seq_len(nrow(activity_plan)) / batch_size
       )
     )
   }
-
-  activity_batches <- split(
-    activity_plan$activity_id,
-    ceiling(
-      seq_len(nrow(activity_plan)) / batch_size
-    )
-  )
-
-  ensure_transform_logging_tables(
-    connection = connection
-  )
 
   transform_run_id <- create_transform_run(
     connection = connection,
@@ -669,6 +879,29 @@ rebuild_gold_activity_best_efforts <- function(
   activities_completed <- 0L
   total_rows_deleted <- 0L
   total_rows_inserted <- 0L
+
+  if (nrow(activity_plan) == 0) {
+    message("No gold activity best efforts require processing.")
+
+    validation_results <- validate_gold_activity_best_efforts(
+      connection = connection,
+      calculation_version = calculation_version
+    )
+
+    update_transform_run(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      run_status = "SUCCESS",
+      completed_batches = completed_batches,
+      activities_completed = activities_completed,
+      rows_inserted = total_rows_inserted,
+      rows_deleted = total_rows_deleted
+    )
+
+    return(
+      invisible(validation_results)
+    )
+  }
 
   run_error <- tryCatch(
     {
@@ -710,7 +943,8 @@ rebuild_gold_activity_best_efforts <- function(
                   compute_activity_best_efforts(
                     activity_streams = activity_streams,
                     metrics = metrics,
-                    durations = durations
+                    durations = durations,
+                    calculation_version = calculation_version
                   )
                 }
               )
@@ -794,7 +1028,8 @@ rebuild_gold_activity_best_efforts <- function(
           message(glue::glue(
             "Completed gold best effort batch {batch_index}/",
             "{length(activity_batches)}: {rows_deleted} rows deleted, ",
-            "{rows_inserted} rows inserted."
+            "{rows_inserted} rows inserted, ",
+            "{length(activity_ids_batch)} activities processed."
           ))
         }
       )
@@ -822,7 +1057,8 @@ rebuild_gold_activity_best_efforts <- function(
   }
 
   validation_results <- validate_gold_activity_best_efforts(
-    connection = connection
+    connection = connection,
+    calculation_version = calculation_version
   )
 
   update_transform_run(
@@ -837,7 +1073,11 @@ rebuild_gold_activity_best_efforts <- function(
 
   message(glue::glue(
     "Gold activity best efforts rebuild complete: ",
-    "{total_rows_inserted} rows inserted."
+    "{activities_completed} activities processed, ",
+    "{total_rows_inserted} rows inserted, ",
+    "{total_rows_deleted} rows deleted, ",
+    "{candidate_activity_count - activities_completed} activities skipped, ",
+    "calculation version {calculation_version}."
   ))
 
   invisible(validation_results)

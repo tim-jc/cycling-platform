@@ -23,8 +23,10 @@ Implemented and deployed:
 
 In progress:
 
-* Google/Fitbit raw ingestion for heart rate and sleep. This exists but is
-  early; validation and silver transforms remain future work.
+* Google Health/Fitbit Raw observation for heart-rate responses, sleep logs,
+  daily resting heart rate, daily heart-rate variability, and daily
+  respiratory rate. These Raw entities are implemented; health Silver and Gold
+  modelling remain future work.
 * `cycling-analytics` has been created as an empty replacement project for the
   frozen legacy scraper.
 
@@ -100,7 +102,7 @@ Run routine platform ingestion:
 Rscript platform.R
 ```
 
-Run unattended raw-to-Silver platform automation:
+Run unattended raw-to-Silver-to-Gold platform automation:
 
 ```sh
 Rscript run_daily_platform.R
@@ -152,6 +154,7 @@ Run the source-reported daily recovery Raw ingestions manually:
 ```sh
 Rscript run_google_health_daily_resting_heart_rate.R refresh
 Rscript run_google_health_daily_heart_rate_variability.R refresh
+Rscript run_google_health_daily_respiratory_rate.R refresh
 ```
 
 Run deep platform completeness validation:

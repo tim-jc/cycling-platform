@@ -10,6 +10,7 @@
 #' @param per_check_timeout_seconds Optional per-check timeout in seconds.
 #' @param overall_timeout_seconds Optional overall timeout in seconds.
 #' @param record_admin Whether to write validation status metadata.
+#' @param notify Whether to send validation outcome notifications.
 #'
 #' @return Completeness validation result tibble.
 run_platform_validation <- function(
@@ -23,10 +24,12 @@ run_platform_validation <- function(
   run_mode = "manual",
   per_check_timeout_seconds = NULL,
   overall_timeout_seconds = NULL,
-  record_admin = TRUE
+  record_admin = TRUE,
+  notify = FALSE
 ) {
   validation_scope <- match.arg(validation_scope)
 
+  validation_started_at <- Sys.time()
   validation_run_id <- NULL
   validation_results <- tibble::tibble()
 
@@ -92,6 +95,15 @@ run_platform_validation <- function(
       "FAILED"
     }
 
+    validation_summary <- summarize_platform_validation_results(
+      validation_results = validation_results,
+      validation_outcome = if (identical(run_status, "TIMED_OUT")) {
+        "TIMED_OUT"
+      } else {
+        "FAILED"
+      }
+    )
+
     if (
       isTRUE(record_admin) &&
         !is.null(validation_run_id)
@@ -103,6 +115,28 @@ run_platform_validation <- function(
         checks_planned = checks_planned,
         checks_completed = checks_completed,
         checks_failed = checks_failed,
+        validation_summary = validation_summary,
+        error_message = error_message
+      )
+    }
+
+    if (isTRUE(notify)) {
+      send_platform_validation_notification(
+        config = config,
+        job_name = "platform_validation",
+        execution_status = run_status,
+        validation_outcome = validation_summary$validation_outcome[[1]],
+        completed_at = Sys.time(),
+        elapsed_seconds = as.numeric(
+          difftime(
+            Sys.time(),
+            validation_started_at,
+            units = "secs"
+          )
+        ),
+        validation_summary = validation_summary,
+        validation_results = validation_results,
+        validation_run_id = validation_run_id,
         error_message = error_message
       )
     }
@@ -112,6 +146,15 @@ run_platform_validation <- function(
 
   validation_failed <- platform_validation_has_critical_failures(
     validation_results
+  )
+
+  validation_summary <- summarize_platform_validation_results(
+    validation_results = validation_results,
+    validation_outcome = if (validation_failed) {
+      "FAILED"
+    } else {
+      NULL
+    }
   )
 
   if (
@@ -128,7 +171,32 @@ run_platform_validation <- function(
       },
       checks_planned = checks_planned,
       checks_completed = checks_completed,
-      checks_failed = checks_failed
+      checks_failed = checks_failed,
+      validation_summary = validation_summary
+    )
+  }
+
+  if (isTRUE(notify)) {
+    send_platform_validation_notification(
+      config = config,
+      job_name = "platform_validation",
+      execution_status = if (validation_failed) {
+        "FAILED"
+      } else {
+        "SUCCESS"
+      },
+      validation_outcome = validation_summary$validation_outcome[[1]],
+      completed_at = Sys.time(),
+      elapsed_seconds = as.numeric(
+        difftime(
+          Sys.time(),
+          validation_started_at,
+          units = "secs"
+        )
+      ),
+      validation_summary = validation_summary,
+      validation_results = validation_results,
+      validation_run_id = validation_run_id
     )
   }
 
@@ -153,6 +221,11 @@ run_platform_validation <- function(
       call. = FALSE
     )
   }
+
+  attr(validation_results, "validation_run_id") <- validation_run_id
+  attr(validation_results, "validation_outcome") <-
+    validation_summary$validation_outcome[[1]]
+  attr(validation_results, "validation_summary") <- validation_summary
 
   validation_results
 }

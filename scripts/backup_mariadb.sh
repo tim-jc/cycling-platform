@@ -8,6 +8,9 @@ RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-}"
 TEMPORARY_FILE_RETENTION_DAYS="${BACKUP_TEMPORARY_FILE_RETENTION_DAYS:-}"
 LOCK_DIR="${BACKUP_LOCK_DIR:-}"
 LOCK_MAX_AGE_SECONDS="${BACKUP_LOCK_MAX_AGE_SECONDS:-}"
+MYSQLDUMP="${MYSQLDUMP:-}"
+MYSQLDUMP_CANDIDATES=()
+MYSQLDUMP_EXTRA_ARGS=()
 DATABASES=()
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
@@ -94,6 +97,7 @@ positive_integer_or_default() {
 load_script_config() {
   local configured_backup_dir
   local configured_databases
+  local configured_dump_candidates
 
   if [[ -z "$BACKUP_DIR" ]]; then
     configured_backup_dir="$(
@@ -154,6 +158,25 @@ load_script_config() {
       "cycling_platform_raw"
       "cycling_platform_silver"
       "cycling_platform_gold"
+    )
+  fi
+
+  configured_dump_candidates="$(
+    read_config_list "backups" "dump_command_candidates"
+  )"
+
+  if [[ -n "$configured_dump_candidates" ]]; then
+    while IFS= read -r candidate; do
+      MYSQLDUMP_CANDIDATES+=("$candidate")
+    done <<< "$configured_dump_candidates"
+  else
+    MYSQLDUMP_CANDIDATES=(
+      "/opt/homebrew/bin/mysqldump"
+      "/opt/homebrew/bin/mariadb-dump"
+      "/usr/local/bin/mysqldump"
+      "/usr/local/bin/mariadb-dump"
+      "/usr/bin/mysqldump"
+      "/usr/bin/mariadb-dump"
     )
   fi
 }
@@ -236,9 +259,52 @@ require_command() {
   fi
 }
 
+resolve_mysqldump() {
+  if [[ -n "$MYSQLDUMP" ]]; then
+    if [[ -x "$MYSQLDUMP" ]]; then
+      return
+    fi
+
+    log "Configured MYSQLDUMP is not executable: $MYSQLDUMP"
+    exit 1
+  fi
+
+  for candidate in "${MYSQLDUMP_CANDIDATES[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      MYSQLDUMP="$candidate"
+      return
+    fi
+  done
+
+  if command -v mysqldump >/dev/null 2>&1; then
+    MYSQLDUMP="$(command -v mysqldump)"
+    return
+  fi
+
+  if command -v mariadb-dump >/dev/null 2>&1; then
+    MYSQLDUMP="$(command -v mariadb-dump)"
+    return
+  fi
+
+  log "Required command not found: mysqldump or mariadb-dump"
+  log "Install MariaDB/MySQL client tools or set MYSQLDUMP to the dump binary path."
+  exit 1
+}
+
+configure_mysqldump_extra_args() {
+  local help_output
+
+  help_output="$("$MYSQLDUMP" --help 2>/dev/null || true)"
+
+  if grep -q -- "--column-statistics" <<< "$help_output"; then
+    MYSQLDUMP_EXTRA_ARGS+=("--skip-column-statistics")
+  fi
+}
+
 load_script_config
 
-require_command mysqldump
+resolve_mysqldump
+configure_mysqldump_extra_args
 require_command gzip
 require_command find
 
@@ -273,6 +339,10 @@ acquire_lock
 trap release_lock EXIT
 
 log "Starting MariaDB backup into $BACKUP_DIR"
+log "Using dump command: $MYSQLDUMP"
+if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
+  log "Using dump options: ${MYSQLDUMP_EXTRA_ARGS[*]}"
+fi
 log "Databases: ${DATABASES[*]}"
 log "Retention days: $RETENTION_DAYS; temporary file retention days: $TEMPORARY_FILE_RETENTION_DAYS; lock max age seconds: $LOCK_MAX_AGE_SECONDS"
 
@@ -282,7 +352,7 @@ for database in "${DATABASES[@]}"; do
 
   log "Backing up $database"
 
-  if MYSQL_PWD="$MARIADB_PASSWORD" mysqldump \
+  if MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" \
     --host="$MARIADB_HOST" \
     --port="$MARIADB_PORT" \
     --user="$MARIADB_USER" \
@@ -290,6 +360,7 @@ for database in "${DATABASES[@]}"; do
     --quick \
     --routines \
     --triggers \
+    "${MYSQLDUMP_EXTRA_ARGS[@]}" \
     "$database" | gzip > "$temporary_output_file"; then
     :
   else

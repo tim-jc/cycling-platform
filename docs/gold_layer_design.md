@@ -79,9 +79,11 @@ Rscript run_gold_activity_best_efforts.R repair
 Rscript run_gold_activity_best_efforts.R backfill
 ```
 
-Gold transforms are not part of platform automation v1. They remain explicit
-until the first dashboard migration path has been validated in
-`cycling-analytics`.
+Daily platform automation runs `gold.activity_best_efforts` in incremental
+daily mode after Silver publication checks pass. This mode processes activities
+with missing or incomplete Gold rows, stale Silver stream inputs, or an old
+`calculation_version`. Full historical backfill remains an explicit manual
+operation.
 
 ### `gold.activity_power_metrics`
 

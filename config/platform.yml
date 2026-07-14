@@ -35,6 +35,7 @@ sources:
       - sleep
       - daily-resting-heart-rate
       - daily-heart-rate-variability
+      - daily-respiratory-rate
       # Deferred: heart-rate-variability
 
 ingestion:
@@ -102,6 +103,12 @@ ingestion:
   # Number of days refreshed during Google Health daily HRV historical backfills
   google_health_daily_heart_rate_variability_backfill_days: 365
 
+  # Number of days refreshed during routine Google Health daily respiratory-rate runs
+  google_health_daily_respiratory_rate_refresh_days: 14
+
+  # Number of days refreshed during Google Health daily respiratory-rate historical backfills
+  google_health_daily_respiratory_rate_backfill_days: 365
+
   # Maximum Google Health data points returned per API page
   google_health_page_size: 10000
 
@@ -126,6 +133,10 @@ notifications:
   provider: ntfy
 
   topic: cycling-platform
+
+  # Send an attention notification when standalone validation succeeds but
+  # produces non-fatal WARNING checks.
+  validation_notify_on_warning: true
 
 logging:
 
@@ -164,6 +175,19 @@ backups:
   lock_dir: /tmp/cycling-platform-backup.lock
 
   lock_max_age_seconds: 21600
+
+  # Common dump client locations for local macOS, Homebrew, and Raspberry Pi
+  dump_command_candidates:
+    - /opt/homebrew/opt/mysql-client/bin/mysqldump
+    - /opt/homebrew/opt/mysql-client/bin/mariadb-dump
+    - /usr/local/opt/mysql-client/bin/mysqldump
+    - /usr/local/opt/mysql-client/bin/mariadb-dump
+    - /opt/homebrew/bin/mysqldump
+    - /opt/homebrew/bin/mariadb-dump
+    - /usr/local/bin/mysqldump
+    - /usr/local/bin/mariadb-dump
+    - /usr/bin/mysqldump
+    - /usr/bin/mariadb-dump
 
   databases:
     - cycling_platform_admin
@@ -212,3 +236,6 @@ transforms:
 
   # Maximum activities processed per gold best effort batch
   gold_best_effort_activity_batch_size: 25
+
+  # Calculation version written to gold.activity_best_efforts
+  gold_best_effort_calculation_version: activity_best_efforts_v1

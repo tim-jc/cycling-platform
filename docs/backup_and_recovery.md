@@ -64,6 +64,11 @@ Optional values:
   `backups.temporary_file_retention_days`
 * `BACKUP_LOCK_DIR`, defaults to `backups.lock_dir`
 * `BACKUP_LOCK_MAX_AGE_SECONDS`, defaults to `backups.lock_max_age_seconds`
+* `MYSQLDUMP`, optional absolute path to `mysqldump` or `mariadb-dump`
+
+The script resolves the dump client from `backups.dump_command_candidates`,
+then falls back to `mysqldump` or `mariadb-dump` on `PATH`. This is needed
+because cron often runs with a much smaller `PATH` than an interactive shell.
 
 Output shape:
 
@@ -106,8 +111,9 @@ Example:
 ```
 
 Cron should run the script through an absolute path. The script sets a minimal
-cron-safe `PATH`, loads project `.Renviron`, uses a lock directory to avoid
-overlapping backups, and removes stale locks after the configured maximum age.
+cron-safe `PATH`, loads project `.Renviron`, resolves the dump client from
+configured absolute paths, uses a lock directory to avoid overlapping backups,
+and removes stale locks after the configured maximum age.
 
 Suggested ordering:
 

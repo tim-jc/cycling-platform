@@ -26,6 +26,16 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.google_health_daily_heart_rate_v
 
     source_name TEXT NULL,
 
+    source_ecosystem VARCHAR(100) NULL,
+
+    source_platform VARCHAR(100) NULL,
+
+    source_recording_method VARCHAR(100) NULL,
+
+    source_device_manufacturer VARCHAR(255) NULL,
+
+    source_device_model VARCHAR(255) NULL,
+
     run_id BIGINT NOT NULL,
 
     retrieved_at DATETIME NOT NULL,
@@ -48,6 +58,16 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.google_health_daily_heart_rate_v
     KEY idx_google_health_daily_hrv_retrieved_at (retrieved_at),
 
     KEY idx_google_health_daily_hrv_source_id (source_id),
+
+    KEY idx_google_health_daily_hrv_source_ecosystem (
+        source_ecosystem,
+        activity_date
+    ),
+
+    KEY idx_google_health_daily_hrv_source_platform (
+        source_platform,
+        activity_date
+    ),
 
     CONSTRAINT fk_google_health_daily_hrv_run_id
         FOREIGN KEY (run_id)

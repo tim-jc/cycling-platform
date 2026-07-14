@@ -41,7 +41,8 @@ tryCatch(
       validation_scope = validation_scope,
       run_mode = "standalone",
       per_check_timeout_seconds = per_check_timeout_seconds,
-      overall_timeout_seconds = overall_timeout_seconds
+      overall_timeout_seconds = overall_timeout_seconds,
+      notify = TRUE
     )
 
     print_platform_completeness_validation(
@@ -62,4 +63,16 @@ if (!is.null(validation_error)) {
   stop(validation_error)
 }
 
-message("Platform validation passed.")
+validation_outcome <- attr(
+  validation_results,
+  "validation_outcome"
+)
+
+if (is.null(validation_outcome) || !nzchar(validation_outcome)) {
+  validation_outcome <- "PASSED"
+}
+
+message(
+  "Platform validation outcome: ",
+  validation_outcome
+)

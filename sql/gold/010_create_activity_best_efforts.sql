@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_gold.activity_best_efforts (
 
     sample_count INT NOT NULL,
 
+    calculation_version VARCHAR(50) NOT NULL,
+
     computed_at DATETIME NOT NULL,
 
     PRIMARY KEY (activity_id, metric_name, duration_seconds),
@@ -43,6 +45,12 @@ CREATE TABLE IF NOT EXISTS cycling_platform_gold.activity_best_efforts (
         metric_name,
         duration_seconds,
         peak_value
+    ),
+
+    KEY idx_gold_activity_best_efforts_metric_activity_duration (
+        metric_name,
+        activity_id,
+        duration_seconds
     ),
 
     KEY idx_gold_activity_best_efforts_activity_id (activity_id)

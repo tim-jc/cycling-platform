@@ -1,8 +1,8 @@
 # Google Health Raw Expansion Proposal
 
-Status: Raw expansion implemented for daily resting heart rate, daily HRV and
-sleep-stage metadata. Do not implement Silver for Google Health until these Raw
-objects have been exercised through routine runs.
+Status: Raw expansion implemented for daily resting heart rate, daily HRV,
+daily respiratory rate, and sleep-stage metadata. Do not implement Silver for
+Google Health until these Raw objects have been exercised through routine runs.
 
 ## Purpose
 
@@ -12,11 +12,13 @@ that are worth adding to the Raw layer:
 1. daily resting heart rate
 2. daily heart-rate variability
 3. richer sleep detail, especially sleep stages
-4. intraday heart-rate variability, only if it adds clear value
+4. daily respiratory rate
+5. intraday heart-rate variability, only if it adds clear value
 
 The architectural rule is:
 
-* source-reported RHR, HRV and sleep-stage data belong in Raw and then Silver;
+* source-reported RHR, HRV, respiratory-rate and sleep-stage data belong in Raw
+  and then Silver;
 * baselines, trends, deviations, readiness and recovery scores belong in Gold.
 
 ## Repository Baseline
@@ -34,7 +36,7 @@ Current Google Health / Fitbit Raw implementation:
 | Area | Current implementation |
 | --- | --- |
 | Config | `config/platform.yml`, `sources.google_health` |
-| Enabled data types | `heart-rate`, `sleep` |
+| Enabled data types | `heart-rate`, `sleep`, `daily-resting-heart-rate`, `daily-heart-rate-variability`, `daily-respiratory-rate` |
 | API base URL | `https://health.googleapis.com/v4` |
 | OAuth helper | `R/api/get_google_health_access_token.R` |
 | Request helper | `R/api/perform_google_health_request.R` |
@@ -43,8 +45,14 @@ Current Google Health / Fitbit Raw implementation:
 | Sleep API wrapper | `R/api/get_google_health_sleep_logs.R` |
 | HR ingestion | `R/ingestion/ingest_google_health_heart_rate.R` |
 | Sleep ingestion | `R/ingestion/ingest_google_health_sleep_logs.R` |
+| Daily RHR ingestion | `R/ingestion/ingest_google_health_daily_resting_heart_rate.R` |
+| Daily HRV ingestion | `R/ingestion/ingest_google_health_daily_heart_rate_variability.R` |
+| Daily respiratory-rate ingestion | `R/ingestion/ingest_google_health_daily_respiratory_rate.R` |
 | HR Raw table | `cycling_platform_raw.google_health_heart_rate_responses` |
 | Sleep Raw table | `cycling_platform_raw.google_health_sleep_logs` |
+| Daily RHR Raw table | `cycling_platform_raw.google_health_daily_resting_heart_rate` |
+| Daily HRV Raw table | `cycling_platform_raw.google_health_daily_heart_rate_variability` |
+| Daily respiratory-rate Raw table | `cycling_platform_raw.google_health_daily_respiratory_rate` |
 | Tests | `tests/testthat/test-google-health-data-points.R`, `tests/testthat/test-google-health-sleep-logs.R`, `tests/testthat/test-google-health-auth.R` |
 
 `platform.R` already runs Google Health HR and sleep ingestion when
@@ -69,6 +77,8 @@ Capability probe findings from 2026-07-11:
 * daily resting heart rate returned one row per day for the tested week;
 * daily HRV returned one row per day for the tested week;
 * daily HRV included average HRV and deep-sleep RMSSD;
+* daily respiratory rate returned source-reported daily records in breaths per
+  minute for the tested window;
 * sleep payloads included `sleep.stages[]`, stage summaries and
   `stagesStatus = SUCCEEDED`;
 * intraday HRV remained deferred.
@@ -179,6 +189,7 @@ Google's API reference confirms the DataPoint union includes:
 
 * `dailyRestingHeartRate` for `daily-resting-heart-rate`
 * `dailyHeartRateVariability` for `daily-heart-rate-variability`
+* `dailyRespiratoryRate` for `daily-respiratory-rate`
 * `heartRateVariability` for `heart-rate-variability`
 * `sleep` for `sleep`
 
@@ -284,6 +295,36 @@ This may be valuable later for sleep-window or overnight HRV analysis, but it is
 not required for the first recovery Raw scope unless daily HRV is absent or too
 coarse.
 
+### Daily Respiratory Rate
+
+Candidate data type:
+
+```text
+daily-respiratory-rate
+```
+
+Expected response field:
+
+```text
+dailyRespiratoryRate
+```
+
+Confirmed source-reported fields from API documentation and live probing:
+
+* `date`
+* `breathsPerMinute`
+
+Filter pattern:
+
+```text
+daily_respiratory_rate.date >= "YYYY-MM-DD"
+AND daily_respiratory_rate.date < "YYYY-MM-DD"
+```
+
+Google describes this as a daily average respiratory rate in breaths per minute
+calculated for main sleep. The current live account has returned Fitbit-origin
+records; Apple-origin respiratory-rate records have not yet been observed.
+
 ### Sleep Detail and Stages
 
 Candidate data type:
@@ -325,17 +366,19 @@ endpoint.
 
 | Candidate | API supports data type | Current config enabled | Current code can retrieve | Current account proven | Recommendation |
 | --- | --- | --- | --- | --- | --- |
-| Daily RHR | Yes | No | No | No | Add first |
-| Daily HRV | Yes | No | No | No | Add second |
-| Sleep stages | Yes, inside `sleep` | Sleep enabled | Payload retained if returned | Unknown | Probe existing payloads before schema change |
+| Daily RHR | Yes | Yes | Yes | Yes | Implemented |
+| Daily HRV | Yes | Yes | Yes | Yes | Implemented |
+| Daily respiratory rate | Yes | Yes | Yes | Yes, Fitbit-origin observed | Implemented; observe source behaviour |
+| Sleep stages | Yes, inside `sleep` | Sleep enabled | Payload retained if returned | Yes | Implemented as parent metadata |
 | Intraday HRV | Yes | No | No | No | Defer until daily HRV is assessed |
 
 Known current account/app proof:
 
 * heart-rate ingestion has written Raw rows;
 * sleep ingestion has written Raw rows after the correct scopes were granted;
-* daily RHR, daily HRV, intraday HRV and sleep-stage presence have not yet been
-  proven in this repository.
+* daily RHR, daily HRV, daily respiratory rate, and sleep-stage presence have
+  been proven in this repository;
+* intraday HRV has not been implemented.
 
 ## Recommended Smallest Useful Raw Scope
 
@@ -343,9 +386,10 @@ For the recovery use case, the smallest useful Raw expansion is:
 
 1. daily resting heart rate;
 2. daily HRV;
-3. sleep-stage capability inspection and, if present, promoted sleep-stage
+3. daily respiratory rate;
+4. sleep-stage capability inspection and, if present, promoted sleep-stage
    metadata or a Raw child table;
-4. intraday HRV only after confirming volume, cadence and analytical value.
+5. intraday HRV only after confirming volume, cadence and analytical value.
 
 This avoids building a large Google Health backlog before proving that the
 account and device provide the source-reported recovery metrics.
@@ -360,7 +404,7 @@ Purpose:
 
 Grain:
 
-* one row per `source_id` x `google_health_user_id` x `activity_date`
+* one retained Google Health daily RHR source data point
 
 Business key:
 
@@ -402,7 +446,7 @@ Purpose:
 
 Grain:
 
-* one row per `source_id` x `google_health_user_id` x `activity_date`
+* one retained Google Health daily HRV source data point
 
 Business key:
 
@@ -498,7 +542,52 @@ Recommendation:
   child table until Silver design proves stage rows need independent Raw
   lineage.
 
-### 4. `raw.google_health_heart_rate_variability_responses`
+### 4. `raw.google_health_daily_respiratory_rate`
+
+Purpose:
+
+* Retain source-reported daily respiratory rate in breaths per minute.
+
+Grain:
+
+* one retained Google Health daily respiratory-rate source data point.
+
+Business key:
+
+* `daily_respiratory_rate_key`
+
+Promoted metadata:
+
+* `source_id`
+* `google_health_user_id`
+* `activity_date`
+* `run_id`
+* `retrieved_at`
+* `source_data_point_id`
+* `source_name`
+* `respiratory_rate_brpm`
+* `source_ecosystem`
+* `source_platform`
+* `source_recording_method`
+* `source_device_manufacturer`
+* `source_device_model`
+* `created_at`
+* `updated_at`
+
+Payload:
+
+* `daily_respiratory_rate_payload`
+
+Notes:
+
+* The API does not expose an explicit unit field in observed payloads; the field
+  semantics are breaths per minute.
+* Observed live payloads were Fitbit-origin and used
+  `$.dataSource.platform = "FITBIT"` and
+  `$.dataSource.recordingMethod = "DERIVED"`.
+* Apple-origin same-day observations remain representable if they appear later.
+
+### 5. `raw.google_health_heart_rate_variability_responses`
 
 Status:
 
@@ -547,9 +636,9 @@ Reason to defer:
 
 Use the existing Google Health date-window pattern.
 
-Daily RHR and daily HRV:
+Daily RHR, daily HRV, and daily respiratory rate:
 
-* routine refresh: configurable recent window, default 7 days;
+* routine refresh: configurable recent window, default 14 days;
 * historical backfill: configurable wider window;
 * one API request per date window;
 * idempotent upsert by source/user/date;
@@ -584,7 +673,7 @@ The Raw expansion should follow the existing Raw entity pattern:
 
 Repair behaviour:
 
-* RHR/HRV daily objects: rerun affected dates and upsert;
+* RHR/HRV/respiratory-rate daily objects: rerun affected dates and upsert;
 * sleep logs: rerun affected sleep end dates and upsert;
 * sleep stage child table, if implemented: delete/reinsert child rows for
   affected `sleep_log_key` values only after parent payload is available;
@@ -630,6 +719,7 @@ sources:
       - sleep
       - daily-resting-heart-rate
       - daily-heart-rate-variability
+      - daily-respiratory-rate
       # - heart-rate-variability
 ```
 
@@ -641,6 +731,8 @@ ingestion:
   google_health_daily_resting_heart_rate_backfill_days: 365
   google_health_daily_heart_rate_variability_refresh_days: 14
   google_health_daily_heart_rate_variability_backfill_days: 365
+  google_health_daily_respiratory_rate_refresh_days: 14
+  google_health_daily_respiratory_rate_backfill_days: 365
   google_health_intraday_heart_rate_variability_refresh_days: 7
   google_health_intraday_heart_rate_variability_backfill_days: 30
 ```
@@ -671,10 +763,12 @@ Expected new or changed files:
 
 * `sql/raw/120_create_google_health_daily_resting_heart_rate.sql`
 * `sql/raw/130_create_google_health_daily_heart_rate_variability.sql`
+* `sql/raw/140_create_google_health_daily_respiratory_rate.sql`
 * `sql/raw/153_alter_google_health_sleep_logs_stage_metadata.sql`
 * optional later: `sql/raw/<next>_create_google_health_sleep_stage_segments.sql`
 * optional later: `sql/raw/<next>_create_google_health_heart_rate_variability_responses.sql`
 * `R/api/get_google_health_daily_summaries.R`
+* `R/ingestion/ingest_google_health_daily_respiratory_rate.R`
 * optional later: `R/api/get_google_health_heart_rate_variability.R`
 * matching insert/update/upsert helpers under `R/database/`
 * matching ingestion orchestrators under `R/ingestion/`
@@ -700,6 +794,8 @@ Add small unit tests for shaping:
 * daily HRV payload with `dailyHeartRateVariability.date`,
   `averageHeartRateVariabilityMilliseconds` and
   `deepSleepRootMeanSquareOfSuccessiveDifferencesMilliseconds`;
+* daily respiratory-rate payload with `dailyRespiratoryRate.date`,
+  `breathsPerMinute`, source provenance and missing source identifier fallback;
 * sleep payload containing `sleep.stages[]`, `sleep.metadata.stagesStatus` and
   `sleep.summary.stagesSummary[]`;
 * empty API response handling;
@@ -779,6 +875,7 @@ Confirmed by Google Health API documentation:
 
 * `daily-resting-heart-rate`
 * `daily-heart-rate-variability`
+* `daily-respiratory-rate`
 * `heart-rate-variability`
 * `sleep`, including possible stages, metadata and summaries
 
@@ -789,6 +886,8 @@ Confirmed in this repository/account:
 * `daily-resting-heart-rate` returns source-reported RHR;
 * `daily-heart-rate-variability` returns average HRV, deep-sleep RMSSD,
   non-REM heart rate and entropy;
+* `daily-respiratory-rate` returns source-reported respiratory rate in breaths
+  per minute;
 * `sleep` payloads include stage arrays, stage summaries and successful stage
   processing status;
 * intraday HRV remains deferred.
@@ -796,6 +895,7 @@ Confirmed in this repository/account:
 ## Unresolved API Questions
 
 * How often do daily RHR and daily HRV revise after first retrieval?
+* How often does daily respiratory rate revise after first retrieval?
 * Does the account return intraday HRV rows, and at what volume?
 * Are sleep stages consistently available for main sleeps only or also for naps?
 * Does the API accept snake_case or camelCase filter fields for
@@ -809,31 +909,35 @@ Implemented:
 
 1. `raw.google_health_daily_resting_heart_rate`
 2. `raw.google_health_daily_heart_rate_variability`
+3. `raw.google_health_daily_respiratory_rate`
 
 Implemented as parent metadata only:
 
-3. `raw.google_health_sleep_logs` promoted metadata for stage availability,
+4. `raw.google_health_sleep_logs` promoted metadata for stage availability,
    stage status and summaries.
 
 Defer:
 
-4. `raw.google_health_heart_rate_variability_responses`
+5. `raw.google_health_heart_rate_variability_responses`
 
 ## Current Implementation Order
 
-1. Capability probe confirmed daily RHR, daily HRV and rich sleep payloads.
+1. Capability probe confirmed daily RHR, daily HRV, daily respiratory rate and
+   rich sleep payloads.
 2. Daily RHR Raw ingestion was implemented.
 3. Daily HRV Raw ingestion was implemented.
-4. Sleep-stage availability metadata was added to `raw.google_health_sleep_logs`.
-5. Intraday HRV stayed deferred.
-6. Google Health Silver remains paused until the new Raw objects have been
+4. Daily respiratory-rate Raw ingestion was implemented.
+5. Sleep-stage availability metadata was added to `raw.google_health_sleep_logs`.
+6. Intraday HRV stayed deferred.
+7. Google Health Silver remains paused until the new Raw objects have been
    exercised through routine runs.
 
 ## Owner Decision Checklist
 
 Remaining decisions:
 
-* How large should the first historical backfill be for daily RHR and daily HRV?
+* How large should the first historical backfill be for daily RHR, daily HRV
+  and daily respiratory rate?
 * Should historical sleep rows be repaired immediately to populate stage
   metadata, or allowed to update through the routine refresh window?
 * How much routine evidence is enough before Google Health Silver design

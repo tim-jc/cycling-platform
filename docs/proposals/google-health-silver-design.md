@@ -137,11 +137,17 @@ Routine refresh windows:
 
 * `ingestion.google_health_refresh_days`
 * `ingestion.google_health_sleep_refresh_days`
+* `ingestion.google_health_daily_resting_heart_rate_refresh_days`
+* `ingestion.google_health_daily_heart_rate_variability_refresh_days`
+* `ingestion.google_health_daily_respiratory_rate_refresh_days`
 
 Backfill windows:
 
 * `ingestion.google_health_backfill_days`
 * `ingestion.google_health_sleep_backfill_days`
+* `ingestion.google_health_daily_resting_heart_rate_backfill_days`
+* `ingestion.google_health_daily_heart_rate_variability_backfill_days`
+* `ingestion.google_health_daily_respiratory_rate_backfill_days`
 
 Date batching:
 
@@ -159,22 +165,21 @@ Available from current Raw:
 * sleep session start and end timestamps as promoted Raw columns
 * sleep source names as promoted Raw columns
 * sleep local/civil dates as promoted Raw columns
+* sleep stage availability and summary metadata as promoted Raw columns
+* source-reported daily resting heart rate
+* source-reported daily heart-rate variability
+* source-reported daily respiratory rate
 
 Not currently available as implemented Raw entities:
 
-* HRV
-* resting heart rate
-* respiratory rate
 * oxygen saturation
 * skin temperature
-* sleep stages, unless present in the retained sleep payload but not yet
-  understood or promoted
-* daily health summaries
+* intraday/sample HRV
 * readiness/recovery scores
 
 The older design document mentions HRV, resting heart rate, oxygen saturation
-and other health metrics as possible future data types, but `config/platform.yml`
-currently enables only:
+and other health metrics as possible future data types. The current enabled
+Google Health data types are:
 
 ```yaml
 sources:
@@ -182,6 +187,9 @@ sources:
     data_types:
       - heart-rate
       - sleep
+      - daily-resting-heart-rate
+      - daily-heart-rate-variability
+      - daily-respiratory-rate
 ```
 
 ## Source-Reported vs Calculated Metrics
@@ -211,8 +219,9 @@ normalisation of source timestamps, not an analytical score.
 
 These should not be part of the first Silver implementation:
 
-* resting heart rate
-* HRV
+* recovery baselines for resting heart rate
+* recovery baselines for HRV
+* respiratory-rate baselines and deviations
 * daily average heart rate
 * sleep score
 * sleep efficiency
@@ -411,8 +420,9 @@ evidence from actual sleep payloads.
 
 * daily sleep summaries
 * daily heart-rate summaries
-* resting heart rate
-* HRV
+* resting heart-rate baselines and deviations
+* HRV baselines and deviations
+* respiratory-rate baselines and deviations
 * sleep regularity
 * sleep efficiency
 * recovery/readiness features
@@ -515,13 +525,14 @@ Warnings, not failures:
 These should not block the first Silver implementation, but they should be
 tracked:
 
-1. HRV and resting heart rate are not currently ingested.
+1. Daily RHR, daily HRV and daily respiratory rate are now ingested into Raw,
+   but no Silver daily health-summary tables exist yet.
 2. Heart-rate Raw rows do not promote source sample counts.
 3. Heart-rate Raw rows do not promote a response key; Silver can compute one
    without changing Raw.
 4. Heart-rate `dataset_interval` is currently always `NA`.
-5. Sleep Raw may contain richer sleep-stage data in payloads, but the current
-   implementation only promotes session/log interval metadata.
+5. Sleep Raw contains richer sleep-stage data in payloads and now promotes
+   stage availability metadata, but no Silver stage table exists yet.
 6. There is no Google Health date-level ingestion status table. Idempotent
    upsert mitigates this for now, but status tracking may be useful if Google
    Health becomes operationally important.
@@ -540,7 +551,8 @@ Recommended first implementation:
 4. Implement response-level heart-rate JSON flattening in R.
 5. Add focused tests using existing test payloads.
 6. Add deep validation checks.
-7. Leave daily summaries, RHR, HRV and recovery metrics out of scope.
+7. Leave daily summaries, RHR, HRV, respiratory rate and recovery metrics out
+   of scope for the first Silver implementation.
 
 ## Open Questions
 
@@ -564,6 +576,7 @@ cycling_platform_silver.health_sleep_sessions
 cycling_platform_silver.health_heart_rate_samples
 ```
 
-Implement sleep first, then heart rate. Defer HRV, RHR, daily summaries and
-recovery metrics until additional Raw endpoints exist or downstream analytic
-requirements become concrete.
+Implement sleep first, then heart rate. Defer daily RHR, daily HRV, daily
+respiratory rate, daily summaries and recovery metrics until the Raw observation
+period clarifies source behaviour and downstream analytic requirements become
+concrete.

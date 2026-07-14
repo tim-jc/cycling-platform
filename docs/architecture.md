@@ -66,8 +66,10 @@ Current status:
 
 * Strava raw endpoints are deployed for activities, details, streams, and laps.
 * Strava activities, details, streams, and laps are complete.
-* Google/Fitbit heart-rate and sleep raw ingestion exists, but is early and not
-  yet fully validated. Google/Fitbit silver transforms remain future work.
+* Google Health/Fitbit Raw ingestion exists for heart-rate responses, sleep
+  logs, daily resting heart rate, daily heart-rate variability, and daily
+  respiratory rate. These objects are in Raw observation; health Silver and Gold
+  transforms remain future work.
 * `silver.activities` is complete.
 * `silver.activity_streams` is complete following local repair/backfill.
 * Coastal project is fully migrated to `cycling-platform`, complete, and no
@@ -133,9 +135,9 @@ Interrupted silver stream rebuilds can be resumed in repair mode:
 Rscript run_silver.R repair
 ```
 
-Gold processing is intentionally separate from `platform.R` at this stage.
-`platform.R` should remain focused on ingestion and raw/silver operational
-maintenance.
+Gold processing is orchestrated by `run_daily_platform.R` after successful
+Silver publication checks. `platform.R` remains focused on Raw ingestion; the
+daily wrapper owns Raw-to-Silver-to-Gold publication sequencing.
 
 ## Operational Lessons
 
@@ -212,17 +214,19 @@ Notify
 
 ## Execution Modes
 
-The platform currently supports three execution modes:
+The platform currently supports four execution modes:
 
 * `manual`: refreshes the routine activity window using
   `ingestion.activity_refresh_days`.
+* `scheduled`: uses the same routine activity window as `manual`, but records
+  the Raw ETL run as `SCHEDULED` for unattended automation.
 * `backfill`: refreshes the historical activity window using
   `ingestion.activity_backfill_days`.
 * `streams_only`: recovery mode that creates an ETL run, skips activities,
   details, and laps, then attempts pending stream ingestion only.
 
-For `manual` and `backfill`, execution mode controls the activity refresh
-window. Stream, detail, and lap ingestion are state-driven across the full
+For `manual`, `scheduled`, and `backfill`, execution mode controls the activity
+refresh window. Stream, detail, and lap ingestion are state-driven across the full
 `raw.activities` table: all activities with `PENDING` or `FAILED` child-entity
 status are selected, regardless of whether they were included in the current
 activity refresh window.

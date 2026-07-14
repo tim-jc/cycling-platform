@@ -54,6 +54,14 @@ should focus on:
 Retry, timeout, bearer auth, proactive Strava throttling, and transient HTTP
 handling belong in the shared request helper.
 
+Use `perform_google_health_request()` and the Google Health OAuth helpers for
+Google Health API calls. Do not duplicate token refresh logic in endpoint
+wrappers. Daily Google Health summary objects should preserve ingestion source
+and originating ecosystem separately: `source_id` identifies Google Health as
+the API source, while promoted provenance such as `source_ecosystem`,
+`source_platform`, and `source_recording_method` describes where the
+measurement originated.
+
 When serialising source payloads, preserve source numeric fidelity. For stream
 payloads, use the existing stream serialization helper so `latlng` coordinates
 are written with `digits = NA` rather than jsonlite's default numeric rounding.

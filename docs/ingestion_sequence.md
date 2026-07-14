@@ -8,9 +8,11 @@ Each execution creates a single `run_id` in `admin.etl_run`.
 
 All entity-level processing is associated with that `run_id` through `admin.etl_run_entity`.
 
-For `manual` and `backfill`, execution mode controls only the activity refresh
-window. Child entities are selected by status from `raw.activities`, so pending
-or failed stream, detail, and lap work resumes on any standard platform run.
+For `manual`, `scheduled`, and `backfill`, execution mode controls only the
+activity refresh window. `scheduled` uses the routine manual refresh window but
+records the Raw ETL run as `SCHEDULED`. Child entities are selected by status
+from `raw.activities`, so pending or failed stream, detail, and lap work
+resumes on any standard platform run.
 
 `streams_only` is a recovery mode. It creates an ETL run as usual, skips
 activities, details, and laps, then runs only pending or failed stream ingestion
@@ -103,20 +105,30 @@ ingest_activity_laps()
     update_etl_run_entity()
     ↓
 if Google Health enabled:
-    ingest_google_health_heart_rate()
+    ingest configured Google Health Raw entities:
+        - heart-rate responses
+        - sleep logs
+        - daily resting heart rate
+        - daily heart-rate variability
+        - daily respiratory rate
         ↓
-    create_etl_run_entity()
+    for each enabled entity:
+        create_etl_run_entity()
         ↓
-    split date windows into batches
+        split date windows into batches
         ↓
-    for each date:
-        get_google_health_heart_rate()
+        for each date/window:
+            get Google Health data points
             ↓
-        upsert_google_health_data_points()
+            shape rows at the entity's Raw grain
             ↓
-        commit batch transaction
+            upsert Raw rows
+            ↓
+            record successful empty responses in admin metadata
+            ↓
+            commit batch transaction
         ↓
-    update_etl_run_entity()
+        update_etl_run_entity()
     ↓
 update_etl_run()
     ↓
@@ -172,6 +184,11 @@ send_notification()
 | `ingest_google_health_heart_rate()` | Orchestrate Google/Fitbit heart-rate response ingestion. |
 | `get_google_health_heart_rate()` | Extract Google/Fitbit heart-rate responses.       |
 | `upsert_google_health_data_points()` | Load response-grain rows into `raw.google_health_heart_rate_responses`. |
+| `ingest_google_health_sleep_logs()` | Orchestrate Google Health sleep-log ingestion. |
+| `ingest_google_health_daily_resting_heart_rate()` | Orchestrate source-reported daily RHR ingestion. |
+| `ingest_google_health_daily_heart_rate_variability()` | Orchestrate source-reported daily HRV ingestion. |
+| `ingest_google_health_daily_respiratory_rate()` | Orchestrate source-reported daily respiratory-rate ingestion. |
+| `get_google_health_daily_summaries()` | Shared API shaping helper for low-volume daily Google Health summary data types. |
 | `update_etl_run_entity()` | Record entity execution outcomes.                       |
 | `update_etl_run()`        | Record overall execution outcomes.                      |
 | `send_notification()`     | Send a summary notification.                            |
