@@ -8,9 +8,12 @@ RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-}"
 TEMPORARY_FILE_RETENTION_DAYS="${BACKUP_TEMPORARY_FILE_RETENTION_DAYS:-}"
 LOCK_DIR="${BACKUP_LOCK_DIR:-}"
 LOCK_MAX_AGE_SECONDS="${BACKUP_LOCK_MAX_AGE_SECONDS:-}"
+BACKUP_DUMP_MAX_ATTEMPTS="${BACKUP_DUMP_MAX_ATTEMPTS:-}"
+BACKUP_DUMP_RETRY_SLEEP_SECONDS="${BACKUP_DUMP_RETRY_SLEEP_SECONDS:-}"
 MYSQLDUMP="${MYSQLDUMP:-}"
 MYSQLDUMP_CANDIDATES=()
 MYSQLDUMP_EXTRA_ARGS=()
+MYSQLDUMP_CONNECT_ARGS=()
 DATABASES=()
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
@@ -144,6 +147,24 @@ load_script_config() {
     positive_integer_or_default "$LOCK_MAX_AGE_SECONDS" "21600"
   )"
 
+  if [[ -z "$BACKUP_DUMP_MAX_ATTEMPTS" ]]; then
+    BACKUP_DUMP_MAX_ATTEMPTS="$(
+      read_config_value "backups" "dump_max_attempts" "3"
+    )"
+  fi
+  BACKUP_DUMP_MAX_ATTEMPTS="$(
+    positive_integer_or_default "$BACKUP_DUMP_MAX_ATTEMPTS" "3"
+  )"
+
+  if [[ -z "$BACKUP_DUMP_RETRY_SLEEP_SECONDS" ]]; then
+    BACKUP_DUMP_RETRY_SLEEP_SECONDS="$(
+      read_config_value "backups" "dump_retry_sleep_seconds" "30"
+    )"
+  fi
+  BACKUP_DUMP_RETRY_SLEEP_SECONDS="$(
+    positive_integer_or_default "$BACKUP_DUMP_RETRY_SLEEP_SECONDS" "30"
+  )"
+
   configured_databases="$(
     read_config_list "backups" "databases"
   )"
@@ -259,6 +280,27 @@ require_command() {
   fi
 }
 
+gzip_uncompressed_bytes() {
+  gzip -l "$1" | awk 'NR == 2 { print $2 }'
+}
+
+check_mariadb_connectivity() {
+  log "Checking MariaDB TCP connectivity: $MARIADB_HOST:$MARIADB_PORT"
+
+  if command -v nc >/dev/null 2>&1; then
+    if nc -z -G 5 "$MARIADB_HOST" "$MARIADB_PORT" >/dev/null 2>&1; then
+      log "MariaDB TCP connectivity check succeeded."
+      return
+    fi
+
+    log "MariaDB TCP connectivity check failed: cannot reach $MARIADB_HOST:$MARIADB_PORT."
+    log "Check that the Raspberry Pi is online, the IP address is current, MariaDB is running, and port 3306 is reachable."
+    exit 1
+  fi
+
+  log "Skipping MariaDB TCP connectivity check: nc command not found."
+}
+
 resolve_mysqldump() {
   if [[ -n "$MYSQLDUMP" ]]; then
     if [[ -x "$MYSQLDUMP" ]]; then
@@ -298,6 +340,10 @@ configure_mysqldump_extra_args() {
 
   if grep -q -- "--column-statistics" <<< "$help_output"; then
     MYSQLDUMP_EXTRA_ARGS+=("--skip-column-statistics")
+  fi
+
+  if grep -q -- "--connect-timeout" <<< "$help_output"; then
+    MYSQLDUMP_CONNECT_ARGS+=("--connect-timeout=10")
   fi
 }
 
@@ -343,31 +389,65 @@ log "Using dump command: $MYSQLDUMP"
 if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
   log "Using dump options: ${MYSQLDUMP_EXTRA_ARGS[*]}"
 fi
+if [[ "${#MYSQLDUMP_CONNECT_ARGS[@]}" -gt 0 ]]; then
+  log "Using dump connection options: ${MYSQLDUMP_CONNECT_ARGS[*]}"
+fi
 log "Databases: ${DATABASES[*]}"
 log "Retention days: $RETENTION_DAYS; temporary file retention days: $TEMPORARY_FILE_RETENTION_DAYS; lock max age seconds: $LOCK_MAX_AGE_SECONDS"
+log "Dump attempts: $BACKUP_DUMP_MAX_ATTEMPTS; retry sleep seconds: $BACKUP_DUMP_RETRY_SLEEP_SECONDS"
+
+check_mariadb_connectivity
 
 for database in "${DATABASES[@]}"; do
   output_file="$BACKUP_DIR/${RUN_TIMESTAMP}_${database}.sql.gz"
   temporary_output_file="${output_file}.tmp"
+  dump_args=(
+    --host="$MARIADB_HOST"
+    --port="$MARIADB_PORT"
+    --user="$MARIADB_USER"
+  )
+
+  if [[ "${#MYSQLDUMP_CONNECT_ARGS[@]}" -gt 0 ]]; then
+    dump_args+=("${MYSQLDUMP_CONNECT_ARGS[@]}")
+  fi
+
+  dump_args+=(
+    --single-transaction
+    --quick
+    --routines
+    --triggers
+  )
+
+  if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
+    dump_args+=("${MYSQLDUMP_EXTRA_ARGS[@]}")
+  fi
+
+  dump_args+=("$database")
 
   log "Backing up $database"
 
-  if MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" \
-    --host="$MARIADB_HOST" \
-    --port="$MARIADB_PORT" \
-    --user="$MARIADB_USER" \
-    --single-transaction \
-    --quick \
-    --routines \
-    --triggers \
-    "${MYSQLDUMP_EXTRA_ARGS[@]}" \
-    "$database" | gzip > "$temporary_output_file"; then
-    :
-  else
+  dump_attempt=1
+  while ((dump_attempt <= BACKUP_DUMP_MAX_ATTEMPTS)); do
+    if ((BACKUP_DUMP_MAX_ATTEMPTS > 1)); then
+      log "Dump attempt $dump_attempt/$BACKUP_DUMP_MAX_ATTEMPTS for $database"
+    fi
+
+    if MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${dump_args[@]}" |
+      gzip > "$temporary_output_file"; then
+      break
+    fi
+
     rm -f "$temporary_output_file"
-    log "Backup failed for $database"
-    exit 1
-  fi
+
+    if ((dump_attempt >= BACKUP_DUMP_MAX_ATTEMPTS)); then
+      log "Backup failed for $database after $dump_attempt attempt(s)"
+      exit 1
+    fi
+
+    log "Backup attempt $dump_attempt for $database failed; retrying in $BACKUP_DUMP_RETRY_SLEEP_SECONDS seconds."
+    sleep "$BACKUP_DUMP_RETRY_SLEEP_SECONDS"
+    dump_attempt=$((dump_attempt + 1))
+  done
 
   if [[ ! -s "$temporary_output_file" ]]; then
     rm -f "$temporary_output_file"
@@ -381,9 +461,19 @@ for database in "${DATABASES[@]}"; do
     exit 1
   fi
 
+  uncompressed_bytes="$(
+    gzip_uncompressed_bytes "$temporary_output_file"
+  )"
+
+  if [[ ! "$uncompressed_bytes" =~ ^[0-9]+$ ]] || ((uncompressed_bytes <= 0)); then
+    rm -f "$temporary_output_file"
+    log "Backup verification failed for $database: uncompressed dump is empty."
+    exit 1
+  fi
+
   mv "$temporary_output_file" "$output_file"
 
-  log "Wrote and verified $output_file"
+  log "Wrote and verified $output_file (${uncompressed_bytes} uncompressed bytes)"
 done
 
 log "Removing backups older than $RETENTION_DAYS days"

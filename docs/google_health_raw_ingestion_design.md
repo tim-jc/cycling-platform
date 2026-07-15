@@ -311,6 +311,10 @@ VALUES (
 
 ## OAuth and Token Storage
 
+The operational authentication runbook is maintained in
+`docs/google_health_authentication.md`. This section records the design context
+for the Raw ingestion implementation.
+
 Add Google Health-specific helpers rather than generalising Strava token logic
 immediately.
 

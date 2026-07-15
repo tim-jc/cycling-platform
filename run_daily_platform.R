@@ -204,6 +204,59 @@ record_phase <- function(
   )
 }
 
+condition_message_safe <- function(e) {
+  message <- conditionMessage(e)
+
+  if (
+    is.null(message) ||
+      !nzchar(trimws(message)) ||
+      grepl("^\\s*\\[0\\]\\s*$", message)
+  ) {
+    message <- paste(
+      capture.output(
+        str(e)
+      ),
+      collapse = " "
+    )
+  }
+
+  message
+}
+
+describe_automation_error <- function(e, phase_name = NULL) {
+  message <- condition_message_safe(e)
+  error_class <- paste(
+    class(e),
+    collapse = "/"
+  )
+
+  error_call <- conditionCall(e)
+  error_call_text <- if (is.null(error_call)) {
+    NA_character_
+  } else {
+    paste(
+      deparse(error_call),
+      collapse = " "
+    )
+  }
+
+  parts <- c(
+    if (!is.null(phase_name)) {
+      paste0("phase=", phase_name)
+    },
+    paste0("class=", error_class),
+    paste0("message=", message),
+    if (!is.na(error_call_text) && nzchar(error_call_text)) {
+      paste0("call=", error_call_text)
+    }
+  )
+
+  paste(
+    parts,
+    collapse = "; "
+  )
+}
+
 run_phase <- function(phase_name, expr) {
   started_at <- Sys.time()
 
@@ -231,20 +284,27 @@ run_phase <- function(phase_name, expr) {
     },
     error = function(e) {
       completed_at <- Sys.time()
+      error_message <- describe_automation_error(
+        e = e,
+        phase_name = phase_name
+      )
 
       record_phase(
         phase_name = phase_name,
         phase_status = "FAILED",
         started_at = started_at,
         completed_at = completed_at,
-        error_message = conditionMessage(e)
+        error_message = error_message
       )
 
       message(glue::glue(
-        "Failed automation phase: {phase_name}: {conditionMessage(e)}"
+        "Failed automation phase: {phase_name}: {error_message}"
       ))
 
-      stop(e)
+      stop(
+        error_message,
+        call. = FALSE
+      )
     }
   )
 }
@@ -252,7 +312,126 @@ run_phase <- function(phase_name, expr) {
 automation_error <- NULL
 publication_gate_results <- data.frame()
 gold_publication_results <- data.frame()
+silver_transform_summary <- NULL
 gold_transform_summary <- NULL
+
+get_latest_silver_transform_summary <- function() {
+  connection <- get_connection("mysql")
+
+  tryCatch(
+    {
+      latest_runs <- DBI::dbGetQuery(
+        conn = connection,
+        statement = "
+          WITH ranked AS (
+            SELECT
+              transform_run_id,
+              entity_name,
+              run_mode,
+              run_status,
+              total_batches,
+              completed_batches,
+              activities_planned,
+              activities_completed,
+              rows_inserted,
+              rows_updated,
+              rows_deleted,
+              duration_seconds,
+              error_message,
+              ROW_NUMBER() OVER (
+                PARTITION BY entity_name
+                ORDER BY transform_run_id DESC
+              ) AS row_number
+            FROM cycling_platform_admin.transform_run
+            WHERE layer_name = 'silver'
+              AND entity_name IN ('activities', 'activity_streams')
+          )
+          SELECT
+            transform_run_id,
+            entity_name,
+            run_mode,
+            run_status,
+            total_batches,
+            completed_batches,
+            activities_planned,
+            activities_completed,
+            rows_inserted,
+            rows_updated,
+            rows_deleted,
+            duration_seconds,
+            error_message
+          FROM ranked
+          WHERE row_number = 1
+          ORDER BY FIELD(entity_name, 'activities', 'activity_streams')
+        "
+      )
+
+      if (nrow(latest_runs) == 0) {
+        return(NULL)
+      }
+
+      list(
+        lines = purrr::pmap_chr(
+          latest_runs[
+            c(
+              "entity_name",
+              "run_status",
+              "run_mode",
+              "activities_completed",
+              "activities_planned",
+              "rows_inserted",
+              "rows_updated",
+              "rows_deleted",
+              "completed_batches",
+              "total_batches",
+              "duration_seconds"
+            )
+          ],
+          \(entity_name,
+            run_status,
+            run_mode,
+            activities_completed,
+            activities_planned,
+            rows_inserted,
+            rows_updated,
+            rows_deleted,
+            completed_batches,
+            total_batches,
+            duration_seconds) {
+            activity_part <- if (activities_planned > 0) {
+              glue::glue(
+                " · {activities_completed}/{activities_planned} activities"
+              )
+            } else {
+              ""
+            }
+
+            batch_part <- if (total_batches > 0) {
+              glue::glue(
+                " · batches {completed_batches}/{total_batches}"
+              )
+            } else {
+              ""
+            }
+
+            glue::glue(
+              "{entity_name}: {run_status} · {toupper(run_mode)}",
+              "{activity_part}",
+              " · +{rows_inserted} / ~{rows_updated} / -{rows_deleted} rows",
+              "{batch_part}",
+              " · {format_platform_duration(duration_seconds)}"
+            )
+          }
+        )
+      )
+    },
+    finally = {
+      if (DBI::dbIsValid(connection)) {
+        DBI::dbDisconnect(connection)
+      }
+    }
+  )
+}
 
 get_latest_gold_activity_best_efforts_summary <- function() {
   connection <- get_connection("mysql")
@@ -405,6 +584,18 @@ tryCatch(
       }
     )
 
+    silver_transform_summary <<- tryCatch(
+      get_latest_silver_transform_summary(),
+      error = function(e) {
+        message(
+          "Unable to build Silver transform notification summary: ",
+          conditionMessage(e)
+        )
+
+        NULL
+      }
+    )
+
     run_phase(
       "silver_publication_checks",
       {
@@ -507,6 +698,15 @@ tryCatch(
                 drop = FALSE
               ]
 
+              if (nrow(failed_checks) == 0) {
+                stop(
+                  "Gold publication checks failed, but no failed critical ",
+                  "check rows were returned. Inspect the Gold publication ",
+                  "validation output and admin.validation_run_check.",
+                  call. = FALSE
+                )
+              }
+
               stop(
                 "Gold publication checks failed: ",
                 paste(
@@ -560,11 +760,12 @@ tryCatch(
       run_status = run_status,
       phase_results = phase_results,
       raw_ingestion_summary = raw_ingestion_summary,
+      silver_transform_summary = silver_transform_summary,
       gold_transform_summary = gold_transform_summary,
       error_message = if (is.null(automation_error)) {
         NULL
       } else {
-        conditionMessage(automation_error)
+        condition_message_safe(automation_error)
       }
     )
 
@@ -627,7 +828,10 @@ if (nrow(gold_publication_results) > 0) {
 }
 
 if (!is.null(automation_error)) {
-  stop(automation_error)
+  stop(
+    condition_message_safe(automation_error),
+    call. = FALSE
+  )
 }
 
 message("Platform automation complete.")

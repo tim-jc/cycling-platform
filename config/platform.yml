@@ -176,6 +176,11 @@ backups:
 
   lock_max_age_seconds: 21600
 
+  # Retry transient dump connection failures before treating backup as failed
+  dump_max_attempts: 3
+
+  dump_retry_sleep_seconds: 30
+
   # Common dump client locations for local macOS, Homebrew, and Raspberry Pi
   dump_command_candidates:
     - /opt/homebrew/opt/mysql-client/bin/mysqldump

@@ -1,4 +1,32 @@
 find_project_renviron <- function(start_path = getwd()) {
+  configured_renviron <- Sys.getenv(
+    "CYCLING_PLATFORM_RENVIRON_PATH"
+  )
+
+  if (nzchar(configured_renviron)) {
+    return(
+      normalizePath(
+        configured_renviron,
+        winslash = "/",
+        mustWork = FALSE
+      )
+    )
+  }
+
+  renviron_user <- Sys.getenv(
+    "R_ENVIRON_USER"
+  )
+
+  if (nzchar(renviron_user)) {
+    return(
+      normalizePath(
+        renviron_user,
+        winslash = "/",
+        mustWork = FALSE
+      )
+    )
+  }
+
   current_path <- normalizePath(
     start_path,
     winslash = "/",

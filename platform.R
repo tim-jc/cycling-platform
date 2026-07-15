@@ -44,6 +44,18 @@ if (execution_mode == "backfill") {
   activity_refresh_days <- config$ingestion$activity_refresh_days
 }
 
+google_health_enabled <- !is.null(config$sources$google_health$enabled) &&
+  isTRUE(config$sources$google_health$enabled)
+
+if (
+  execution_mode != "streams_only" &&
+    isTRUE(google_health_enabled)
+) {
+  message("Checking Google Health OAuth token before ingestion.")
+  get_google_health_access_token()
+  message("Google Health OAuth token refresh check succeeded.")
+}
+
 connection <- get_connection(
   database_name = "cycling_platform_raw"
 )
@@ -144,8 +156,7 @@ tryCatch(
       }
 
       if (
-        !is.null(config$sources$google_health$enabled) &&
-          isTRUE(config$sources$google_health$enabled)
+        isTRUE(google_health_enabled)
       ) {
         google_health_data_types <- config$sources$google_health$data_types
 

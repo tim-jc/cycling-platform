@@ -1362,13 +1362,21 @@ validate_platform_completeness <- function(
             SELECT activity_date
             FROM cycling_platform_raw.google_health_daily_heart_rate_variability
             UNION
-            SELECT start_civil_date AS activity_date
+            SELECT COALESCE(
+              start_civil_date,
+              DATE(start_physical_time)
+            ) AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE start_civil_date IS NOT NULL
+               OR start_physical_time IS NOT NULL
             UNION
-            SELECT end_civil_date AS activity_date
+            SELECT COALESCE(
+              end_civil_date,
+              DATE(end_physical_time)
+            ) AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE end_civil_date IS NOT NULL
+               OR end_physical_time IS NOT NULL
           )
           SELECT
             dates.activity_date,
@@ -1388,15 +1396,23 @@ validate_platform_completeness <- function(
           ) hrv
             ON hrv.activity_date = dates.activity_date
           LEFT JOIN (
-            SELECT DISTINCT start_civil_date AS activity_date
+            SELECT DISTINCT COALESCE(
+              start_civil_date,
+              DATE(start_physical_time)
+            ) AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE start_civil_date IS NOT NULL
+               OR start_physical_time IS NOT NULL
           ) sleep_start
             ON sleep_start.activity_date = dates.activity_date
           LEFT JOIN (
-            SELECT DISTINCT end_civil_date AS activity_date
+            SELECT DISTINCT COALESCE(
+              end_civil_date,
+              DATE(end_physical_time)
+            ) AS activity_date
             FROM cycling_platform_raw.google_health_sleep_logs
             WHERE end_civil_date IS NOT NULL
+               OR end_physical_time IS NOT NULL
           ) sleep_end
             ON sleep_end.activity_date = dates.activity_date
           WHERE rhr.activity_date IS NULL

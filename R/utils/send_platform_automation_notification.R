@@ -6,6 +6,7 @@
 #' @param run_status Overall automation status.
 #' @param phase_results Data frame of phase timings and statuses.
 #' @param raw_ingestion_summary Optional raw ingestion summary lines.
+#' @param silver_transform_summary Optional Silver transform summary lines.
 #' @param gold_transform_summary Optional Gold transform summary lines.
 #' @param error_message Optional error message.
 #'
@@ -15,6 +16,7 @@ send_platform_automation_notification <- function(
   run_status,
   phase_results,
   raw_ingestion_summary = NULL,
+  silver_transform_summary = NULL,
   gold_transform_summary = NULL,
   error_message = NULL
 ) {
@@ -89,6 +91,15 @@ send_platform_automation_notification <- function(
       raw_ingestion_summary$entity_lines,
       "",
       raw_ingestion_summary$pending_line
+    )
+  }
+
+  if (!is.null(silver_transform_summary)) {
+    body_lines <- c(
+      body_lines,
+      "",
+      "Silver transforms:",
+      silver_transform_summary$lines
     )
   }
 

@@ -143,6 +143,9 @@ Check Google Health OAuth refresh:
 Rscript run_google_health_auth_check.R
 ```
 
+Google Health scopes and token regeneration are documented in
+`docs/google_health_authentication.md`.
+
 Probe Google Health recovery data availability without writing to the database:
 
 ```sh

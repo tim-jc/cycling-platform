@@ -4,8 +4,10 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VALIDATION_SCRIPT="${PROJECT_DIR}/run_platform_validation.R"
+PROJECT_RENVIRON="${PROJECT_DIR}/.Renviron"
 RUNTIME_PROJECT_DIR=""
 RUNTIME_VALIDATION_SCRIPT=""
+RUNTIME_RENVIRON=""
 RSCRIPT="${RSCRIPT:-}"
 LOG_DIR="${LOG_DIR:-}"
 DAILY_LOCK="${DAILY_LOCK:-}"
@@ -259,14 +261,28 @@ cleanup_runtime_project() {
   fi
 }
 
+persist_runtime_renviron() {
+  if [[ -z "${RUNTIME_RENVIRON}" || ! -f "${RUNTIME_RENVIRON}" ]]; then
+    return
+  fi
+
+  if [[ ! -f "${PROJECT_RENVIRON}" ]] || ! cmp -s "${RUNTIME_RENVIRON}" "${PROJECT_RENVIRON}"; then
+    cp "${RUNTIME_RENVIRON}" "${PROJECT_RENVIRON}"
+    chmod 600 "${PROJECT_RENVIRON}" || true
+    log "Runtime .Renviron changes persisted to project .Renviron."
+  fi
+}
+
 cleanup_on_exit() {
   release_validation_lock
+  persist_runtime_renviron
   cleanup_runtime_project
 }
 
 prepare_runtime_project() {
   RUNTIME_PROJECT_DIR="/tmp/cycling-platform-validation-runtime-$$"
   RUNTIME_VALIDATION_SCRIPT="${RUNTIME_PROJECT_DIR}/run_platform_validation.R"
+  RUNTIME_RENVIRON="${RUNTIME_PROJECT_DIR}/.Renviron"
 
   rm -rf "${RUNTIME_PROJECT_DIR}"
   mkdir -p "${RUNTIME_PROJECT_DIR}"
@@ -274,12 +290,22 @@ prepare_runtime_project() {
 
   rsync -a \
     --exclude ".git" \
+    --exclude ".Renviron" \
     --exclude "logs" \
     --exclude "backups" \
     "${PROJECT_DIR}/" \
     "${RUNTIME_PROJECT_DIR}/"
 
+  if [[ -r "${PROJECT_RENVIRON}" ]]; then
+    cp "${PROJECT_RENVIRON}" "${RUNTIME_RENVIRON}"
+    chmod 600 "${RUNTIME_RENVIRON}" || true
+  else
+    log "Warning: project .Renviron is not readable by the wrapper: ${PROJECT_RENVIRON}"
+  fi
+
   export RENV_PROJECT="${RUNTIME_PROJECT_DIR}"
+  export CYCLING_PLATFORM_RENVIRON_PATH="${RUNTIME_RENVIRON}"
+  export R_ENVIRON_USER="${RUNTIME_RENVIRON}"
 }
 
 cd "${PROJECT_DIR}"
@@ -319,6 +345,8 @@ log "Using Rscript: ${RSCRIPT}"
 log "Using project dir: ${PROJECT_DIR}"
 log "Using runtime project dir: ${RUNTIME_PROJECT_DIR}"
 log "Using RENV_PROJECT: ${RENV_PROJECT}"
+log "Using R_ENVIRON_USER: ${R_ENVIRON_USER}"
+log "Using runtime .Renviron: ${RUNTIME_RENVIRON}"
 log "Using validation script: ${RUNTIME_VALIDATION_SCRIPT}"
 log "Using Rscript input mode: stdin"
 log "Log retention days: ${LOG_RETENTION_DAYS}; lock max age seconds: ${LOCK_MAX_AGE_SECONDS}"

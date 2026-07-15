@@ -64,11 +64,24 @@ Optional values:
   `backups.temporary_file_retention_days`
 * `BACKUP_LOCK_DIR`, defaults to `backups.lock_dir`
 * `BACKUP_LOCK_MAX_AGE_SECONDS`, defaults to `backups.lock_max_age_seconds`
+* `BACKUP_DUMP_MAX_ATTEMPTS`, defaults to `backups.dump_max_attempts`
+* `BACKUP_DUMP_RETRY_SLEEP_SECONDS`, defaults to
+  `backups.dump_retry_sleep_seconds`
 * `MYSQLDUMP`, optional absolute path to `mysqldump` or `mariadb-dump`
 
 The script resolves the dump client from `backups.dump_command_candidates`,
 then falls back to `mysqldump` or `mariadb-dump` on `PATH`. This is needed
 because cron often runs with a much smaller `PATH` than an interactive shell.
+
+Before dumping any database, the script performs a TCP connectivity preflight
+to `MARIADB_HOST:MARIADB_PORT` when `nc` is available. If the Raspberry Pi is
+offline, the IP address has changed, MariaDB is stopped, or port `3306` is not
+reachable, the backup fails before creating partial dump files.
+
+The TCP preflight only proves that the port is reachable. The actual
+`mysqldump` connection can still fail transiently, so each configured database
+dump is retried according to `backups.dump_max_attempts` and
+`backups.dump_retry_sleep_seconds`.
 
 Output shape:
 
@@ -87,9 +100,12 @@ Backup files are ignored by git.
 For each configured database, the script writes to a `.tmp` file first. The file
 is promoted to the final `.sql.gz` name only after:
 
+* TCP connectivity to the configured MariaDB host and port succeeds, where
+  `nc` is available
 * `mysqldump | gzip` exits successfully
 * the temporary file is non-empty
 * `gzip -t` passes
+* `gzip -l` reports a non-zero uncompressed dump size
 
 This verifies that the compressed dump was written cleanly. It is not a full
 restore test; restore verification remains a separate operational task.
