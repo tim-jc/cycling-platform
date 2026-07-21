@@ -233,6 +233,8 @@ The current stored rows have `start_civil_date` and `end_civil_date` as `NULL`,
 so overlap validation currently reports missing sleep dates even when sleep
 payloads are present. This is a promoted metadata repair issue, not evidence
 that sleep was not ingested. The retained sleep payload remains authoritative.
+Run `backfill_google_health_sleep_metadata()` to repair promoted sleep interval
+and stage metadata from retained payloads without re-fetching the API.
 
 ## Original Recommended Shape
 

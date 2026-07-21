@@ -18,6 +18,8 @@ run_silver_transformations <- function(
   silver_stream_batch_size <- config$transforms$silver_stream_activity_batch_size
   silver_stream_batch_max_expected_rows <-
     config$transforms$silver_stream_batch_max_expected_rows
+  silver_stream_insert_chunk_size <-
+    config$transforms$silver_stream_insert_chunk_size
 
   if (is.null(silver_stream_batch_size)) {
     silver_stream_batch_size <- 10L
@@ -27,11 +29,20 @@ run_silver_transformations <- function(
     silver_stream_batch_max_expected_rows <- 5000L
   }
 
+  if (is.null(silver_stream_insert_chunk_size)) {
+    silver_stream_insert_chunk_size <- 500L
+  }
+
   run_sql_directory(
     connection = connection,
     sql_dir = sql_dir,
     layer_name = "silver table creation",
     pattern = "^[0-9]+_create_.*\\.sql$"
+  )
+
+  refresh_power_source_classification(
+    connection = connection,
+    config = config
   )
 
   rebuild_silver_activities(
@@ -44,6 +55,7 @@ run_silver_transformations <- function(
     connection = connection,
     batch_size = silver_stream_batch_size,
     max_expected_rows = silver_stream_batch_max_expected_rows,
+    insert_chunk_size = silver_stream_insert_chunk_size,
     mode = stream_rebuild_mode
   )
 }

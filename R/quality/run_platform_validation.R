@@ -13,6 +13,72 @@
 #' @param notify Whether to send validation outcome notifications.
 #'
 #' @return Completeness validation result tibble.
+validation_connection_is_valid <- function(connection) {
+  tryCatch(
+    DBI::dbIsValid(connection),
+    error = function(e) {
+      FALSE
+    }
+  )
+}
+
+with_validation_admin_connection <- function(
+  connection,
+  callback
+) {
+  admin_connection <- connection
+  disconnect_admin_connection <- FALSE
+
+  if (!validation_connection_is_valid(connection)) {
+    message(
+      "Validation admin metadata connection is no longer valid; ",
+      "opening a fresh MariaDB connection."
+    )
+
+    admin_connection <- get_connection("mysql")
+    disconnect_admin_connection <- TRUE
+  }
+
+  on.exit(
+    {
+      if (
+        isTRUE(disconnect_admin_connection) &&
+          validation_connection_is_valid(admin_connection)
+      ) {
+        DBI::dbDisconnect(admin_connection)
+      }
+    },
+    add = TRUE
+  )
+
+  callback(admin_connection)
+}
+
+try_validation_admin_write <- function(
+  connection,
+  description,
+  callback
+) {
+  tryCatch(
+    {
+      with_validation_admin_connection(
+        connection = connection,
+        callback = callback
+      )
+    },
+    error = function(e) {
+      message(
+        "Unable to ",
+        description,
+        ": ",
+        conditionMessage(e)
+      )
+    }
+  )
+
+  invisible(NULL)
+}
+
 run_platform_validation <- function(
   connection,
   config = list(),
@@ -31,7 +97,7 @@ run_platform_validation <- function(
 
   validation_started_at <- Sys.time()
   validation_run_id <- NULL
-  validation_results <- tibble::tibble()
+  validation_results <- empty_platform_validation_results()
 
   if (isTRUE(record_admin)) {
     ensure_validation_logging_tables(connection)
@@ -68,12 +134,22 @@ run_platform_validation <- function(
       !is.null(validation_run_id) &&
       nrow(validation_results) > 0
   ) {
-    insert_validation_run_checks(
+    try_validation_admin_write(
       connection = connection,
-      validation_run_id = validation_run_id,
-      validation_results = validation_results
+      description = "insert validation check metadata",
+      callback = function(admin_connection) {
+        insert_validation_run_checks(
+          connection = admin_connection,
+          validation_run_id = validation_run_id,
+          validation_results = validation_results
+        )
+      }
     )
   }
+
+  validation_results <- normalise_platform_validation_results(
+    validation_results
+  )
 
   checks_planned <- nrow(validation_results)
   checks_completed <- nrow(validation_results)
@@ -108,15 +184,21 @@ run_platform_validation <- function(
       isTRUE(record_admin) &&
         !is.null(validation_run_id)
     ) {
-      update_validation_run(
+      try_validation_admin_write(
         connection = connection,
-        validation_run_id = validation_run_id,
-        run_status = run_status,
-        checks_planned = checks_planned,
-        checks_completed = checks_completed,
-        checks_failed = checks_failed,
-        validation_summary = validation_summary,
-        error_message = error_message
+        description = "update failed validation run metadata",
+        callback = function(admin_connection) {
+          update_validation_run(
+            connection = admin_connection,
+            validation_run_id = validation_run_id,
+            run_status = run_status,
+            checks_planned = checks_planned,
+            checks_completed = checks_completed,
+            checks_failed = checks_failed,
+            validation_summary = validation_summary,
+            error_message = error_message
+          )
+        }
       )
     }
 
@@ -161,18 +243,24 @@ run_platform_validation <- function(
     isTRUE(record_admin) &&
       !is.null(validation_run_id)
   ) {
-    update_validation_run(
+    try_validation_admin_write(
       connection = connection,
-      validation_run_id = validation_run_id,
-      run_status = if (validation_failed) {
-        "FAILED"
-      } else {
-        "SUCCESS"
-      },
-      checks_planned = checks_planned,
-      checks_completed = checks_completed,
-      checks_failed = checks_failed,
-      validation_summary = validation_summary
+      description = "update validation run metadata",
+      callback = function(admin_connection) {
+        update_validation_run(
+          connection = admin_connection,
+          validation_run_id = validation_run_id,
+          run_status = if (validation_failed) {
+            "FAILED"
+          } else {
+            "SUCCESS"
+          },
+          checks_planned = checks_planned,
+          checks_completed = checks_completed,
+          checks_failed = checks_failed,
+          validation_summary = validation_summary
+        )
+      }
     )
   }
 

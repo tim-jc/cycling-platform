@@ -38,9 +38,11 @@ matters.
 4. Runs fast Silver publication checks.
 5. Runs production Gold transforms.
 6. Runs fast Gold publication checks.
-7. Sends a success or failure notification.
-8. Exits non-zero if Raw, Silver, Gold, or publication checks fail.
-9. Reports deep validation as `NOT_RUN`; deep validation is run separately.
+7. Queues and delivers eligible achievement notifications.
+8. Sends a success or failure platform notification.
+9. Exits non-zero if Raw, Silver, Gold, publication checks, or achievement
+   delivery fail.
+10. Reports deep validation as `NOT_RUN`; deep validation is run separately.
 
 ## What It Does Not Do
 
@@ -66,6 +68,11 @@ publication checks pass. The daily mode processes only activities whose Gold
 rows are missing, incomplete, calculated with an old `calculation_version`, or
 older than their Silver stream inputs.
 
+`gold.activity_achievements` runs after best efforts. It detects all-time and
+calendar-year achievements from Gold best efforts and Silver activities.
+Historical backfills populate Gold history but do not queue old notifications
+by default.
+
 On no-op days, the transform first compares Admin transform metadata. If the
 latest successful Gold run is newer than the latest successful Silver stream
 transform, it records a zero-row successful Gold run and skips the expensive
@@ -76,6 +83,8 @@ Manual repair/backfill remains available:
 ```sh
 Rscript run_gold_activity_best_efforts.R repair
 Rscript run_gold_activity_best_efforts.R backfill
+Rscript run_gold_activity_achievements.R repair
+Rscript run_gold_activity_achievements.R backfill
 ```
 
 Backfill is not part of the daily schedule.
@@ -93,12 +102,37 @@ Silver checks:
 Gold checks:
 
 * `gold.activity_best_efforts` exists.
+* `gold.activity_achievements` exists.
 * The latest required Gold transform completed successfully.
 * Gold is at least as fresh as the latest Silver stream transform.
 * Latest Gold batches completed successfully.
 * Gold business keys are unique.
 * Gold activity IDs have parent Silver activities.
 * Metric names, durations, and `calculation_version` match configuration.
+
+## Achievement Notifications
+
+After Gold publication checks pass, daily automation creates Admin outbox rows
+for newly eligible activity achievements and attempts delivery through the
+configured notification channel.
+
+Notification delivery state is stored in:
+
+```text
+cycling_platform_admin.notification_outbox
+```
+
+Manual runner:
+
+```sh
+Rscript run_platform_notifications.R queue
+Rscript run_platform_notifications.R deliver
+Rscript run_platform_notifications.R queue_and_deliver
+```
+
+Delivery failure does not alter Gold facts. It records retry state in Admin and
+causes the daily automation to report failure so the retryable notification
+problem is visible.
 
 These checks are blocking. If they fail, `run_daily_platform.R` exits non-zero
 and the notification reports the failed layer. Successful Silver publication is

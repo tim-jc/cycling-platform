@@ -24,5 +24,11 @@ run_gold_transformations <- function(
     mode = mode
   )
 
+  rebuild_gold_activity_achievements(
+    connection = connection,
+    config = config,
+    mode = mode
+  )
+
   invisible(NULL)
 }

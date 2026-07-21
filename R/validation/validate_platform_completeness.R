@@ -4,6 +4,10 @@
 #'
 #' @return TRUE when any critical check failed.
 platform_validation_has_critical_failures <- function(validation_results) {
+  validation_results <- normalise_platform_validation_results(
+    validation_results
+  )
+
   any(
     validation_results$severity == "CRITICAL" &
       !validation_results$passed
@@ -98,6 +102,75 @@ validation_result <- function(
     details = list(details),
     query = query
   )
+}
+
+empty_platform_validation_results <- function() {
+  tibble::tibble(
+    check_name = character(),
+    check_scope = character(),
+    severity = character(),
+    passed = logical(),
+    issue_count = integer(),
+    started_at = as.POSIXct(character()),
+    completed_at = as.POSIXct(character()),
+    elapsed_seconds = numeric(),
+    details = list(),
+    query = character()
+  )
+}
+
+normalise_platform_validation_results <- function(validation_results) {
+  if (
+    is.null(validation_results) ||
+      nrow(validation_results) == 0
+  ) {
+    return(empty_platform_validation_results())
+  }
+
+  validation_results <- tibble::as_tibble(validation_results)
+
+  defaults <- list(
+    check_name = NA_character_,
+    check_scope = NA_character_,
+    severity = NA_character_,
+    passed = FALSE,
+    issue_count = NA_integer_,
+    started_at = as.POSIXct(NA),
+    completed_at = as.POSIXct(NA),
+    elapsed_seconds = NA_real_,
+    details = list(data.frame()),
+    query = NA_character_
+  )
+
+  for (column_name in names(defaults)) {
+    if (column_name %in% names(validation_results)) {
+      next
+    }
+
+    if (identical(column_name, "details")) {
+      validation_results[[column_name]] <- rep(
+        defaults[[column_name]],
+        nrow(validation_results)
+      )
+    } else {
+      validation_results[[column_name]] <- rep(
+        defaults[[column_name]],
+        nrow(validation_results)
+      )
+    }
+  }
+
+  if (any(is.na(validation_results$issue_count))) {
+    missing_issue_count <- is.na(validation_results$issue_count)
+
+    validation_results$issue_count[missing_issue_count] <- vapply(
+      validation_results$details[missing_issue_count],
+      validation_issue_count,
+      integer(1)
+    )
+  }
+
+  validation_results
 }
 
 validation_timestamp <- function(timestamp = Sys.time()) {
@@ -370,6 +443,36 @@ validation_table_exists_result <- function(
         query = "information_schema.tables"
       )
     }
+  )
+}
+
+validation_named_table_exists_result <- function(
+  table_exists,
+  check_name,
+  check_scope,
+  table_schema,
+  table_name
+) {
+  run_validation_check(
+    check_name = check_name,
+    source = "information_schema.tables",
+    expr = {
+      validation_result(
+        check_name = check_name,
+        check_scope = check_scope,
+        severity = "CRITICAL",
+        details = if (table_exists) {
+          data.frame()
+        } else {
+          data.frame(
+            table_schema = table_schema,
+            table_name = table_name
+          )
+        },
+        query = "information_schema.tables"
+      )
+    },
+    likely_long_running = FALSE
   )
 }
 
@@ -1415,12 +1518,98 @@ validate_platform_completeness <- function(
                OR end_physical_time IS NOT NULL
           ) sleep_end
             ON sleep_end.activity_date = dates.activity_date
-          WHERE rhr.activity_date IS NULL
-             OR hrv.activity_date IS NULL
-             OR (
-               sleep_start.activity_date IS NULL
-               AND sleep_end.activity_date IS NULL
-             )
+          WHERE (
+              rhr.activity_date IS NOT NULL
+              OR hrv.activity_date IS NOT NULL
+            )
+            AND sleep_start.activity_date IS NULL
+            AND sleep_end.activity_date IS NULL
+          ORDER BY dates.activity_date DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_recovery_partial_date_coverage",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          WITH dates AS (
+            SELECT activity_date
+            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+            UNION
+            SELECT activity_date
+            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+            UNION
+            SELECT COALESCE(
+              start_civil_date,
+              DATE(start_physical_time)
+            ) AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE start_civil_date IS NOT NULL
+               OR start_physical_time IS NOT NULL
+            UNION
+            SELECT COALESCE(
+              end_civil_date,
+              DATE(end_physical_time)
+            ) AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE end_civil_date IS NOT NULL
+               OR end_physical_time IS NOT NULL
+          )
+          SELECT
+            dates.activity_date,
+            rhr.activity_date IS NOT NULL AS has_rhr,
+            hrv.activity_date IS NOT NULL AS has_hrv,
+            (
+              sleep_start.activity_date IS NOT NULL
+              OR sleep_end.activity_date IS NOT NULL
+            ) AS has_sleep
+          FROM dates
+          LEFT JOIN (
+            SELECT DISTINCT activity_date
+            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+          ) rhr
+            ON rhr.activity_date = dates.activity_date
+          LEFT JOIN (
+            SELECT DISTINCT activity_date
+            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+          ) hrv
+            ON hrv.activity_date = dates.activity_date
+          LEFT JOIN (
+            SELECT DISTINCT COALESCE(
+              start_civil_date,
+              DATE(start_physical_time)
+            ) AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE start_civil_date IS NOT NULL
+               OR start_physical_time IS NOT NULL
+          ) sleep_start
+            ON sleep_start.activity_date = dates.activity_date
+          LEFT JOIN (
+            SELECT DISTINCT COALESCE(
+              end_civil_date,
+              DATE(end_physical_time)
+            ) AS activity_date
+            FROM cycling_platform_raw.google_health_sleep_logs
+            WHERE end_civil_date IS NOT NULL
+               OR end_physical_time IS NOT NULL
+          ) sleep_end
+            ON sleep_end.activity_date = dates.activity_date
+          WHERE NOT (
+            rhr.activity_date IS NOT NULL
+            AND hrv.activity_date IS NOT NULL
+            AND (
+              sleep_start.activity_date IS NOT NULL
+              OR sleep_end.activity_date IS NOT NULL
+            )
+          )
           ORDER BY dates.activity_date DESC
           LIMIT 1000
         ",
@@ -1486,7 +1675,7 @@ validate_platform_completeness <- function(
     )
 
     if (isTRUE(include_gold)) {
-      gold_publication_results <- gold_activity_best_efforts_publication_checks(
+      gold_publication_results <- gold_publication_checks(
         connection = connection,
         config = config,
         check_scope = "deep",
@@ -1778,6 +1967,10 @@ print_slowest_platform_validation_checks <- function(
 #'
 #' @return Invisibly returns validation_results.
 print_platform_completeness_validation <- function(validation_results) {
+  validation_results <- normalise_platform_validation_results(
+    validation_results
+  )
+
   summary <- validation_results[
     validation_summary_columns(validation_results)
   ]

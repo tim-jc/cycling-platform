@@ -24,7 +24,10 @@ r_files <- c(
   "run_google_health_heart_rate.R",
   "run_google_health_sleep.R",
   "run_daily_platform.R",
+  "run_gold_activity_achievements.R",
   "run_gold_activity_best_efforts.R",
+  "run_power_source_classification_audit.R",
+  "run_platform_notifications.R",
   "run_silver.R",
   "validate_platform.R"
 )
@@ -158,6 +161,8 @@ sql_files <- list.files(
 expected_tables <- c(
   "admin/040_create_transform_run.sql" = "cycling_platform_admin.transform_run",
   "admin/041_create_transform_run_batch.sql" = "cycling_platform_admin.transform_run_batch",
+  "admin/060_create_notification_outbox.sql" = "cycling_platform_admin.notification_outbox",
+  "admin/070_create_power_source_classification.sql" = "cycling_platform_admin.power_source_classification",
   "stage/010_create_activity_streams_build.sql" = "cycling_platform_stage.activity_streams_build",
   "raw/010_create_strava_activities.sql" = "cycling_platform_raw.activities",
   "raw/020_create_strava_activity_streams.sql" = "cycling_platform_raw.activity_streams",
@@ -170,7 +175,8 @@ expected_tables <- c(
   "raw/140_create_google_health_daily_respiratory_rate.sql" = "cycling_platform_raw.google_health_daily_respiratory_rate",
   "silver/010_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/030_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
-  "gold/010_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts"
+  "gold/010_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts",
+  "gold/020_create_activity_achievements.sql" = "cycling_platform_gold.activity_achievements"
 )
 
 missing_expected_files <- setdiff(

@@ -6,19 +6,67 @@
 #'
 #' @return DBIConnection
 get_connection <- function(database_name) {
-  DBI::dbConnect(
-    drv = RMariaDB::MariaDB(),
+  host <- Sys.getenv("MARIADB_HOST")
 
-    host = Sys.getenv("MARIADB_HOST"),
+  port <- Sys.getenv("MARIADB_PORT")
 
-    port = as.integer(
-      Sys.getenv("MARIADB_PORT")
-    ),
+  user <- Sys.getenv("MARIADB_USER")
 
-    dbname = database_name,
+  if (!nzchar(host)) {
+    stop(
+      "MariaDB connection failed: MARIADB_HOST is not set.",
+      call. = FALSE
+    )
+  }
 
-    user = Sys.getenv("MARIADB_USER"),
+  if (!nzchar(port)) {
+    stop(
+      "MariaDB connection failed: MARIADB_PORT is not set.",
+      call. = FALSE
+    )
+  }
 
-    password = Sys.getenv("MARIADB_PASSWORD")
+  if (!nzchar(user)) {
+    stop(
+      "MariaDB connection failed: MARIADB_USER is not set.",
+      call. = FALSE
+    )
+  }
+
+  tryCatch(
+    {
+      DBI::dbConnect(
+        drv = RMariaDB::MariaDB(),
+
+        host = host,
+
+        port = as.integer(
+          port
+        ),
+
+        dbname = database_name,
+
+        user = user,
+
+        password = Sys.getenv("MARIADB_PASSWORD")
+      )
+    },
+    error = function(e) {
+      stop(
+        paste0(
+          "MariaDB connection failed for database '",
+          database_name,
+          "' at ",
+          host,
+          ":",
+          port,
+          ". Check that the Raspberry Pi is reachable from this network, ",
+          "MariaDB is running, port 3306 is open, and credentials are current. ",
+          "Original error: ",
+          conditionMessage(e)
+        ),
+        call. = FALSE
+      )
+    }
   )
 }

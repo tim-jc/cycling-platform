@@ -53,7 +53,14 @@ tryCatch(
     validation_error <<- e
   },
   finally = {
-    if (DBI::dbIsValid(connection)) {
+    connection_is_valid <- tryCatch(
+      DBI::dbIsValid(connection),
+      error = function(e) {
+        FALSE
+      }
+    )
+
+    if (isTRUE(connection_is_valid)) {
       DBI::dbDisconnect(connection)
     }
   }

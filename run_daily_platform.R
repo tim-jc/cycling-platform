@@ -223,6 +223,149 @@ condition_message_safe <- function(e) {
   message
 }
 
+tail_file_lines <- function(path, n = 25L) {
+  if (!file.exists(path) || file.info(path)$size == 0) {
+    return(character())
+  }
+
+  lines <- readLines(
+    path,
+    warn = FALSE
+  )
+
+  utils::tail(
+    lines,
+    n = n
+  )
+}
+
+format_child_process_failure <- function(
+  label,
+  status,
+  stdout_file,
+  stderr_file,
+  tail_lines = 25L
+) {
+  stdout_tail <- tail_file_lines(
+    path = stdout_file,
+    n = tail_lines
+  )
+
+  stderr_tail <- tail_file_lines(
+    path = stderr_file,
+    n = tail_lines
+  )
+
+  output_parts <- c(
+    if (length(stderr_tail) > 0) {
+      c(
+        "stderr tail:",
+        stderr_tail
+      )
+    },
+    if (length(stdout_tail) > 0) {
+      c(
+        "stdout tail:",
+        stdout_tail
+      )
+    }
+  )
+
+  if (length(output_parts) == 0) {
+    output_parts <- "No child-process output captured."
+  }
+
+  paste(
+    c(
+      glue::glue("{label} failed with exit status {status}."),
+      output_parts
+    ),
+    collapse = "\n"
+  )
+}
+
+run_child_rscript <- function(
+  script,
+  args = character(),
+  label = script,
+  tail_lines = 25L
+) {
+  stdout_file <- tempfile(
+    pattern = "cycling-platform-child-stdout-"
+  )
+
+  stderr_file <- tempfile(
+    pattern = "cycling-platform-child-stderr-"
+  )
+
+  on.exit(
+    unlink(
+      c(
+        stdout_file,
+        stderr_file
+      ),
+      force = TRUE
+    ),
+    add = TRUE
+  )
+
+  status <- system2(
+    command = file.path(
+      R.home("bin"),
+      "Rscript"
+    ),
+    args = c(
+      script,
+      args
+    ),
+    stdout = stdout_file,
+    stderr = stderr_file
+  )
+
+  stdout_tail <- tail_file_lines(
+    path = stdout_file,
+    n = tail_lines
+  )
+
+  stderr_tail <- tail_file_lines(
+    path = stderr_file,
+    n = tail_lines
+  )
+
+  if (length(stdout_tail) > 0) {
+    message(
+      paste(
+        stdout_tail,
+        collapse = "\n"
+      )
+    )
+  }
+
+  if (length(stderr_tail) > 0) {
+    message(
+      paste(
+        stderr_tail,
+        collapse = "\n"
+      )
+    )
+  }
+
+  if (!identical(status, 0L)) {
+    stop(
+      format_child_process_failure(
+        label = label,
+        status = status,
+        stdout_file = stdout_file,
+        stderr_file = stderr_file,
+        tail_lines = tail_lines
+      ),
+      call. = FALSE
+    )
+  }
+
+  invisible(status)
+}
+
 describe_automation_error <- function(e, phase_name = NULL) {
   message <- condition_message_safe(e)
   error_class <- paste(
@@ -314,6 +457,7 @@ publication_gate_results <- data.frame()
 gold_publication_results <- data.frame()
 silver_transform_summary <- NULL
 gold_transform_summary <- NULL
+achievement_notification_summary <- NULL
 
 get_latest_silver_transform_summary <- function() {
   connection <- get_connection("mysql")
@@ -433,16 +577,41 @@ get_latest_silver_transform_summary <- function() {
   )
 }
 
-get_latest_gold_activity_best_efforts_summary <- function() {
+get_latest_gold_transform_summary <- function() {
   connection <- get_connection("mysql")
 
   tryCatch(
     {
-      latest_run <- DBI::dbGetQuery(
+      latest_runs <- DBI::dbGetQuery(
         conn = connection,
         statement = "
+          WITH ranked AS (
+            SELECT
+              transform_run_id,
+              entity_name,
+              run_mode,
+              run_status,
+              activities_planned,
+              activities_completed,
+              rows_inserted,
+              rows_updated,
+              rows_deleted,
+              duration_seconds,
+              error_message,
+              ROW_NUMBER() OVER (
+                PARTITION BY entity_name
+                ORDER BY transform_run_id DESC
+              ) AS row_number
+            FROM cycling_platform_admin.transform_run
+            WHERE layer_name = 'gold'
+              AND entity_name IN (
+                'activity_best_efforts',
+                'activity_achievements'
+              )
+          )
           SELECT
             transform_run_id,
+            entity_name,
             run_mode,
             run_status,
             activities_planned,
@@ -452,49 +621,85 @@ get_latest_gold_activity_best_efforts_summary <- function() {
             rows_deleted,
             duration_seconds,
             error_message
-          FROM cycling_platform_admin.transform_run
-          WHERE layer_name = 'gold'
-            AND entity_name = 'activity_best_efforts'
-          ORDER BY transform_run_id DESC
-          LIMIT 1
+          FROM ranked
+          WHERE row_number = 1
+          ORDER BY FIELD(
+            entity_name,
+            'activity_best_efforts',
+            'activity_achievements'
+          )
         "
       )
 
-      if (nrow(latest_run) != 1) {
+      if (nrow(latest_runs) == 0) {
         return(NULL)
       }
 
       failed_batches <- DBI::dbGetQuery(
         conn = connection,
-        statement = "
-          SELECT COUNT(*) AS failed_batch_count
+        statement = paste0(
+          "
+          SELECT
+            transform_run_id,
+            COUNT(*) AS failed_batch_count
           FROM cycling_platform_admin.transform_run_batch
-          WHERE transform_run_id = ?
+          WHERE transform_run_id IN (",
+          paste(rep("?", nrow(latest_runs)), collapse = ", "),
+          ")
             AND batch_status = 'FAILED'
-        ",
-        params = list(latest_run$transform_run_id[[1]])
-      )
-
-      skipped_activities <- max(
-        0L,
-        as.integer(latest_run$activities_planned[[1]]) -
-          as.integer(latest_run$activities_completed[[1]])
+          GROUP BY transform_run_id
+          "
+        ),
+        params = as.list(latest_runs$transform_run_id)
       )
 
       list(
-        lines = c(
-          glue::glue(
-            "activity_best_efforts: {latest_run$run_status[[1]]} · ",
-            "{latest_run$run_mode[[1]]} · ",
-            "{latest_run$activities_completed[[1]]}/",
-            "{latest_run$activities_planned[[1]]} activities · ",
-            "+{latest_run$rows_inserted[[1]]} / -{latest_run$rows_deleted[[1]]} rows"
-          ),
-          glue::glue(
-            "activity_best_efforts: skipped {skipped_activities} · ",
-            "failed batches {failed_batches$failed_batch_count[[1]]} · ",
-            "{format_platform_duration(latest_run$duration_seconds[[1]])}"
-          )
+        lines = purrr::pmap_chr(
+          latest_runs[
+            c(
+              "transform_run_id",
+              "entity_name",
+              "run_status",
+              "run_mode",
+              "activities_completed",
+              "activities_planned",
+              "rows_inserted",
+              "rows_deleted",
+              "duration_seconds"
+            )
+          ],
+          \(transform_run_id,
+            entity_name,
+            run_status,
+            run_mode,
+            activities_completed,
+            activities_planned,
+            rows_inserted,
+            rows_deleted,
+            duration_seconds) {
+            failed_batch_count <- failed_batches$failed_batch_count[
+              failed_batches$transform_run_id == transform_run_id
+            ]
+
+            if (length(failed_batch_count) == 0) {
+              failed_batch_count <- 0L
+            }
+
+            skipped_activities <- max(
+              0L,
+              as.integer(activities_planned) -
+                as.integer(activities_completed)
+            )
+
+            glue::glue(
+              "{entity_name}: {run_status} · {run_mode} · ",
+              "{activities_completed}/{activities_planned} activities · ",
+              "+{rows_inserted} / -{rows_deleted} rows · ",
+              "skipped {skipped_activities} · ",
+              "failed batches {failed_batch_count[[1]]} · ",
+              "{format_platform_duration(duration_seconds)}"
+            )
+          }
         )
       )
     },
@@ -523,28 +728,15 @@ tryCatch(
           }
         )
 
-        raw_status <- system2(
-          command = file.path(
-            R.home("bin"),
-            "Rscript"
-          ),
+        run_child_rscript(
+          script = "platform.R",
           args = c(
-            "platform.R",
             raw_execution_mode,
             "--no-notification"
           ),
-          stdout = "",
-          stderr = ""
+          label = "Raw ingestion",
+          tail_lines = 30L
         )
-
-        if (!identical(raw_status, 0L)) {
-          stop(
-            "Raw ingestion failed with exit status ",
-            raw_status,
-            ".",
-            call. = FALSE
-          )
-        }
 
         raw_ingestion_summary <<- tryCatch(
           get_raw_ingestion_summary(
@@ -649,7 +841,7 @@ tryCatch(
         )
 
         gold_transform_summary <<- tryCatch(
-          get_latest_gold_activity_best_efforts_summary(),
+          get_latest_gold_transform_summary(),
           error = function(e) {
             message(
               "Unable to build Gold transform notification summary: ",
@@ -670,7 +862,7 @@ tryCatch(
         tryCatch(
           {
             gold_publication_results <<-
-              gold_activity_best_efforts_publication_checks(
+              gold_publication_checks(
                 connection = connection,
                 config = config,
                 check_scope = "gold_publication",
@@ -730,6 +922,65 @@ tryCatch(
       }
     )
 
+    run_phase(
+      "achievement_notifications",
+      {
+        connection <- get_connection("mysql")
+
+        tryCatch(
+          {
+            execute_sql_file(
+              sql_file = file.path(
+                "sql",
+                "admin",
+                "060_create_notification_outbox.sql"
+              ),
+              connection = connection
+            )
+
+            queue_result <- queue_activity_achievement_notifications(
+              connection = connection,
+              config = config
+            )
+
+            delivery_result <- deliver_due_notifications(
+              connection = connection,
+              config = config
+            )
+
+            achievement_notification_summary <<- list(
+              lines = c(
+                glue::glue(
+                  "queued {queue_result$queued} · skipped {queue_result$skipped}"
+                ),
+                glue::glue(
+                  "attempted {delivery_result$attempted} · ",
+                  "sent {delivery_result$sent} · ",
+                  "failed {delivery_result$failed} · ",
+                  "retry {delivery_result$retry}"
+                )
+              )
+            )
+
+            if (delivery_result$failed > 0) {
+              stop(
+                "Achievement notification delivery failed for ",
+                delivery_result$failed,
+                " notification(s). Retry state recorded in ",
+                "admin.notification_outbox.",
+                call. = FALSE
+              )
+            }
+          },
+          finally = {
+            if (DBI::dbIsValid(connection)) {
+              DBI::dbDisconnect(connection)
+            }
+          }
+        )
+      }
+    )
+
     deep_validation_started_at <- Sys.time()
 
     record_phase(
@@ -762,6 +1013,7 @@ tryCatch(
       raw_ingestion_summary = raw_ingestion_summary,
       silver_transform_summary = silver_transform_summary,
       gold_transform_summary = gold_transform_summary,
+      achievement_notification_summary = achievement_notification_summary,
       error_message = if (is.null(automation_error)) {
         NULL
       } else {

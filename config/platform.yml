@@ -138,6 +138,17 @@ notifications:
   # produces non-fatal WARNING checks.
   validation_notify_on_warning: true
 
+  # Achievement notifications are queued only for recent daily achievements.
+  achievement_notifications_enabled: true
+
+  achievement_notification_channel: ntfy
+
+  achievement_recent_activity_days: 7
+
+  achievement_max_attempts: 3
+
+  achievement_retry_delay_minutes: 60
+
 logging:
 
   level: INFO
@@ -220,6 +231,17 @@ transforms:
   # Maximum expected stream rows processed per silver stream batch
   silver_stream_batch_max_expected_rows: 5000
 
+  # Rows inserted per DB write when rebuilding silver stream samples
+  silver_stream_insert_chunk_size: 500
+
+  # Version for governed activity power-source classification rules
+  power_source_classification_version: power_source_classification_v1
+
+  # Gear IDs allowed to establish the reliable measured-power cutover
+  power_source_cutover_gear_ids:
+    - b2708460
+    - b3311095
+
   # Gold best effort metrics calculated in v1
   gold_best_effort_metrics:
     - watts
@@ -244,3 +266,9 @@ transforms:
 
   # Calculation version written to gold.activity_best_efforts
   gold_best_effort_calculation_version: activity_best_efforts_v1
+
+  # Maximum activities processed per gold achievement batch
+  gold_activity_achievement_activity_batch_size: 100
+
+  # Calculation version written to gold.activity_achievements
+  gold_activity_achievement_calculation_version: activity_achievements_v1

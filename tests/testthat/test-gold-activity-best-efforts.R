@@ -222,3 +222,123 @@ testthat::test_that("best effort calculation skips all-NA metrics safely", {
     )
   )
 })
+
+testthat::test_that("best effort eligibility follows power classification for watts only", {
+  transform_file <- file.path(
+    "R",
+    "transforms",
+    "rebuild_gold_activity_best_efforts.R"
+  )
+
+  if (!file.exists(transform_file)) {
+    transform_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "transforms",
+      "rebuild_gold_activity_best_efforts.R"
+    )
+  }
+
+  source(transform_file)
+
+  best_efforts <- data.frame(
+    activity_id = bit64::as.integer64(
+      c(
+        "1",
+        "1",
+        "2"
+      )
+    ),
+    metric_name = c(
+      "watts",
+      "cadence_rpm",
+      "watts"
+    ),
+    duration_seconds = c(
+      1200L,
+      1200L,
+      1200L
+    ),
+    peak_value = c(
+      250,
+      90,
+      280
+    )
+  )
+
+  power_classification <- data.frame(
+    activity_id = bit64::as.integer64(
+      c(
+        "1",
+        "2"
+      )
+    ),
+    power_source_type = c(
+      "virtual",
+      "measured"
+    ),
+    is_power_record_eligible = c(
+      0L,
+      1L
+    ),
+    power_record_exclusion_reason = c(
+      "trainerroad_virtual_power_before_power_meter_cutover",
+      NA_character_
+    ),
+    power_classification_version = c(
+      "test_power_v1",
+      "test_power_v1"
+    )
+  )
+
+  result <- apply_best_effort_record_eligibility(
+    best_efforts = best_efforts,
+    power_classification = power_classification
+  )
+
+  virtual_watts <- result[
+    result$activity_id == bit64::as.integer64("1") &
+      result$metric_name == "watts",
+    ,
+    drop = FALSE
+  ]
+
+  virtual_cadence <- result[
+    result$activity_id == bit64::as.integer64("1") &
+      result$metric_name == "cadence_rpm",
+    ,
+    drop = FALSE
+  ]
+
+  measured_watts <- result[
+    result$activity_id == bit64::as.integer64("2") &
+      result$metric_name == "watts",
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_equal(
+    virtual_watts$is_record_eligible[[1]],
+    0L
+  )
+
+  testthat::expect_equal(
+    virtual_watts$record_exclusion_reason[[1]],
+    "trainerroad_virtual_power_before_power_meter_cutover"
+  )
+
+  testthat::expect_equal(
+    virtual_cadence$is_record_eligible[[1]],
+    1L
+  )
+
+  testthat::expect_true(
+    is.na(virtual_cadence$record_exclusion_reason[[1]])
+  )
+
+  testthat::expect_equal(
+    measured_watts$is_record_eligible[[1]],
+    1L
+  )
+})

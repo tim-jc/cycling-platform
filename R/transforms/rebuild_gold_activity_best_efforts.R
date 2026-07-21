@@ -282,7 +282,21 @@ gold_activity_best_efforts_daily_can_skip <- function(connection) {
     return(FALSE)
   }
 
-  latest_gold_completed_at >= latest_silver_stream_completed_at
+  latest_silver_activity_completed_at <-
+    get_latest_successful_transform_completed_at(
+      connection = connection,
+      layer_name = "silver",
+      entity_name = "activities"
+    )
+
+  if (is.na(latest_silver_activity_completed_at)) {
+    return(FALSE)
+  }
+
+  latest_gold_completed_at >= max(
+    latest_silver_stream_completed_at,
+    latest_silver_activity_completed_at
+  )
 }
 
 get_best_effort_activity_plan <- function(
@@ -306,8 +320,13 @@ get_best_effort_activity_plan <- function(
         COUNT(streams.",
       metric_columns,
       ") AS metric_sample_count,
-        MAX(streams.transformed_at) AS latest_silver_transformed_at
+        GREATEST(
+          MAX(streams.transformed_at),
+          MAX(activities.transformed_at)
+        ) AS latest_silver_transformed_at
       FROM cycling_platform_silver.activity_streams streams
+      INNER JOIN cycling_platform_silver.activities activities
+        ON activities.activity_id = streams.activity_id
       GROUP BY streams.activity_id
       HAVING COUNT(streams.",
       metric_columns,
@@ -529,6 +548,110 @@ fetch_activity_streams_for_best_efforts <- function(
   )
 }
 
+fetch_activity_power_classification <- function(
+  connection,
+  activity_ids
+) {
+  activity_ids <- as.character(activity_ids)
+
+  DBI::dbGetQuery(
+    conn = connection,
+    statement = paste0(
+      "
+      SELECT
+        activity_id,
+        power_source_type,
+        is_power_record_eligible,
+        power_record_exclusion_reason,
+        power_classification_version
+      FROM cycling_platform_silver.activities
+      WHERE activity_id IN (",
+      best_effort_placeholders(activity_ids),
+      ")
+      "
+    ),
+    params = as.list(activity_ids)
+  )
+}
+
+apply_best_effort_record_eligibility <- function(
+  best_efforts,
+  power_classification
+) {
+  if (nrow(best_efforts) == 0) {
+    return(best_efforts)
+  }
+
+  power_classification$activity_id_chr <- as.character(
+    power_classification$activity_id
+  )
+
+  best_efforts$activity_id_chr <- as.character(
+    best_efforts$activity_id
+  )
+
+  best_efforts <- merge(
+    best_efforts,
+    power_classification[
+      ,
+      c(
+        "activity_id_chr",
+        "power_source_type",
+        "is_power_record_eligible",
+        "power_record_exclusion_reason",
+        "power_classification_version"
+      ),
+      drop = FALSE
+    ],
+    by = "activity_id_chr",
+    all.x = TRUE,
+    sort = FALSE
+  )
+
+  is_watts <- best_efforts$metric_name == "watts"
+
+  best_efforts$is_record_eligible <- ifelse(
+    is_watts,
+    as.integer(
+      !is.na(best_efforts$is_power_record_eligible) &
+        best_efforts$is_power_record_eligible == 1
+    ),
+    1L
+  )
+
+  best_efforts$record_exclusion_reason <- ifelse(
+    is_watts & best_efforts$is_record_eligible == 0,
+    best_efforts$power_record_exclusion_reason,
+    NA_character_
+  )
+
+  best_efforts$source_classification <- ifelse(
+    is_watts,
+    best_efforts$power_source_type,
+    NA_character_
+  )
+
+  best_efforts$power_classification_version <- ifelse(
+    is_watts,
+    best_efforts$power_classification_version,
+    NA_character_
+  )
+
+  best_efforts[
+    ,
+    setdiff(
+      names(best_efforts),
+      c(
+        "activity_id_chr",
+        "power_source_type",
+        "is_power_record_eligible",
+        "power_record_exclusion_reason"
+      )
+    ),
+    drop = FALSE
+  ]
+}
+
 delete_gold_activity_best_efforts <- function(
   connection,
   activity_ids,
@@ -648,6 +771,42 @@ validate_gold_activity_best_efforts <- function(
         "
       "
       )
+    ),
+    list(
+      check_name = "gold_best_efforts_watts_eligibility_matches_silver",
+      sql = "
+        SELECT COUNT(*) AS failure_count
+        FROM cycling_platform_gold.activity_best_efforts best_efforts
+        INNER JOIN cycling_platform_silver.activities activities
+          ON activities.activity_id = best_efforts.activity_id
+        WHERE best_efforts.metric_name = 'watts'
+          AND best_efforts.is_record_eligible
+            <> activities.is_power_record_eligible
+      "
+    ),
+    list(
+      check_name = "gold_best_efforts_non_watts_not_excluded",
+      sql = "
+        SELECT COUNT(*) AS failure_count
+        FROM cycling_platform_gold.activity_best_efforts
+        WHERE metric_name <> 'watts'
+          AND (
+            is_record_eligible <> 1
+            OR record_exclusion_reason IS NOT NULL
+          )
+      "
+    ),
+    list(
+      check_name = "gold_best_efforts_exclusions_have_reason",
+      sql = "
+        SELECT COUNT(*) AS failure_count
+        FROM cycling_platform_gold.activity_best_efforts
+        WHERE is_record_eligible = 0
+          AND (
+            record_exclusion_reason IS NULL
+            OR record_exclusion_reason = ''
+          )
+      "
     )
   )
 
@@ -779,6 +938,8 @@ rebuild_gold_activity_best_efforts <- function(
     "Gold object: activity_best_efforts; mode: {mode}; ",
     "calculation version: {calculation_version}."
   ))
+
+  ensure_power_source_classification_schema(connection)
 
   execute_sql_file(
     sql_file = file.path(
@@ -934,6 +1095,11 @@ rebuild_gold_activity_best_efforts <- function(
                 metrics = metrics
               )
 
+              power_classification <- fetch_activity_power_classification(
+                connection = connection,
+                activity_ids = activity_ids_batch
+              )
+
               best_efforts <- purrr::map_dfr(
                 split(
                   streams,
@@ -947,6 +1113,11 @@ rebuild_gold_activity_best_efforts <- function(
                     calculation_version = calculation_version
                   )
                 }
+              )
+
+              best_efforts <- apply_best_effort_record_eligibility(
+                best_efforts = best_efforts,
+                power_classification = power_classification
               )
 
               DBI::dbBegin(connection)

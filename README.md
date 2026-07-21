@@ -137,6 +137,25 @@ Rscript run_gold_activity_best_efforts.R repair
 Rscript run_gold_activity_best_efforts.R backfill
 ```
 
+Run Gold activity achievements:
+
+```sh
+Rscript run_gold_activity_achievements.R repair
+Rscript run_gold_activity_achievements.R backfill
+```
+
+Audit power-source classification:
+
+```sh
+Rscript run_power_source_classification_audit.R power_source_audit.csv
+```
+
+Run queued platform notifications:
+
+```sh
+Rscript run_platform_notifications.R queue_and_deliver
+```
+
 Check Google Health OAuth refresh:
 
 ```sh

@@ -8,6 +8,8 @@
 #' @param raw_ingestion_summary Optional raw ingestion summary lines.
 #' @param silver_transform_summary Optional Silver transform summary lines.
 #' @param gold_transform_summary Optional Gold transform summary lines.
+#' @param achievement_notification_summary Optional achievement notification
+#'   summary lines.
 #' @param error_message Optional error message.
 #'
 #' @return Invisibly returns TRUE when a notification was sent, otherwise FALSE.
@@ -18,6 +20,7 @@ send_platform_automation_notification <- function(
   raw_ingestion_summary = NULL,
   silver_transform_summary = NULL,
   gold_transform_summary = NULL,
+  achievement_notification_summary = NULL,
   error_message = NULL
 ) {
   notifications <- config$notifications
@@ -112,6 +115,15 @@ send_platform_automation_notification <- function(
     )
   }
 
+  if (!is.null(achievement_notification_summary)) {
+    body_lines <- c(
+      body_lines,
+      "",
+      "Achievement notifications:",
+      achievement_notification_summary$lines
+    )
+  }
+
   body_lines <- c(
     body_lines,
     "",
@@ -120,16 +132,44 @@ send_platform_automation_notification <- function(
   )
 
   if (!is.null(error_message) && nzchar(error_message)) {
+    error_lines <- unlist(
+      strsplit(
+        error_message,
+        "\n",
+        fixed = TRUE
+      ),
+      use.names = FALSE
+    )
+
+    error_lines <- error_lines[
+      nzchar(
+        trimws(
+          error_lines
+        )
+      )
+    ]
+
+    error_summary <- if (length(error_lines) > 8) {
+      c(
+        error_lines[[1]],
+        "...",
+        utils::tail(
+          error_lines,
+          6
+        )
+      )
+    } else {
+      error_lines
+    }
+
     body_lines <- c(
       body_lines,
       "",
-      paste0(
-        "Error: ",
-        substr(
-          error_message,
-          1,
-          500
-        )
+      "Error:",
+      substr(
+        error_summary,
+        1,
+        500
       )
     )
   }

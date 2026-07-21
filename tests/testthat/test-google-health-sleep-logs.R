@@ -198,3 +198,105 @@ testthat::test_that("Google Health sleep logs are shaped for raw loading", {
     )
   )
 })
+
+testthat::test_that("Google Health sleep logs support direct interval timestamps", {
+  data_points_file <- file.path(
+    "R",
+    "api",
+    "get_google_health_data_points.R"
+  )
+
+  sleep_logs_file <- file.path(
+    "R",
+    "api",
+    "get_google_health_sleep_logs.R"
+  )
+
+  if (!file.exists(data_points_file)) {
+    data_points_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "api",
+      "get_google_health_data_points.R"
+    )
+  }
+
+  if (!file.exists(sleep_logs_file)) {
+    sleep_logs_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "api",
+      "get_google_health_sleep_logs.R"
+    )
+  }
+
+  source(
+    data_points_file
+  )
+
+  source(
+    sleep_logs_file
+  )
+
+  sleep_payloads <- list(
+    list(
+      name = "users/me/dataTypes/sleep/dataPoints/sleep-session-direct",
+      dataSource = list(
+        name = "fitbit"
+      ),
+      sleep = list(
+        interval = list(
+          startTime = "2026-07-14T22:10:00Z",
+          startUtcOffset = "3600s",
+          endTime = "2026-07-15T06:20:00Z",
+          endUtcOffset = "3600s"
+        ),
+        type = "STAGES",
+        metadata = list(
+          stagesStatus = "SUCCEEDED"
+        )
+      )
+    )
+  )
+
+  shaped <- google_health_shape_sleep_logs(
+    sleep_logs = sleep_payloads,
+    google_user_id = "me",
+    run_id = 1L,
+    source_id = 2L,
+    retrieved_at = as.POSIXct(
+      "2026-07-15 07:00:00",
+      tz = "UTC"
+    )
+  )
+
+  testthat::expect_equal(
+    format(
+      shaped$start_physical_time[[1]],
+      "%Y-%m-%d %H:%M:%S",
+      tz = "UTC"
+    ),
+    "2026-07-14 22:10:00"
+  )
+
+  testthat::expect_equal(
+    format(
+      shaped$end_physical_time[[1]],
+      "%Y-%m-%d %H:%M:%S",
+      tz = "UTC"
+    ),
+    "2026-07-15 06:20:00"
+  )
+
+  testthat::expect_equal(
+    shaped$start_utc_offset[[1]],
+    "3600s"
+  )
+
+  testthat::expect_equal(
+    shaped$end_utc_offset[[1]],
+    "3600s"
+  )
+})

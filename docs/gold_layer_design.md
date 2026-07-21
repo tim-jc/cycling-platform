@@ -72,6 +72,12 @@ window: start/end sample index, time, distance, and latitude/longitude. This
 supersets the old scraper peaks concept rather than recreating the old table
 shape.
 
+Watt rows also expose measured-power record eligibility from Silver power-source
+classification. Virtual or ambiguous watt efforts remain in Gold for audit, but
+power curves, records and power achievements must filter `is_record_eligible =
+1`. Cadence and heart-rate efforts are not excluded by power-source
+classification. See `docs/power_source_classification.md`.
+
 Run the repair/backfill transform manually:
 
 ```sh
@@ -84,6 +90,29 @@ daily mode after Silver publication checks pass. This mode processes activities
 with missing or incomplete Gold rows, stale Silver stream inputs, or an old
 `calculation_version`. Full historical backfill remains an explicit manual
 operation.
+
+### `gold.activity_achievements`
+
+Records activity achievement facts such as new all-time or calendar-year power,
+distance, moving-duration and elevation-gain records.
+
+Grain:
+
+* `activity_id`
+* `achievement_type`
+* `metric_name`
+* `duration_seconds`
+* `comparison_scope`
+* `comparison_period_start`
+* `comparison_period_end`
+
+Power achievements consume `gold.activity_best_efforts`; activity-level
+achievements consume `silver.activities`. Gold records the fact and provenance,
+while notification queue and delivery state live in
+`admin.notification_outbox`.
+
+See `docs/activity_achievements.md` for comparison policy, backfill safety and
+notification lifecycle.
 
 ### `gold.activity_power_metrics`
 

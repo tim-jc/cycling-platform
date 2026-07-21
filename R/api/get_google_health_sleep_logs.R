@@ -167,9 +167,13 @@ google_health_shape_sleep_logs <- function(
         sleep_log,
         list(
           c("sleep", "interval", "startTime", "physicalTime"),
+          c("sleep", "interval", "startTime"),
           c("sleep", "interval", "start_time", "physical_time"),
+          c("sleep", "interval", "start_time"),
           c("interval", "startTime", "physicalTime"),
-          c("interval", "start_time", "physical_time")
+          c("interval", "startTime"),
+          c("interval", "start_time", "physical_time"),
+          c("interval", "start_time")
         )
       )
 
@@ -177,9 +181,13 @@ google_health_shape_sleep_logs <- function(
         sleep_log,
         list(
           c("sleep", "interval", "endTime", "physicalTime"),
+          c("sleep", "interval", "endTime"),
           c("sleep", "interval", "end_time", "physical_time"),
+          c("sleep", "interval", "end_time"),
           c("interval", "endTime", "physicalTime"),
-          c("interval", "end_time", "physical_time")
+          c("interval", "endTime"),
+          c("interval", "end_time", "physical_time"),
+          c("interval", "end_time")
         )
       )
 
@@ -187,9 +195,13 @@ google_health_shape_sleep_logs <- function(
         sleep_log,
         list(
           c("sleep", "interval", "startTime", "utcOffset"),
+          c("sleep", "interval", "startUtcOffset"),
           c("sleep", "interval", "start_time", "utc_offset"),
+          c("sleep", "interval", "start_utc_offset"),
           c("interval", "startTime", "utcOffset"),
-          c("interval", "start_time", "utc_offset")
+          c("interval", "startUtcOffset"),
+          c("interval", "start_time", "utc_offset"),
+          c("interval", "start_utc_offset")
         )
       )
 
@@ -197,9 +209,13 @@ google_health_shape_sleep_logs <- function(
         sleep_log,
         list(
           c("sleep", "interval", "endTime", "utcOffset"),
+          c("sleep", "interval", "endUtcOffset"),
           c("sleep", "interval", "end_time", "utc_offset"),
+          c("sleep", "interval", "end_utc_offset"),
           c("interval", "endTime", "utcOffset"),
-          c("interval", "end_time", "utc_offset")
+          c("interval", "endUtcOffset"),
+          c("interval", "end_time", "utc_offset"),
+          c("interval", "end_utc_offset")
         )
       )
 

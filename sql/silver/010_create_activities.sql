@@ -59,6 +59,24 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activities (
 
     is_device_watts BOOLEAN,
 
+    power_source_type VARCHAR(50) NULL,
+
+    power_source_status VARCHAR(50) NULL,
+
+    is_measured_power TINYINT(1) NOT NULL DEFAULT 0,
+
+    is_power_record_eligible TINYINT(1) NOT NULL DEFAULT 0,
+
+    power_record_exclusion_reason VARCHAR(150) NULL,
+
+    power_classification_rule VARCHAR(150) NULL,
+
+    power_classification_method VARCHAR(150) NULL,
+
+    power_classification_version VARCHAR(50) NULL,
+
+    power_meter_cutover_at DATETIME NULL,
+
     is_manual BOOLEAN NULL,
 
     is_trainer BOOLEAN NULL,

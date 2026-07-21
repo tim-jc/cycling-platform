@@ -35,6 +35,14 @@ CREATE TABLE IF NOT EXISTS cycling_platform_gold.activity_best_efforts (
 
     sample_count INT NOT NULL,
 
+    is_record_eligible TINYINT(1) NOT NULL DEFAULT 1,
+
+    record_exclusion_reason VARCHAR(150) NULL,
+
+    source_classification VARCHAR(50) NULL,
+
+    power_classification_version VARCHAR(50) NULL,
+
     calculation_version VARCHAR(50) NOT NULL,
 
     computed_at DATETIME NOT NULL,
@@ -53,6 +61,13 @@ CREATE TABLE IF NOT EXISTS cycling_platform_gold.activity_best_efforts (
         duration_seconds
     ),
 
-    KEY idx_gold_activity_best_efforts_activity_id (activity_id)
+    KEY idx_gold_activity_best_efforts_activity_id (activity_id),
+
+    KEY idx_gold_activity_best_efforts_record_eligibility (
+        metric_name,
+        duration_seconds,
+        is_record_eligible,
+        peak_value
+    )
 
 );
