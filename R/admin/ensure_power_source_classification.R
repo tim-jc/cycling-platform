@@ -8,22 +8,23 @@ power_source_classification_version <- function(config = list()) {
   as.character(version)
 }
 
-power_source_cutover_gear_ids <- function(config = list()) {
-  gear_ids <- config$transforms$power_source_cutover_gear_ids
+trainerroad_power_cutover_gear_id <- function(config = list()) {
+  gear_id <- config$transforms$trainerroad_power_cutover_gear_id
 
-  if (is.null(gear_ids)) {
-    return(c(
-      "b2708460",
-      "b3311095"
-    ))
+  if (is.null(gear_id) || !nzchar(gear_id)) {
+    return("b2708460")
   }
 
   as.character(
     unlist(
-      gear_ids,
+      gear_id,
       use.names = FALSE
-    )
+    )[[1]]
   )
+}
+
+power_source_cutover_gear_ids <- function(config = list()) {
+  trainerroad_power_cutover_gear_id(config)
 }
 
 ensure_table_column <- function(
@@ -151,10 +152,7 @@ power_source_sql_placeholders <- function(values) {
 
 derive_power_meter_cutover <- function(
   connection,
-  approved_gear_ids = c(
-    "b2708460",
-    "b3311095"
-  )
+  approved_gear_ids = "b2708460"
 ) {
   approved_gear_ids <- as.character(approved_gear_ids)
 
@@ -173,6 +171,16 @@ derive_power_meter_cutover <- function(
         AND gear_id IN (",
       power_source_sql_placeholders(approved_gear_ids),
       ")
+        AND (
+          average_power_watts IS NOT NULL
+          OR weighted_average_power_watts IS NOT NULL
+          OR EXISTS (
+            SELECT 1
+            FROM cycling_platform_raw.activity_streams power_streams
+            WHERE power_streams.activity_id = activities.activity_id
+              AND power_streams.stream_type = 'watts'
+          )
+        )
         AND start_datetime_utc IS NOT NULL
         AND sport_type IN (
           'Ride',
@@ -213,11 +221,11 @@ refresh_power_source_classification <- function(
   ensure_power_source_classification_schema(connection)
 
   rule_version <- power_source_classification_version(config)
-  approved_gear_ids <- power_source_cutover_gear_ids(config)
+  trainerroad_cutover_gear_id <- trainerroad_power_cutover_gear_id(config)
 
   cutoff <- derive_power_meter_cutover(
     connection = connection,
-    approved_gear_ids = approved_gear_ids
+    approved_gear_ids = trainerroad_cutover_gear_id
   )
 
   derived_cutover_at <- if (nrow(cutoff) == 0) {
@@ -281,11 +289,11 @@ refresh_power_source_classification <- function(
         ?,
         ?,
         ?,
-        'earliest_outdoor_device_watts_on_approved_power_gear',
+        'earliest_outdoor_device_watts_on_trainerroad_roller_bike',
         ?,
         ?,
         ?,
-        'Inferred from earliest genuine outdoor ride where Strava reports device watts on approved reliable-period gear.',
+        'Inferred from earliest genuine outdoor ride where Strava reports device watts on the TrainerRoad roller bike.',
         1,
         UTC_TIMESTAMP()
       )

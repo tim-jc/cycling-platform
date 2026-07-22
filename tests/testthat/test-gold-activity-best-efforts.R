@@ -283,7 +283,7 @@ testthat::test_that("best effort eligibility follows power classification for wa
       1L
     ),
     power_record_exclusion_reason = c(
-      "trainerroad_virtual_power_before_power_meter_cutover",
+      "trainerroad_virtual_power_before_roller_bike_power_cutover",
       NA_character_
     ),
     power_classification_version = c(
@@ -325,7 +325,7 @@ testthat::test_that("best effort eligibility follows power classification for wa
 
   testthat::expect_equal(
     virtual_watts$record_exclusion_reason[[1]],
-    "trainerroad_virtual_power_before_power_meter_cutover"
+    "trainerroad_virtual_power_before_roller_bike_power_cutover"
   )
 
   testthat::expect_equal(

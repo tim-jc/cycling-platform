@@ -237,10 +237,10 @@ transforms:
   # Version for governed activity power-source classification rules
   power_source_classification_version: power_source_classification_v1
 
-  # Gear IDs allowed to establish the reliable measured-power cutover
-  power_source_cutover_gear_ids:
-    - b2708460
-    - b3311095
+  # Gear ID allowed to establish the TrainerRoad measured-power cutover.
+  # b3311095 may contain valid measured power, but does not prove that the
+  # TrainerRoad roller setup had moved from virtual to measured power.
+  trainerroad_power_cutover_gear_id: b2708460
 
   # Gold best effort metrics calculated in v1
   gold_best_effort_metrics:

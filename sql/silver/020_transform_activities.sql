@@ -268,7 +268,7 @@ SELECT
             THEN 'power_meter_cutover_unavailable'
         WHEN is_trainerroad = 1
             AND start_datetime_utc < effective_cutover_at
-            THEN 'trainerroad_virtual_power_before_power_meter_cutover'
+            THEN 'trainerroad_virtual_power_before_roller_bike_power_cutover'
         WHEN is_outdoor_power_candidate = 1
             AND is_device_watts = 1
             THEN NULL
@@ -295,7 +295,11 @@ SELECT
             THEN 'power_meter_cutover_unavailable'
         WHEN is_trainerroad = 1
             AND start_datetime_utc < effective_cutover_at
-            THEN 'trainerroad_virtual_power_before_power_meter_cutover'
+            THEN 'trainerroad_virtual_power_before_roller_bike_power_cutover'
+        WHEN is_trainerroad = 1
+            AND is_device_watts = 1
+            AND start_datetime_utc >= effective_cutover_at
+            THEN 'trainerroad_at_or_after_roller_bike_power_cutover'
         WHEN is_outdoor_power_candidate = 1
             AND is_device_watts = 1
             AND start_datetime_utc < effective_cutover_at

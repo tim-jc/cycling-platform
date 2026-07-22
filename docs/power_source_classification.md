@@ -34,17 +34,16 @@ Gold owns record eligibility for calculated efforts:
 
 ## Cutover Rule
 
-The inferred `power_meter_cutover_at` is the start timestamp of the earliest
-genuine outdoor activity where Strava reports `is_device_watts = 1` on one of
-the approved reliable-period gear IDs:
+The inferred `power_meter_cutover_at` is the TrainerRoad measured-power cutoff:
+the start timestamp of the earliest genuine outdoor activity where Strava
+reports `is_device_watts = 1` on the TrainerRoad roller-bike gear ID:
 
 - `b2708460`
-- `b3311095`
 
 The derivation method is:
 
 ```text
-earliest_outdoor_device_watts_on_approved_power_gear
+earliest_outdoor_device_watts_on_trainerroad_roller_bike
 ```
 
 The current outdoor candidate definition uses available repository fields:
@@ -52,7 +51,8 @@ The current outdoor candidate definition uses available repository fields:
 - `sport_type` in `Ride`, `GravelRide`, `MountainBikeRide`, `EBikeRide`,
   `Handcycle`
 - not `VirtualRide`
-- `gear_id` in `b2708460`, `b3311095`
+- `gear_id` is `b2708460`
+- usable power data is present
 - raw payload `trainer` is not `true`
 - a raw `latlng` stream exists, so indoor rides mislabelled as `Ride` cannot
   establish the outdoor power-meter cutoff
@@ -61,12 +61,15 @@ The current outdoor candidate definition uses available repository fields:
 
 The cutoff uses the exact timestamp, not only the activity date.
 
-Historical rationale: an earlier second-hand power meter was used on a limited
-number of outdoor rides while TrainerRoad roller sessions still used virtual
-power. Consequently, the first outdoor device-watts activity overall does not
-represent the transition to consistently measured indoor and outdoor power. The
-inferred cutoff is therefore restricted to the first qualifying outdoor
-device-watts ride on gear IDs `b2708460` or `b3311095`.
+Historical rationale: gear `b2708460` was predominantly used as the
+TrainerRoad roller bike. The first genuine outdoor device-watts ride on this
+gear is therefore the best available evidence that the roller setup had
+acquired a real power meter. Genuine power recorded earlier on another bike
+does not establish that TrainerRoad had stopped using virtual power.
+
+Gear `b3311095` may contribute valid measured outdoor power before the
+TrainerRoad cutoff. It is excluded only from cutoff derivation, not from
+measured-power records.
 
 The cutoff is used to classify historical TrainerRoad sessions. It is not a
 claim that every power observation before the cutoff was virtual.
@@ -110,12 +113,14 @@ Current rules infer, rather than confirm, measured and virtual cases.
 2. No usable power -> `none` / not record eligible
 3. Pre-cutover TrainerRoad with power -> `virtual` / not record eligible
 4. Genuine outdoor device watts with GPS evidence -> `measured` / record
-   eligible, even before the reliable-period cutoff
+   eligible, even before the TrainerRoad roller-bike cutoff
 5. Missing cutoff for other power records -> `unknown` / not record eligible
-6. Device watts at or after cutoff -> `measured` / record eligible
-7. Pre-cutover non-outdoor device watts -> `unknown` / not record eligible
-8. Non-device watts with power -> `estimated` / not record eligible
-9. Fallback -> `unknown` / not record eligible
+6. TrainerRoad at or after cutoff with device watts -> `measured` / record
+   eligible
+7. Device watts at or after cutoff -> `measured` / record eligible
+8. Pre-cutover non-outdoor device watts -> `unknown` / not record eligible
+9. Non-device watts with power -> `estimated` / not record eligible
+10. Fallback -> `unknown` / not record eligible
 
 ## Gold Behaviour
 
@@ -157,12 +162,12 @@ Rscript run_power_source_classification_audit.R power_source_audit.csv
 
 The report highlights:
 
-- earliest outdoor device-watts activity across all gear
-- earlier outdoor device-watts activities rejected as cutoff candidates because
-  their gear ID was not approved
-- selected cutoff activity
+- selected TrainerRoad measured-power cutoff activity
 - selected cutoff gear ID
-- first qualifying candidate for each approved gear ID
+- earliest outdoor device-watts activity on `b2708460`
+- earliest outdoor device-watts activity on `b3311095`, shown for context but
+  rejected as a TrainerRoad cutoff candidate
+- earlier valid outdoor powered activities on other gear IDs
 - pre-cutover TrainerRoad power activities
 - first post-cutover TrainerRoad power activity
 - missing-gear activities that might otherwise qualify

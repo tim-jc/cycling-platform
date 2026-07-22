@@ -79,13 +79,13 @@ report_power_source_classification <- function(
           ELSE 0
         END AS is_outdoor_device_watts_activity,
         CASE
-          WHEN activities.gear_id IN ('b2708460', 'b3311095')
+          WHEN activities.gear_id = 'b2708460'
           THEN 1
           ELSE 0
-        END AS is_approved_cutover_gear,
+        END AS is_trainerroad_cutover_gear,
         CASE
           WHEN activities.is_device_watts = 1
-            AND activities.gear_id NOT IN ('b2708460', 'b3311095')
+            AND activities.gear_id <> 'b2708460'
             AND activities.sport_type IN (
               'Ride',
               'GravelRide',
@@ -109,7 +109,34 @@ report_power_source_classification <- function(
             )) NOT LIKE '%trainerroad%'
           THEN 1
           ELSE 0
-        END AS is_rejected_cutoff_candidate_unapproved_gear,
+        END AS is_rejected_trainerroad_cutoff_candidate_other_gear,
+        CASE
+          WHEN activities.is_device_watts = 1
+            AND activities.gear_id = 'b3311095'
+            AND activities.sport_type IN (
+              'Ride',
+              'GravelRide',
+              'MountainBikeRide',
+              'EBikeRide',
+              'Handcycle'
+            )
+            AND activities.sport_type <> 'VirtualRide'
+            AND COALESCE(activities.is_trainer, 0) = 0
+            AND EXISTS (
+              SELECT 1
+              FROM cycling_platform_raw.activity_streams streams
+              WHERE streams.activity_id = activities.activity_id
+                AND streams.stream_type = 'latlng'
+            )
+            AND LOWER(CONCAT_WS(
+              ' ',
+              COALESCE(activities.activity_name, ''),
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.external_id')), ''),
+              COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.device_name')), '')
+            )) NOT LIKE '%trainerroad%'
+          THEN 1
+          ELSE 0
+        END AS is_b3311095_context_candidate,
         CASE
           WHEN activities.is_device_watts = 1
             AND activities.gear_id IS NULL
@@ -156,7 +183,7 @@ report_power_source_classification <- function(
         END AS is_post_cutover_trainerroad_power,
         CASE
           WHEN activities.power_record_exclusion_reason =
-            'trainerroad_virtual_power_before_power_meter_cutover'
+            'trainerroad_virtual_power_before_roller_bike_power_cutover'
           THEN 1
           ELSE 0
         END AS is_pre_cutover_trainerroad_power,

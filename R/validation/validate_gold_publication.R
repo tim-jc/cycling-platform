@@ -56,13 +56,13 @@ gold_activity_best_efforts_publication_checks <- function(
     values = calculation_version
   )
 
-  approved_cutover_gear_ids <- power_source_cutover_gear_ids(
+  trainerroad_cutover_gear_id <- trainerroad_power_cutover_gear_id(
     config = config
   )
 
-  approved_cutover_gear_ids_sql <- gold_validation_sql_strings(
+  trainerroad_cutover_gear_id_sql <- gold_validation_sql_strings(
     connection = connection,
-    values = approved_cutover_gear_ids
+    values = trainerroad_cutover_gear_id
   )
 
   checks <- list()
@@ -384,7 +384,7 @@ gold_activity_best_efforts_publication_checks <- function(
     checks,
     run_validation_query(
       connection = connection,
-      check_name = "power_source_cutover_supporting_gear_valid",
+      check_name = "trainerroad_power_cutover_supporting_gear_valid",
       check_scope = check_scope,
       severity = "CRITICAL",
       query = glue::glue("
@@ -398,7 +398,7 @@ gold_activity_best_efforts_publication_checks <- function(
           AND derived_supporting_activity_id IS NOT NULL
           AND (
             derived_supporting_gear_id IS NULL
-            OR derived_supporting_gear_id NOT IN ({approved_cutover_gear_ids_sql})
+            OR derived_supporting_gear_id <> {trainerroad_cutover_gear_id_sql}
           )
         LIMIT 1000
       "),
@@ -411,7 +411,7 @@ gold_activity_best_efforts_publication_checks <- function(
     checks,
     run_validation_query(
       connection = connection,
-      check_name = "power_source_cutover_selected_earliest_approved_candidate",
+      check_name = "trainerroad_power_cutover_selected_earliest_roller_bike_candidate",
       check_scope = check_scope,
       severity = "CRITICAL",
       query = glue::glue("
@@ -422,7 +422,17 @@ gold_activity_best_efforts_publication_checks <- function(
             activities.gear_id
           FROM cycling_platform_raw.activities activities
           WHERE activities.is_device_watts = 1
-            AND activities.gear_id IN ({approved_cutover_gear_ids_sql})
+            AND activities.gear_id = {trainerroad_cutover_gear_id_sql}
+            AND (
+              activities.average_power_watts IS NOT NULL
+              OR activities.weighted_average_power_watts IS NOT NULL
+              OR EXISTS (
+                SELECT 1
+                FROM cycling_platform_raw.activity_streams power_streams
+                WHERE power_streams.activity_id = activities.activity_id
+                  AND power_streams.stream_type = 'watts'
+              )
+            )
             AND activities.start_datetime_utc IS NOT NULL
             AND activities.sport_type IN (
               'Ride',
@@ -491,7 +501,7 @@ gold_activity_best_efforts_publication_checks <- function(
     checks,
     run_validation_query(
       connection = connection,
-      check_name = "power_source_cutover_not_set_by_unapproved_gear",
+      check_name = "trainerroad_power_cutover_not_set_by_other_gear",
       check_scope = check_scope,
       severity = "CRITICAL",
       query = glue::glue("
@@ -504,7 +514,7 @@ gold_activity_best_efforts_publication_checks <- function(
           ON activities.activity_id = classification.derived_supporting_activity_id
         WHERE classification.classification_name = 'strava_power_meter_cutover'
           AND classification.is_active = 1
-          AND activities.gear_id NOT IN ({approved_cutover_gear_ids_sql})
+          AND activities.gear_id <> {trainerroad_cutover_gear_id_sql}
         LIMIT 1000
       "),
       per_check_timeout_seconds = per_check_timeout_seconds,
@@ -516,7 +526,7 @@ gold_activity_best_efforts_publication_checks <- function(
     checks,
     run_validation_query(
       connection = connection,
-      check_name = "power_source_cutover_candidate_not_indoor_or_virtual",
+      check_name = "trainerroad_power_cutover_candidate_not_indoor_or_virtual",
       check_scope = check_scope,
       severity = "CRITICAL",
       query = "
@@ -565,7 +575,7 @@ gold_activity_best_efforts_publication_checks <- function(
     checks,
     run_validation_query(
       connection = connection,
-      check_name = "power_source_pre_cutover_trainerroad_only_excluded",
+      check_name = "trainerroad_power_pre_cutover_exclusion_only_applies_to_trainerroad",
       check_scope = check_scope,
       severity = "CRITICAL",
       query = "
@@ -586,13 +596,66 @@ gold_activity_best_efforts_publication_checks <- function(
           AND activities.power_meter_cutover_at IS NOT NULL
           AND activities.start_datetime_utc < activities.power_meter_cutover_at
           AND activities.power_record_exclusion_reason =
-            'trainerroad_virtual_power_before_power_meter_cutover'
+            'trainerroad_virtual_power_before_roller_bike_power_cutover'
           AND LOWER(CONCAT_WS(
             ' ',
             COALESCE(activities.activity_name, ''),
             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.external_id')), ''),
             COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.device_name')), '')
           )) NOT LIKE '%trainerroad%'
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "trainerroad_power_pre_cutover_trainerroad_not_eligible",
+      check_scope = check_scope,
+      severity = "CRITICAL",
+      query = "
+        SELECT
+          activities.activity_id,
+          activities.activity_name,
+          activities.start_datetime_utc,
+          activities.power_source_type,
+          activities.is_measured_power,
+          activities.is_power_record_eligible,
+          activities.power_record_exclusion_reason,
+          activities.power_classification_rule
+        FROM cycling_platform_silver.activities activities
+        INNER JOIN cycling_platform_raw.activities raw
+          ON raw.activity_id = activities.activity_id
+        LEFT JOIN cycling_platform_admin.activity_power_overrides overrides
+          ON overrides.activity_id = activities.activity_id
+         AND overrides.is_active = 1
+        WHERE activities.power_meter_cutover_at IS NOT NULL
+          AND activities.start_datetime_utc < activities.power_meter_cutover_at
+          AND (
+            activities.is_device_watts = 1
+            OR activities.average_power_watts IS NOT NULL
+            OR activities.weighted_average_power_watts IS NOT NULL
+          )
+          AND LOWER(CONCAT_WS(
+            ' ',
+            COALESCE(activities.activity_name, ''),
+            COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.external_id')), ''),
+            COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.device_name')), '')
+          )) LIKE '%trainerroad%'
+          AND overrides.activity_id IS NULL
+          AND (
+            activities.power_source_type <> 'virtual'
+            OR activities.is_measured_power <> 0
+            OR activities.is_power_record_eligible <> 0
+            OR activities.power_record_exclusion_reason <>
+              'trainerroad_virtual_power_before_roller_bike_power_cutover'
+            OR activities.power_classification_rule <>
+              'trainerroad_virtual_power_before_roller_bike_power_cutover'
+          )
         LIMIT 1000
       ",
       per_check_timeout_seconds = per_check_timeout_seconds,
