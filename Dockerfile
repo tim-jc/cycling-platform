@@ -12,6 +12,7 @@ RUN apt-get update \
         libcurl4-openssl-dev \
         libmariadb-dev \
         libssl-dev \
+	libuv1-dev \
         locales \
         tzdata \
     && sed -i '/en_GB.UTF-8/s/^# //g' /etc/locale.gen \
