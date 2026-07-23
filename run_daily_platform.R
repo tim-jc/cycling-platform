@@ -485,7 +485,7 @@ get_latest_silver_transform_summary <- function() {
               ROW_NUMBER() OVER (
                 PARTITION BY entity_name
                 ORDER BY transform_run_id DESC
-              ) AS row_number
+              ) AS entity_recency_rank
             FROM cycling_platform_admin.transform_run
             WHERE layer_name = 'silver'
               AND entity_name IN ('activities', 'activity_streams')
@@ -505,7 +505,7 @@ get_latest_silver_transform_summary <- function() {
             duration_seconds,
             error_message
           FROM ranked
-          WHERE row_number = 1
+          WHERE entity_recency_rank = 1
           ORDER BY FIELD(entity_name, 'activities', 'activity_streams')
         "
       )
@@ -601,7 +601,7 @@ get_latest_gold_transform_summary <- function() {
               ROW_NUMBER() OVER (
                 PARTITION BY entity_name
                 ORDER BY transform_run_id DESC
-              ) AS row_number
+              ) AS entity_recency_rank
             FROM cycling_platform_admin.transform_run
             WHERE layer_name = 'gold'
               AND entity_name IN (
@@ -622,7 +622,7 @@ get_latest_gold_transform_summary <- function() {
             duration_seconds,
             error_message
           FROM ranked
-          WHERE row_number = 1
+          WHERE entity_recency_rank = 1
           ORDER BY FIELD(
             entity_name,
             'activity_best_efforts',
