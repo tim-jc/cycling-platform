@@ -35,7 +35,7 @@ with_validation_admin_connection <- function(
       "opening a fresh MariaDB connection."
     )
 
-    admin_connection <- get_connection("mysql")
+    admin_connection <- get_connection("cycling_platform_admin")
     disconnect_admin_connection <- TRUE
   }
 

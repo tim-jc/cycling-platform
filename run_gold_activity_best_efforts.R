@@ -20,7 +20,7 @@ if (!mode %in% c("repair", "backfill")) {
   )
 }
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {

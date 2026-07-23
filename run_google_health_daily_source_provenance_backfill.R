@@ -6,7 +6,7 @@ args <- commandArgs(
 
 dry_run <- "--dry-run" %in% args
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 backfill_error <- NULL
 backfill_results <- NULL

@@ -24,7 +24,7 @@ if (!stream_rebuild_mode %in% c("full", "repair")) {
   )
 }
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {

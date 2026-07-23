@@ -10,7 +10,7 @@ output_path <- if (length(args) > 0 && nzchar(args[[1]])) {
   NULL
 }
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {

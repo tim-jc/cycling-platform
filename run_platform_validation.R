@@ -27,7 +27,7 @@ overall_timeout_seconds <- if (identical(validation_scope, "publication")) {
   config$validation$deep_overall_timeout_seconds
 }
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 validation_error <- NULL
 validation_results <- NULL

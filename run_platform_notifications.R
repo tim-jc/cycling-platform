@@ -20,7 +20,7 @@ if (!mode %in% c("queue", "deliver", "queue_and_deliver")) {
   )
 }
 
-connection <- get_connection("mysql")
+connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {

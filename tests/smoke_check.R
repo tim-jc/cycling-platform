@@ -58,6 +58,68 @@ if (length(parse_failures) > 0) {
   )
 }
 
+message("Checking MariaDB connection entry schemas...")
+
+source(
+  file.path("R", "database", "get_connection.R")
+)
+
+default_database_name <- eval(
+  formals(get_connection)$database_name
+)
+
+if (!identical(default_database_name, "cycling_platform_admin")) {
+  fail(
+    paste(
+      "get_connection() must default to cycling_platform_admin, not",
+      default_database_name
+    )
+  )
+}
+
+connection_files <- c(
+  list.files(
+    "R",
+    pattern = "[.][Rr]$",
+    recursive = TRUE,
+    full.names = TRUE
+  ),
+  list.files(
+    ".",
+    pattern = "[.][Rr]$",
+    recursive = FALSE,
+    full.names = TRUE
+  )
+)
+
+connection_source_text <- paste(
+  unlist(
+    lapply(
+      connection_files,
+      readLines,
+      warn = FALSE
+    )
+  ),
+  collapse = "\n"
+)
+
+forbidden_connection_patterns <- c(
+  "get_connection\\s*\\([^)]*[\"']mysql[\"']",
+  "dbname\\s*=\\s*[\"']mysql[\"']",
+  "database_name\\s*=\\s*[\"']mysql[\"']"
+)
+
+for (pattern in forbidden_connection_patterns) {
+  if (grepl(pattern, connection_source_text, perl = TRUE)) {
+    fail(
+      paste(
+        "Found forbidden MariaDB system-schema connection pattern:",
+        pattern
+      )
+    )
+  }
+}
+
 message("Checking stale activity detail references...")
 
 source_text <- paste(

@@ -645,7 +645,7 @@ rebuild_silver_activity_streams <- function(
       )
     }
 
-    connection <<- get_connection("mysql")
+    connection <<- get_connection("cycling_platform_admin")
 
     invisible(NULL)
   }

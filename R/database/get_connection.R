@@ -2,10 +2,13 @@
 #'
 #' Establish a connection to MariaDB.
 #'
-#' @param database_name Name of database to connect to.
+#' @param database_name Name of database to connect to. Defaults to the
+#'   platform Admin schema for control-plane and cross-schema operations.
 #'
 #' @return DBIConnection
-get_connection <- function(database_name) {
+get_connection <- function(
+  database_name = "cycling_platform_admin"
+) {
   host <- Sys.getenv("MARIADB_HOST")
 
   port <- Sys.getenv("MARIADB_PORT")

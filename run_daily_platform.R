@@ -33,7 +33,7 @@ phase_results <- data.frame(
 raw_ingestion_summary <- NULL
 
 get_latest_etl_run_id <- function() {
-  connection <- get_connection("mysql")
+  connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
     {
@@ -56,7 +56,7 @@ get_latest_etl_run_id <- function() {
 }
 
 get_raw_ingestion_summary <- function(previous_run_id) {
-  connection <- get_connection("mysql")
+  connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
     {
@@ -460,7 +460,7 @@ gold_transform_summary <- NULL
 achievement_notification_summary <- NULL
 
 get_latest_silver_transform_summary <- function() {
-  connection <- get_connection("mysql")
+  connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
     {
@@ -578,7 +578,7 @@ get_latest_silver_transform_summary <- function() {
 }
 
 get_latest_gold_transform_summary <- function() {
-  connection <- get_connection("mysql")
+  connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
     {
@@ -757,7 +757,7 @@ tryCatch(
     run_phase(
       "silver_transforms",
       {
-        connection <- get_connection("mysql")
+        connection <- get_connection("cycling_platform_admin")
 
         tryCatch(
           {
@@ -791,7 +791,7 @@ tryCatch(
     run_phase(
       "silver_publication_checks",
       {
-        connection <- get_connection("mysql")
+        connection <- get_connection("cycling_platform_admin")
 
         tryCatch(
           {
@@ -823,7 +823,7 @@ tryCatch(
     run_phase(
       "gold_transforms",
       {
-        connection <- get_connection("mysql")
+        connection <- get_connection("cycling_platform_admin")
 
         tryCatch(
           {
@@ -857,7 +857,7 @@ tryCatch(
     run_phase(
       "gold_publication_checks",
       {
-        connection <- get_connection("mysql")
+        connection <- get_connection("cycling_platform_admin")
 
         tryCatch(
           {
@@ -925,7 +925,7 @@ tryCatch(
     run_phase(
       "achievement_notifications",
       {
-        connection <- get_connection("mysql")
+        connection <- get_connection("cycling_platform_admin")
 
         tryCatch(
           {
