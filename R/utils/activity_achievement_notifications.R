@@ -169,7 +169,9 @@ queue_activity_achievement_notifications <- function(
     return(
       list(
         queued = 0L,
-        skipped = 0L
+        skipped = 0L,
+        already_sent = 0L,
+        already_queued = 0L
       )
     )
   }
@@ -207,7 +209,9 @@ queue_activity_achievement_notifications <- function(
     return(
       list(
         queued = 0L,
-        skipped = 0L
+        skipped = 0L,
+        already_sent = 0L,
+        already_queued = 0L
       )
     )
   }
@@ -219,6 +223,8 @@ queue_activity_achievement_notifications <- function(
 
   queued <- 0L
   skipped <- 0L
+  already_sent <- 0L
+  already_queued <- 0L
 
   for (activity_id in names(grouped)) {
     activity_achievements <- grouped[[activity_id]]
@@ -230,7 +236,9 @@ queue_activity_achievement_notifications <- function(
     existing <- DBI::dbGetQuery(
       conn = connection,
       statement = "
-        SELECT notification_id
+        SELECT
+          notification_id,
+          notification_status
         FROM cycling_platform_admin.notification_outbox
         WHERE event_type = 'activity_achievement'
           AND source_object = 'cycling_platform_gold.activity_achievements'
@@ -246,6 +254,13 @@ queue_activity_achievement_notifications <- function(
 
     if (nrow(existing) > 0) {
       skipped <- skipped + 1L
+
+      if (identical(existing$notification_status[[1]], "SENT")) {
+        already_sent <- already_sent + 1L
+      } else {
+        already_queued <- already_queued + 1L
+      }
+
       next
     }
 
@@ -293,8 +308,24 @@ queue_activity_achievement_notifications <- function(
 
   list(
     queued = queued,
-    skipped = skipped
+    skipped = skipped,
+    already_sent = already_sent,
+    already_queued = already_queued
   )
+}
+
+format_activity_achievement_queue_summary <- function(queue_result) {
+  parts <- c(
+    glue::glue("queued {queue_result$queued}"),
+    if (queue_result$already_sent > 0) {
+      glue::glue("already sent {queue_result$already_sent}")
+    },
+    if (queue_result$already_queued > 0) {
+      glue::glue("already queued {queue_result$already_queued}")
+    }
+  )
+
+  paste(parts, collapse = " · ")
 }
 
 fetch_due_notifications <- function(

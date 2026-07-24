@@ -565,19 +565,6 @@ rebuild_silver_activity_streams <- function(
     max_expected_rows = max_expected_rows
   )
 
-  if (length(activity_batches) == 0) {
-    message("No silver activity streams require rebuild.")
-
-    return(invisible(NULL))
-  }
-
-  message(glue::glue(
-    "Rebuilding silver activity streams for ",
-    "{nrow(activity_plan)} activities in ",
-    "{length(activity_batches)} batches ",
-    "(max {batch_size} activities or {max_expected_rows} expected rows)."
-  ))
-
   ensure_transform_logging_tables(
     connection = connection
   )
@@ -593,6 +580,25 @@ rebuild_silver_activity_streams <- function(
     max_batch_activities = batch_size,
     max_batch_expected_rows = max_expected_rows
   )
+
+  if (length(activity_batches) == 0) {
+    message("No silver activity streams require rebuild.")
+
+    update_transform_run(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      run_status = "SUCCESS"
+    )
+
+    return(invisible(NULL))
+  }
+
+  message(glue::glue(
+    "Rebuilding silver activity streams for ",
+    "{nrow(activity_plan)} activities in ",
+    "{length(activity_batches)} batches ",
+    "(max {batch_size} activities or {max_expected_rows} expected rows)."
+  ))
 
   safe_update_transform_run <- function(...) {
     tryCatch(

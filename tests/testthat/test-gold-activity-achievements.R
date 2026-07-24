@@ -283,3 +283,24 @@ testthat::test_that("achievement notification body groups activity achievements"
     any(grepl("best for 426 days", body))
   )
 })
+
+testthat::test_that("achievement queue summary describes existing notifications", {
+  source_activity_achievement_files()
+
+  summary <- format_activity_achievement_queue_summary(
+    list(
+      queued = 0L,
+      skipped = 2L,
+      already_sent = 2L,
+      already_queued = 0L
+    )
+  )
+
+  testthat::expect_equal(
+    summary,
+    "queued 0 · already sent 2"
+  )
+  testthat::expect_false(
+    grepl("skipped", summary)
+  )
+})

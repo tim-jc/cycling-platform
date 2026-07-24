@@ -542,13 +542,9 @@ get_latest_silver_transform_summary <- function() {
             completed_batches,
             total_batches,
             duration_seconds) {
-            activity_part <- if (activities_planned > 0) {
-              glue::glue(
-                " · {activities_completed}/{activities_planned} activities"
-              )
-            } else {
-              ""
-            }
+            activity_part <- glue::glue(
+              " · {activities_completed}/{activities_planned} activities"
+            )
 
             batch_part <- if (total_batches > 0) {
               glue::glue(
@@ -950,9 +946,7 @@ tryCatch(
 
             achievement_notification_summary <<- list(
               lines = c(
-                glue::glue(
-                  "queued {queue_result$queued} · skipped {queue_result$skipped}"
-                ),
+                format_activity_achievement_queue_summary(queue_result),
                 glue::glue(
                   "attempted {delivery_result$attempted} · ",
                   "sent {delivery_result$sent} · ",
