@@ -1,5 +1,8 @@
 FROM rocker/r-ver:4.4.3
 
+# Authoritative Linux runtime for local ARM64 portability tests and ephemeral
+# production jobs on cycling-prod. Keep every system and shell dependency used
+# by runtime code here; rsync is required by the native compatibility wrappers.
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/London \
     LANG=en_GB.UTF-8 \
@@ -35,4 +38,6 @@ COPY . .
 
 RUN mkdir -p logs backups
 
+# docker compose run --rm cycling-platform uses this scheduled incremental
+# command. Bootstrap, backfill, repair, and deep validation override CMD.
 CMD ["Rscript", "run_daily_platform.R", "scheduled"]

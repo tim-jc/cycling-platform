@@ -1,3 +1,11 @@
+# Native Mac: copy this file to the ignored project .Renviron and add values.
+# Docker/Compose: expose the same variables at runtime; do not bake this file
+# or real values into the image. Token rotation also requires a persistent,
+# writable credential file/mount.
+#
+# MARIADB_HOST points to MariaDB on cycling-prod. The application selects the
+# five cycling_platform_* databases directly; there is no single cycling
+# application database.
 MARIADB_HOST=
 MARIADB_PORT=
 MARIADB_USER=

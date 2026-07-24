@@ -163,10 +163,10 @@ automation:
 
   validation_lock_dir: /tmp/cycling-platform-validation.lock
 
-  # Maximum age before cron lock directories are treated as stale
+  # Maximum age before native-wrapper lock directories are treated as stale
   lock_max_age_seconds: 21600
 
-  # Common Rscript locations for local macOS and Raspberry Pi deployments
+  # Native-host compatibility paths. Production containers use Rscript on PATH.
   rscript_candidates:
     - /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/bin/Rscript
     - /usr/local/bin/Rscript
@@ -192,7 +192,8 @@ backups:
 
   dump_retry_sleep_seconds: 30
 
-  # Common dump client locations for local macOS, Homebrew, and Raspberry Pi
+  # Mac-host backup client paths plus portable fallbacks. Production backups
+  # are pulled from cycling-prod and stored off-host on the Mac.
   dump_command_candidates:
     - /opt/homebrew/opt/mysql-client/bin/mysqldump
     - /opt/homebrew/opt/mysql-client/bin/mariadb-dump

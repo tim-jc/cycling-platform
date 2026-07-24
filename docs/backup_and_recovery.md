@@ -19,6 +19,11 @@ The backup implementation is `scripts/backup_mariadb.sh`. It creates
 timestamped compressed `mysqldump` backups for the configured platform
 databases and applies local retention cleanup.
 
+The intended job runs on the Mac, connects across the network to MariaDB on
+`cycling-prod`, and stores dumps under the Mac checkout (or another configured
+Mac path). Backups must remain off-host from the production Pi so loss or
+corruption of its SD card does not also remove the recovery copy.
+
 Until restore testing is complete:
 
 * avoid destructive database bootstrap on populated environments
@@ -75,8 +80,9 @@ because cron often runs with a much smaller `PATH` than an interactive shell.
 
 Before dumping any database, the script performs a TCP connectivity preflight
 to `MARIADB_HOST:MARIADB_PORT` when `nc` is available. If the Raspberry Pi is
-offline, the IP address has changed, MariaDB is stopped, or port `3306` is not
-reachable, the backup fails before creating partial dump files.
+offline, name/address resolution has changed, MariaDB is stopped, or the
+configured port is not reachable, the backup fails before creating partial dump
+files.
 
 The TCP preflight only proves that the port is reachable. The actual
 `mysqldump` connection can still fail transiently, so each configured database
@@ -116,56 +122,71 @@ Retention cleanup removes:
 * stale `*.sql.gz.tmp` files older than
   `backups.temporary_file_retention_days`
 
-## Cron Automation
+## Mac Scheduling
 
-On the Raspberry Pi, schedule backups before ingestion.
+Schedule backups on the Mac, not on `cycling-prod`. This is deliberately
+different from ingestion and validation, whose production schedules belong on
+`cycling-prod`.
 
 Example:
 
 ```cron
-30 2 * * * /path/to/cycling-platform/scripts/backup_mariadb.sh >> /path/to/cycling-platform/logs/backup.log 2>&1
+0 5 * * * /path/to/cycling-platform/scripts/backup_mariadb.sh >> /path/to/cycling-platform/logs/database_backup.log 2>&1
 ```
 
-Cron should run the script through an absolute path. The script sets a minimal
-cron-safe `PATH`, loads project `.Renviron`, resolves the dump client from
-configured absolute paths, uses a lock directory to avoid overlapping backups,
-and removes stale locks after the configured maximum age.
+Cron should use absolute paths. The script sets a constrained `PATH`, loads the
+project `.Renviron`, resolves the dump client from configured locations, uses a
+lock directory to avoid overlapping backups, and removes stale locks after the
+configured maximum age. On macOS, the cron process also needs filesystem
+permission to read the checkout and write the backup directory.
 
-Suggested ordering:
-
-```text
-02:30 backup
-03:00 ingestion
-```
+The backup time does not need to share the production application schedule, but
+avoid known maintenance/restart windows and verify that MariaDB is reachable.
 
 ## Restore Sketch
 
 Restore should be tested on a non-production database before being trusted.
 
+Restore in dependency order: Admin, Raw, Silver, then Gold. Stage is not
+restored.
+
 Example restore from compressed dumps:
 
 ```sh
 gunzip -c backups/2026-06-23_230000_cycling_platform_admin.sql.gz \
-  | mysql cycling_platform_admin
+  | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
+      --user="$MARIADB_USER" --password cycling_platform_admin
 
 gunzip -c backups/2026-06-23_230000_cycling_platform_raw.sql.gz \
-  | mysql cycling_platform_raw
+  | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
+      --user="$MARIADB_USER" --password cycling_platform_raw
 
 gunzip -c backups/2026-06-23_230000_cycling_platform_silver.sql.gz \
-  | mysql cycling_platform_silver
+  | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
+      --user="$MARIADB_USER" --password cycling_platform_silver
 
 gunzip -c backups/2026-06-23_230000_cycling_platform_gold.sql.gz \
-  | mysql cycling_platform_gold
+  | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
+      --user="$MARIADB_USER" --password cycling_platform_gold
 ```
 
 Use the same credential approach as backups: `.Renviron`, environment
 variables, or a MariaDB option file such as `.my.cnf`.
 
+`--password` prompts interactively and avoids placing the password in shell
+history. For unattended restore testing, prefer a protected MariaDB option file.
+
+Logical dump/restore preserves logical schema and row contents, not physical
+InnoDB page layout. Restored tables can therefore have different allocated or
+reported physical sizes even when row counts, keys, and logical contents match.
+Validate logical contents rather than expecting byte-for-byte table sizes.
+
 ## Future Improvements
 
-* copy backups off the Raspberry Pi
 * add backup success/failure notifications
 * add automated restore verification
+* document and exercise a complete disaster-recovery test on a non-production
+  MariaDB instance
 
 ## Migration Direction
 

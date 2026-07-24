@@ -185,5 +185,6 @@ FTP-related notifications are deferred until Gold training-load objects exist.
 
 ## Assumptions
 
-This design was implemented while production MariaDB was unavailable. Repository
-DDL, transform code and tests were treated as source of truth.
+The implemented DDL, transform code, tests, and successful production runs are
+the source of truth. Historical implementation notes should not be interpreted
+as current deployment constraints.

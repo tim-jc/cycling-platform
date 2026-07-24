@@ -353,12 +353,16 @@ R/api/perform_google_health_request.R
 Token approach:
 
 * refresh access tokens using Google's OAuth token endpoint
-* read and write tokens through a single project `.Renviron` path
+* read and write tokens through the configured persistent `.Renviron` path
 * persist a rotated `GOOGLE_HEALTH_REFRESH_TOKEN` with `update_renviron()` if
   Google returns one
 * update the current R process environment after writing a rotated refresh token
 * keep access tokens ephemeral
 * use bearer auth in `perform_google_health_request()`
+
+For ephemeral production containers, the configured token path must be backed by
+a persistent writable mount or equivalent host-side persistence. The production
+Compose wiring is outside this repository.
 
 Manual auth diagnostics:
 

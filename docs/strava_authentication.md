@@ -58,9 +58,17 @@ https://www.strava.com/oauth/token
 
 Strava refresh tokens rotate after every successful token exchange.
 
-The platform automatically persists the latest refresh token to the project-level `.Renviron` file.
+The platform automatically persists the latest refresh token to the path
+resolved from `CYCLING_PLATFORM_RENVIRON_PATH`, `R_ENVIRON_USER`, or the
+project-level `.Renviron`.
 
 The updated refresh token is used during the next platform execution.
+
+In production, that path must be a persistent writable file or mount. Writing a
+rotated token only inside an ephemeral `docker compose run --rm` container is
+not sufficient because the file disappears with the container. The production
+Compose credential-persistence arrangement is maintained outside this
+repository and must be verified after deployment changes.
 
 ## Secrets Management
 

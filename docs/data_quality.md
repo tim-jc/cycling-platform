@@ -306,8 +306,8 @@ successful Silver transform.
 Deep-validation warnings do not make the scheduled validation process fail.
 Instead, the validation outcome is recorded as `PASSED_WITH_WARNINGS` and an
 attention notification is sent when `notifications.validation_notify_on_warning`
-is enabled. This keeps cron exit-code behaviour stable while avoiding manual log
-inspection for warning-only validation runs.
+is enabled. This keeps scheduler exit-code behaviour stable while avoiding
+manual log inspection for warning-only validation runs.
 
 Both scopes record status and timing in:
 
@@ -372,6 +372,6 @@ Initial SQL sketches are captured in `docs/data_quality_sql.md`.
 ## Open Questions
 
 * Should raw data quality failures fail the whole platform run, or warn only?
-* Which checks are blockers for automation on the Raspberry Pi?
+* Which checks should block automated publication on `cycling-prod`?
 * Should check results live in `admin`, or in a separate metadata schema?
 * Should historical backfill checks use different thresholds from routine runs?

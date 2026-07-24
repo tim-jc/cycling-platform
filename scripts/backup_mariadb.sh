@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Active Mac-host backup wrapper. It connects to MariaDB on cycling-prod and
+# stores verified logical .sql.gz dumps off-host from the production Pi.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

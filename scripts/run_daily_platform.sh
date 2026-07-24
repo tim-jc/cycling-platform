@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Native-host compatibility wrapper for manual/Mac execution. Production
+# normally uses the Docker image default command directly:
+# docker compose run --rm cycling-platform
+#
+# This wrapper intentionally retains temporary-copy, lock, logging, and
+# credential-copy-back behaviour pending a separate execution-path audit.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

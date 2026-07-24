@@ -3,14 +3,25 @@
 ## Purpose
 
 Historical backfills populate the raw layer across the full available Strava
-history. They are intended to be resumable across Strava rate limits, local
-interruptions, and Raspberry Pi scheduling windows.
+history. They are intended to be resumable across Strava rate limits, process
+interruptions, and bounded production execution windows.
 
 ## Run Command
 
 ```sh
 Rscript platform.R backfill
 ```
+
+On `cycling-prod`, run it as an explicit ephemeral job rather than changing the
+scheduled image default:
+
+```sh
+docker compose run --rm cycling-platform \
+  Rscript platform.R backfill
+```
+
+Backfill is an initial-load/recovery workload and is never implied by
+`run_daily_platform.R scheduled`.
 
 Backfill mode uses:
 

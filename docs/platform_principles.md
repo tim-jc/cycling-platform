@@ -56,7 +56,10 @@ Examples include:
 * OAuth refresh tokens
 * Notification service credentials
 
-Secrets are managed through environment variables and `.Renviron`.
+Secrets are managed through environment variables and `.Renviron`. Native Mac
+development uses an ignored project `.Renviron`; production Compose must inject
+the same variables and persist any rotated refresh token outside the ephemeral
+job container.
 
 ### Recovery
 

@@ -54,9 +54,14 @@ Google generally does not rotate refresh tokens on every access-token refresh.
 If Google does return a new refresh token, the platform writes it back to
 `.Renviron`.
 
-Routine cron wrappers run from a temporary project copy. They copy `.Renviron`
-into that runtime directory so macOS cron can read it, then copy it back to the
-project if a refresh-token update changes the runtime file.
+The native compatibility wrappers copy `.Renviron` into a temporary project
+directory and copy it back if a refresh-token update changes the runtime file.
+
+Production runs as an ephemeral Compose job on `cycling-prod`. Compose must
+make credentials available to the container and provide a persistent writable
+token file if token updates are to survive `docker compose run --rm`. The exact
+production mount/environment wiring is outside this repository and should be
+verified during deployment.
 
 ## Token Lifetime
 
@@ -70,9 +75,10 @@ Google refresh tokens can stop working. Common causes include:
 * OAuth consent screen in `Testing` publishing status.
 
 For an external Google Cloud OAuth app in `Testing`, Google issues refresh
-tokens that expire after seven days for non-basic scopes. Google Health scopes
-are not basic profile/email scopes, so weekly expiry is expected unless the app
-can be moved to `Production`.
+tokens that expire after seven days for non-basic scopes. The production OAuth
+app is no longer in Testing, but a token issued while it was in Testing can
+still exhibit the seven-day lifetime. Generate a fresh token after moving the
+app to Production.
 
 ## Regenerating a Refresh Token
 
@@ -183,8 +189,7 @@ Action:
 
 To avoid unnecessary manual regeneration:
 
-* move the OAuth consent screen out of `Testing` if Google permits it for this
-  project and scope set;
+* keep the production OAuth consent screen out of `Testing`;
 * avoid repeatedly generating new refresh tokens for the same Google account
   and OAuth client;
 * keep the daily platform run active so the token is used regularly;

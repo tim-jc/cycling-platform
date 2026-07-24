@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Native-host compatibility wrapper for manual/Mac deep validation. Production
+# normally runs a separate ephemeral Compose job:
+# docker compose run --rm cycling-platform Rscript run_platform_validation.R
+#
+# This wrapper remains unchanged pending a separate execution-path audit.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

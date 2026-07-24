@@ -9,10 +9,33 @@ Deep validation is deliberately separated from daily publication. It should be
 scheduled as a second process so expensive checks cannot obscure or block a
 successful Raw, Silver, and Gold daily publication.
 
-## Command
+## Production Command
+
+On `cycling-prod`, the normal production job is an ephemeral Compose run:
 
 ```sh
-Rscript run_daily_platform.R
+docker compose run --rm cycling-platform
+```
+
+The Docker image default command is:
+
+```sh
+Rscript run_daily_platform.R scheduled
+```
+
+The explicit Compose equivalent is:
+
+```sh
+docker compose run --rm cycling-platform \
+  Rscript run_daily_platform.R scheduled
+```
+
+## Native R Command
+
+For Mac development and manual diagnosis:
+
+```sh
+Rscript run_daily_platform.R scheduled
 ```
 
 The optional raw mode is:
@@ -28,6 +51,9 @@ The default is `scheduled`, which records the Raw ETL run as `SCHEDULED`.
 matters.
 
 `backfill` is deliberately excluded from unattended automation.
+
+Native execution is not the production portability check. Before deployment,
+build and test the Docker image where practical.
 
 ## What It Does
 
@@ -51,6 +77,7 @@ matters.
 * It does not truncate `silver.activity_streams`.
 * It does not run staging repair automatically.
 * It does not install cron or systemd scheduling.
+* It does not create or historically populate a brand-new database.
 
 ## Silver Behaviour
 
@@ -153,6 +180,13 @@ Rscript run_platform_validation.R
 Rscript run_platform_validation.R --silver-only
 ```
 
+Production runs deep validation in its own ephemeral container:
+
+```sh
+docker compose run --rm cycling-platform \
+  Rscript run_platform_validation.R
+```
+
 For compatibility, this still works:
 
 ```sh
@@ -232,27 +266,74 @@ Rscript run_silver.R repair
 
 Historical staging repair remains manual recovery tooling only.
 
-## Scheduling Later
+## Brand-New Database
 
-Cron or systemd should call the wrapper scripts, not `Rscript` directly:
+Scheduled mode assumes the platform databases and tables already exist and that
+historical state has been loaded. It is not equivalent to initialisation.
+
+Canonical initial-load sequence:
+
+```sh
+Rscript bootstrap_platform.R
+Rscript platform.R backfill
+Rscript run_silver.R repair
+Rscript run_gold_activity_best_efforts.R backfill
+Rscript run_gold_activity_achievements.R backfill
+Rscript run_daily_platform.R scheduled
+```
+
+On `cycling-prod`, run each command through
+`docker compose run --rm cycling-platform`. Backfill is deliberately manual
+because it is a larger, recovery-oriented workload.
+
+The bootstrap connection enters through `cycling_platform_admin`. On a
+completely new MariaDB server, infrastructure provisioning must first create
+that database and grant the application user access; the repository does not
+currently automate that precondition.
+
+## Scheduling
+
+Production scheduling is moving to cron on `cycling-prod`. Cron should launch
+Compose jobs from the directory containing the production Compose definition:
+
+```cron
+0 2 * * * cd /path/to/compose-project && docker compose run --rm cycling-platform
+30 3 * * * cd /path/to/compose-project && docker compose run --rm cycling-platform Rscript run_platform_validation.R
+```
+
+The actual path, cron user, and environment/secrets mechanism are
+deployment-specific and are not defined in this repository. Do not leave the
+same production job active in Mac cron after enabling it on `cycling-prod`.
+
+## Native Compatibility Wrappers
+
+The older native-host wrapper remains available:
 
 ```sh
 /path/to/cycling-platform/scripts/run_daily_platform.sh
 ```
 
-Scheduling should happen after the command has been tested manually and
-notifications have been confirmed.
-
-Deep validation should be scheduled separately, for example:
+Deep validation has a matching wrapper:
 
 ```sh
 /path/to/cycling-platform/scripts/run_platform_validation.sh
 ```
 
-On macOS, cron jobs may fail with `Operation not permitted` if the scheduled
-process does not have permission to read files under protected locations such
-as `Documents`. If the wrapper log shows that the script path is readable by
-the shell but `Rscript` still cannot open it, grant Full Disk Access to the
-cron/terminal execution path or move the repository to a non-protected
-directory. The wrappers log the resolved project directory and absolute R
-script path to make this failure mode diagnosable.
+These wrappers resolve a native `Rscript`, manage locks and log retention, copy
+the repository and `.Renviron` into a temporary runtime directory with `rsync`,
+execute the R entry point, and copy rotated credentials back. They remain useful
+for Mac development/manual compatibility but are not the primary production
+Compose entry points.
+
+The Docker image must include every shell dependency used by any wrapper invoked
+inside it. `rsync` was added after container validation exposed that omission.
+The image default daily path currently runs R directly and does not invoke the
+native wrapper.
+
+## Future Simplification
+
+Execution currently spans R entry points, native wrappers, cron, Compose, locks,
+temporary project copies, logging, and credential persistence. A separate
+execution-path audit should determine which layers remain necessary and reduce
+duplication without weakening recovery or observability. This documentation
+update does not refactor those paths.

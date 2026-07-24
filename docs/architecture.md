@@ -26,15 +26,19 @@ Source APIs
 * `coastal`
 * future MCP server
 
+Consumers connect independently to production MariaDB. Their database access
+does not depend on whether ingestion was launched from native R, Docker, or a
+scheduled job, and consumers must not trigger platform ingestion.
+
 ## Data Layers
 
-The platform is organised into the following logical layers:
+The platform is organised into five MariaDB databases:
 
-* `admin`
-* `stage`
-* `raw`
-* `silver`
-* `gold`
+* `cycling_platform_admin`
+* `cycling_platform_raw`
+* `cycling_platform_stage`
+* `cycling_platform_silver`
+* `cycling_platform_gold`
 
 Silver layer design is documented in `docs/silver_layer_design.md`.
 
@@ -48,19 +52,31 @@ replacing the legacy scraper project.
 The `stage` schema is not part of the medallion architecture. It is temporary
 ETL workspace only.
 
-Schema responsibilities:
+Database responsibilities:
 
-* `admin`: ETL metadata, run logging, and configuration metadata.
-* `stage`: temporary ETL artefacts owned by `run_id`.
-* `raw`: retained source data.
-* `silver`: integrated and cleaned data.
-* `gold`: reusable analytical assets.
+* `cycling_platform_admin`: ETL/control metadata, run logging, audit,
+  notifications, transform metadata, and validation results.
+* `cycling_platform_raw`: retained, source-aligned ingestion.
+* `cycling_platform_stage`: temporary ETL artefacts owned by `run_id`.
+* `cycling_platform_silver`: integrated and canonical transformed data.
+* `cycling_platform_gold`: reusable, consumer-facing analytical assets.
+
+There is no single `cycling` database. The application user is scoped to these
+five databases and must not need the MariaDB `mysql` system database.
+Control-plane and fully-qualified cross-database operations normally use
+`cycling_platform_admin` as their connection entry point.
 
 ## Current Operating Position
 
-The platform raw and silver foundation is in place. The immediate goal is to
-make that foundation operational through automation, monitoring, notifications,
-and data quality checks.
+The platform runs in production on MariaDB 11.8 on the Raspberry Pi 5 host
+`cycling-prod`. MariaDB is a continuous Docker Compose service. The platform
+application is an ephemeral job container whose default command runs scheduled
+Raw-to-Silver-to-Gold automation. Deep validation is a separate ephemeral job.
+
+Development remains Mac-first. Native R is useful for fast feedback, while the
+Docker image is the authoritative portability and production runtime. Both
+machines are ARM64, but container testing remains necessary to cover Debian
+packages, Linux paths, and bundled shell dependencies.
 
 Current status:
 
@@ -74,8 +90,7 @@ Current status:
 * `silver.activity_streams` is complete following local repair/backfill.
 * Coastal project is fully migrated to `cycling-platform`, complete, and no
   longer depends on the legacy scraper database.
-* `cycling-analytics` has been created as an empty replacement project for the
-  frozen legacy scraper.
+* `cycling-analytics` is the replacement project for the frozen legacy scraper.
 * Platform automation v1 is in place for raw ingestion, Silver transforms,
   publication-gate validation, and notification.
 
@@ -106,10 +121,16 @@ large silver stream expansion.
 runs Silver transforms only after successful raw ingestion; `platform.R` itself
 does not own derived-layer orchestration.
 
-The v1 unattended command is:
+The R entry point is:
 
 ```sh
-Rscript run_daily_platform.R
+Rscript run_daily_platform.R scheduled
+```
+
+In production it is normally invoked by the image default command:
+
+```sh
+docker compose run --rm cycling-platform
 ```
 
 It runs raw ingestion through `platform.R`, then runs Silver transforms only if
@@ -138,6 +159,32 @@ Rscript run_silver.R repair
 Gold processing is orchestrated by `run_daily_platform.R` after successful
 Silver publication checks. `platform.R` remains focused on Raw ingestion; the
 daily wrapper owns Raw-to-Silver-to-Gold publication sequencing.
+
+## Runtime and Deployment Boundary
+
+`renv.lock` defines R package dependencies. `Dockerfile` defines the production
+R version, Debian/system libraries, shell utilities, locale, application copy,
+and default command. Application code is baked into the image, so pulling a new
+Git revision onto `cycling-prod` is not a deployment until the
+`cycling-platform` image has been rebuilt.
+
+Native shell wrappers under `scripts/` remain useful compatibility and
+host-orchestration tools, but the production application container runs the R
+entry points directly. Backups deliberately remain a Mac-host responsibility so
+logical dumps are stored away from the production Pi.
+
+See `docs/development_and_deployment.md`.
+
+## Database Version Compatibility
+
+Production migrated from MariaDB 10.5 to 11.8. SQL must avoid version-sensitive
+reserved identifiers: `ROW_NUMBER` is a window function and became a reserved
+word after MariaDB 10.7, so its result must use a descriptive alias rather than
+an unquoted `row_number` identifier.
+
+Database connections must select an owned platform database. Generic
+connections through the MariaDB `mysql` system database are prohibited because
+the production application user intentionally has no access to it.
 
 ## Operational Lessons
 
@@ -300,9 +347,9 @@ UPSERT by activity_id
 
 ### JSON Storage
 
-`raw_payload` is stored using MariaDB's `JSON` type.
-
-In MariaDB 10.5, the `JSON` type is implemented as validated text rather than a native binary JSON format.
+`raw_payload` is stored using MariaDB's `JSON` type. In MariaDB, including the
+production 11.8 release, `JSON` is a validated text alias rather than MySQL's
+native binary JSON representation.
 
 The platform treats `raw_payload` as an immutable copy of the source API response.
 

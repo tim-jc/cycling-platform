@@ -3,193 +3,200 @@
 Personal cycling data platform for Strava and selected Google/Fitbit health
 data.
 
-The immediate goal is practical: automate the stable raw and silver foundation,
-build the first gold analytical objects, and prepare `cycling-analytics` to
-replace the frozen legacy scraper project.
+`cycling-platform` owns source ingestion, Raw persistence, Silver transforms,
+Gold data products, validation, notifications, and operational metadata.
+Downstream projects such as `cycling-analytics` and `coastal` connect
+independently to the curated production databases; they do not run ingestion.
 
-## Current Status
+## Operating Model
 
-Implemented and deployed:
+Development happens primarily on an Apple Silicon Mac. Native macOS R is useful
+for interactive development, debugging, SQL exploration, and fast tests.
+`renv.lock` controls R package versions.
 
-* Strava raw ingestion for activities, activity details, activity streams, and
-  activity laps.
-* Silver transforms for activities and activity streams.
-* Coastal project migration to `cycling-platform`.
-* ETL run and entity logging.
-* Platform automation v1 for raw ingestion, Silver transforms, publication-gate
-  validation, and notification.
-* Local smoke checks and focused regression tests.
-* Backup runbook and MariaDB dump script.
+The authoritative production runtime is the Docker image defined by
+`Dockerfile`. Local container testing on the Mac is the portability check before
+deployment. Both the Mac and the Raspberry Pi production host are ARM64, which
+provides strong architecture parity, while Docker also checks Linux system
+dependencies and filesystem assumptions that native macOS execution cannot.
 
-In progress:
+Production runs on a Raspberry Pi 5 named `cycling-prod`, using Raspberry Pi OS
+Lite / Debian:
 
-* Google Health/Fitbit Raw observation for heart-rate responses, sleep logs,
-  daily resting heart rate, daily heart-rate variability, and daily
-  respiratory rate. These Raw entities are implemented; health Silver and Gold
-  modelling remain future work.
-* `cycling-analytics` has been created as an empty replacement project for the
-  frozen legacy scraper.
+* MariaDB 11.8 runs continuously under Docker Compose.
+* `cycling-platform` is not a continuous service. It runs as an ephemeral job
+  container.
+* Normal execution is `docker compose run --rm cycling-platform`.
+* The image default command is `Rscript run_daily_platform.R scheduled`.
+* Deep validation is a separate ephemeral job.
+* Platform scheduling belongs on `cycling-prod`; legacy Mac scheduling is being
+  retired.
+* Logical backups run from the Mac and remain off the Pi.
 
-Not yet in place:
+See [Development and Deployment](docs/development_and_deployment.md) for the
+full workflow.
 
-* Routine monitoring.
-* MCP server or AI coaching features.
+## Data Architecture
 
-## Current Priority
+The platform uses five MariaDB databases:
 
-The project is currently focused on platform stabilisation and the data
-foundation needed by `cycling-analytics`.
+| Database | Responsibility |
+| --- | --- |
+| `cycling_platform_admin` | ETL, control, audit, transform, notification, and validation metadata |
+| `cycling_platform_raw` | Source-aligned persisted ingestion |
+| `cycling_platform_stage` | Disposable rebuild and working state |
+| `cycling_platform_silver` | Canonical transformed data |
+| `cycling_platform_gold` | Derived, consumer-facing data products |
 
-The Coastal project repoint is complete. `cycling-platform` owns ingestion and
-the raw/silver/gold data foundation, plus operational automation, monitoring,
-and data quality. `cycling-analytics` will own dashboards, reports,
-exploratory analysis, reusable analytical functions, MCP, AI coaching, and the
-legacy scraper replacement.
+There is no single `cycling` application database. Application connections must
+select an appropriate platform database. Control and cross-database operations
+normally enter through `cycling_platform_admin`; they must not assume access to
+the MariaDB `mysql` system database.
 
-The legacy scraper is frozen and is now a reference implementation only. Do not
-recreate scraper architecture or tables one-for-one unless they represent
-reusable analytical concepts.
+The Stage database is intentionally excluded from backups and must not be used
+by consumers. Technical details are in [Platform
+Architecture](docs/architecture.md).
 
-MCP development is deliberately paused until the cycling platform is stable,
-automated, and no longer needs immediate revisiting.
+## Production Commands
 
-## Roadmap
+From the Compose project directory on `cycling-prod`, normal scheduled
+processing uses the image default command:
 
-1. Platform foundation: Strava raw and silver.
-2. Platform automation and operational readiness.
-3. Gold analytical layer.
-4. `cycling-analytics` migration.
-5. MCP development.
-6. AI coaching.
-
-Detailed milestones are tracked in `docs/backlog.md`.
-
-## Architecture
-
-The platform uses a lakehouse-inspired layered structure:
-
-```text
-Raw
-  ↓
-Silver
-  ↓
-Gold
-  ↓
-Consumers
+```sh
+docker compose run --rm cycling-platform
 ```
 
-Logical schemas:
+The explicit equivalent is:
 
-* `cycling_platform_admin`
-* `cycling_platform_stage`
-* `cycling_platform_raw`
-* `cycling_platform_silver`
-* `cycling_platform_gold`
+```sh
+docker compose run --rm cycling-platform \
+  Rscript run_daily_platform.R scheduled
+```
 
-Technical architecture is documented in `docs/architecture.md`.
+Run deep validation separately:
 
-## Common Commands
+```sh
+docker compose run --rm cycling-platform \
+  Rscript run_platform_validation.R
+```
 
-Bootstrap database objects:
+Pulling new source onto `cycling-prod` does not update an existing image because
+the application is copied into the image at build time. Rebuild after
+application code, SQL, `renv.lock`, or `Dockerfile` changes:
+
+```sh
+git pull
+docker compose build cycling-platform
+```
+
+Then run the relevant smoke check or operational command before relying on the
+next scheduled job.
+
+## Native Development Commands
+
+Run these from the repository root on the Mac when native R is appropriate:
+
+```sh
+# Routine Raw ingestion only
+Rscript platform.R manual
+
+# Full Raw-to-Silver-to-Gold scheduled pipeline
+Rscript run_daily_platform.R scheduled
+
+# Deep validation
+Rscript run_platform_validation.R
+
+# Fast repository checks
+Rscript --vanilla tests/smoke_check.R
+
+# Focused regression suite
+Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
+```
+
+Native success does not prove Linux/container portability. Build and test the
+Docker image before production deployment where practical.
+
+## Execution Modes
+
+Normal scheduled execution is incremental and assumes the platform databases
+and tables already exist. A brand-new database is a different workflow.
+
+Canonical initial-load sequence:
 
 ```sh
 Rscript bootstrap_platform.R
-```
-
-Run routine platform ingestion:
-
-```sh
-Rscript platform.R
-```
-
-Run unattended raw-to-Silver-to-Gold platform automation:
-
-```sh
-Rscript run_daily_platform.R
-```
-
-This runs fast publication-gate checks only. Deep validation is scheduled
-separately so long-running audits cannot block successful Silver publication.
-
-Run historical Strava activity discovery:
-
-```sh
 Rscript platform.R backfill
-```
-
-Run stream-only recovery:
-
-```sh
-Rscript platform.R streams_only
-```
-
-Run silver transforms:
-
-```sh
-Rscript run_silver.R
 Rscript run_silver.R repair
+Rscript run_gold_activity_best_efforts.R backfill
+Rscript run_gold_activity_achievements.R backfill
+Rscript run_daily_platform.R scheduled
 ```
 
-Run Gold activity best efforts:
+When running on `cycling-prod`, prefix each command with
+`docker compose run --rm cycling-platform`.
+
+Other recovery and maintenance commands:
 
 ```sh
+# Pending stream recovery only
+Rscript platform.R streams_only
+
+# Silver repair or full rebuild
+Rscript run_silver.R repair
+Rscript run_silver.R full
+
+# Gold repair/backfill
 Rscript run_gold_activity_best_efforts.R repair
 Rscript run_gold_activity_best_efforts.R backfill
-```
-
-Run Gold activity achievements:
-
-```sh
 Rscript run_gold_activity_achievements.R repair
 Rscript run_gold_activity_achievements.R backfill
-```
 
-Audit power-source classification:
-
-```sh
-Rscript run_power_source_classification_audit.R power_source_audit.csv
-```
-
-Run queued platform notifications:
-
-```sh
+# Notifications
 Rscript run_platform_notifications.R queue_and_deliver
-```
 
-Check Google Health OAuth refresh:
-
-```sh
+# Google Health credential check
 Rscript run_google_health_auth_check.R
 ```
 
-Google Health scopes and token regeneration are documented in
-`docs/google_health_authentication.md`.
+Detailed behaviour is documented in [Platform
+Automation](docs/platform_automation.md) and [Historical
+Backfill](docs/historical_backfill.md).
 
-Probe Google Health recovery data availability without writing to the database:
+## Configuration and Secrets
 
-```sh
-env RENV_CONFIG_AUTOLOADER_ENABLED=false Rscript run_google_health_capability_probe.R
-```
+`.Renviron.example` lists required secret names without values:
 
-Run the source-reported daily recovery Raw ingestions manually:
+* MariaDB: `MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER`,
+  `MARIADB_PASSWORD`
+* Strava: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
+  `STRAVA_REFRESH_TOKEN`
+* Google Health: `GOOGLE_HEALTH_CLIENT_ID`,
+  `GOOGLE_HEALTH_CLIENT_SECRET`, `GOOGLE_HEALTH_REFRESH_TOKEN`
+* Notifications: `NTFY_TOPIC`
 
-```sh
-Rscript run_google_health_daily_resting_heart_rate.R refresh
-Rscript run_google_health_daily_heart_rate_variability.R refresh
-Rscript run_google_health_daily_respiratory_rate.R refresh
-```
+For native Mac execution, place values in the ignored project `.Renviron`.
+Production Compose must inject the same variables into the ephemeral container
+through its environment/secrets configuration. `.Renviron` is excluded from
+the Docker build context and secrets must never be baked into the image or
+committed.
 
-Run deep platform completeness validation:
+Non-secret runtime behaviour is configured in `config/platform.yml`.
 
-```sh
-Rscript run_platform_validation.R
-Rscript run_platform_validation.R --silver-only
-```
+## Backups
 
-`Rscript validate_platform.R` remains as a compatibility wrapper.
+`scripts/backup_mariadb.sh` creates compressed logical dumps of Admin, Raw,
+Silver, and Gold. Stage is excluded intentionally. The backup job runs on the
+Mac against MariaDB on `cycling-prod`, keeping the dumps off-host from the Pi SD
+card.
 
-Run smoke checks:
+See [Backup and Recovery](docs/backup_and_recovery.md).
 
-```sh
-Rscript --vanilla tests/smoke_check.R
-```
+## Documentation Map
+
+* [Architecture and data layers](docs/architecture.md)
+* [Development and deployment](docs/development_and_deployment.md)
+* [Automation, run modes, and validation](docs/platform_automation.md)
+* [Backup and recovery](docs/backup_and_recovery.md)
+* [Data quality](docs/data_quality.md)
+* [Google Health authentication](docs/google_health_authentication.md)
+* [Backlog and technical debt](docs/backlog.md)

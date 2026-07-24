@@ -71,14 +71,21 @@ Implemented:
 * transform run and batch logging
 * backup runbook and `mysqldump` script
 * local smoke checks and focused regression tests
+* ephemeral Docker image execution for daily automation
+* separate publication-gate and deep-validation paths
+* success/failure and achievement notifications
+* production MariaDB migration from 10.5 to 11.8
 
 Not yet complete:
 
-* scheduling / cron automation hardening
+* complete migration of production schedules from Mac cron to cron on
+  `cycling-prod`
 * routine monitoring dashboard
-* production notification workflow hardening
+* verified persistent OAuth-token rotation wiring for ephemeral containers
 * automated retries beyond current request-level retry behaviour
 * expanded raw, silver, and health data quality run outputs
+* execution-path simplification across R entry points, native wrappers, cron,
+  and Compose
 
 ## Immediate Goal
 
@@ -96,9 +103,9 @@ not need to trigger ingestion manually.
 
 Work:
 
-1. Schedule `run_daily_platform.R`.
+1. Complete scheduling of the Compose daily job on `cycling-prod`.
 2. Confirm raw, silver, required gold, validation, and notification behaviour
-   under unattended execution.
+   under unattended container execution.
 3. Confirm idempotent incremental ETL.
 4. Define failure recovery that avoids manual database repair.
 5. Add success/failure notifications.
@@ -184,9 +191,9 @@ Outcome: `cycling-platform` is operational without manual ingestion triggers.
 
 Priority work:
 
-* schedule backups
-* schedule platform ingestion
-* schedule silver refreshes
+* keep off-host Mac backups scheduled and restore-tested
+* complete Compose-job scheduling on `cycling-prod`
+* remove duplicate Mac production schedules after cutover
 * define retry/recovery behaviour for failed runs
 * implement operational monitoring views or dashboard
 * finalise notification content and thresholds
@@ -263,6 +270,10 @@ Near term:
 * track payload serialization version for raw entities where relevant
 * decide migration strategy for existing populated databases
 * remove or archive obsolete raw tables once replacements are validated
+* audit and simplify execution/orchestration layers without changing
+  operational guarantees
+* bring production Compose/infrastructure configuration under an explicit
+  version-controlled ownership model
 
 Later:
 

@@ -19,11 +19,11 @@ truth for ingestion, auditability, and reprocessing.
   analytical shapes.
 * Ensure transformations are reproducible from raw data.
 
-## Implementation Direction
+## Implementation
 
-Silver transformations should be SQL-first and orchestrated by R.
+Silver transformations are SQL-first and orchestrated by R.
 
-Proposed structure:
+Current structure:
 
 ```text
 sql/silver/
@@ -40,28 +40,23 @@ R/transforms/
 transformation scripts are intentionally excluded from bootstrap and should be
 run explicitly with `Rscript run_silver.R`.
 
-Use R for orchestration, run metadata, data quality checks, and any later
+R owns orchestration, run metadata, data quality checks, and any later
 analytics that are awkward in SQL.
 
 ## Refresh Strategy
 
-Silver tables should be rebuildable from raw data.
+Silver tables are rebuildable from Raw data.
 
-Initial strategy:
+Current strategy:
 
-* truncate and reload silver tables after raw ingestion
-* keep transformations deterministic
-* avoid incremental silver logic until raw entity patterns are stable
-* keep rebuilds out of bootstrap so schema setup cannot get stuck on large
-  derived table loads
-* rebuild stream samples in activity batches rather than one whole-table SQL
-  statement
-
-Future strategy:
-
-* incremental transforms by `updated_at` or affected `activity_id`
-* transformation run metadata
-* data quality gates before gold models refresh
+* `silver.activities` is rebuilt deterministically from Raw;
+* scheduled automation runs `silver.activity_streams` in repair mode, rebuilding
+  only missing or incomplete activities;
+* explicit full mode truncates and rebuilds all Silver stream samples;
+* stream work runs in activity/expected-row batches rather than one opaque
+  whole-table statement;
+* bootstrap creates tables but never launches derived transformations;
+* transform metadata and publication gates are recorded in Admin.
 
 ## Determinism and Source Truth
 
@@ -275,7 +270,7 @@ Expected row count comes from `MAX(original_size)` in
 `raw.activity_streams`. This keeps short activities grouped efficiently while
 long rides are isolated into smaller database statements.
 
-The expected-row cap should be conservative on the Raspberry Pi-hosted MariaDB
+The expected-row cap should be conservative on MariaDB on `cycling-prod`
 because large JSON expansion statements can cause the server connection to drop.
 If a single activity still exceeds the practical limit, the next refinement is
 sample-range batching within an activity.
@@ -292,10 +287,10 @@ The default mode truncates and fully rebuilds `silver.activity_streams`.
 row counts, then deletes and rebuilds only missing or incomplete activities.
 This is the preferred recovery path after an interrupted silver stream rebuild.
 
-For the historical Mac-to-Pi recovery path, a local R backfill helper can parse
-raw stream JSON in R. Large historical repairs should use a staging table and
-bulk merge into the indexed production table. This keeps historical repair
-workloads separate from the incremental daily ETL path.
+The historical Mac-to-Pi migration used a local R backfill helper to parse Raw
+stream JSON in R. The helper remains recovery tooling. Large historical repairs
+should use a staging table and bulk merge into the indexed production table,
+keeping repair workloads separate from incremental daily ETL.
 
 The reference implementation is
 `backfill_silver_activity_streams_local(mode = "staging_repair")`. It writes
