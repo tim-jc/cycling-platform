@@ -193,3 +193,48 @@ testthat::test_that("publication scope counts only fast blocking checks", {
     49L
   )
 })
+
+testthat::test_that("Google Health overlap validation ignores the current day", {
+  validation_file <- file.path(
+    "R",
+    "validation",
+    "validate_platform_completeness.R"
+  )
+
+  if (!file.exists(validation_file)) {
+    validation_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "validation",
+      "validate_platform_completeness.R"
+    )
+  }
+
+  validation_source <- paste(
+    readLines(
+      validation_file,
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+
+  overlap_check <- regmatches(
+    validation_source,
+    regexpr(
+      paste0(
+        "check_name = \"raw_google_health_rhr_hrv_sleep_date_overlap\"",
+        "[\\s\\S]*?",
+        "check_name = "
+      ),
+      validation_source,
+      perl = TRUE
+    )
+  )
+
+  testthat::expect_match(
+    overlap_check,
+    "AND dates.activity_date < UTC_DATE()",
+    fixed = TRUE
+  )
+})

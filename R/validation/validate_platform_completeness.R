@@ -1522,6 +1522,7 @@ validate_platform_completeness <- function(
               rhr.activity_date IS NOT NULL
               OR hrv.activity_date IS NOT NULL
             )
+            AND dates.activity_date < UTC_DATE()
             AND sleep_start.activity_date IS NULL
             AND sleep_end.activity_date IS NULL
           ORDER BY dates.activity_date DESC
