@@ -258,8 +258,10 @@ native-host shell wrappers.
 `scripts/backup_mariadb.sh`
 
 : Loads backup configuration/secrets, checks TCP reachability, creates verified
-  compressed logical dumps, retries transient failures, and applies retention.
-  It is active Mac host orchestration for off-host production backups.
+  compressed logical dumps, retries transient failures, applies retention,
+  writes the local latest-success artefact, and reconciles physical files with
+  append-only Admin metadata. It is active Mac host orchestration for off-host
+  production backups.
 
 The Docker image runs R entry points directly. Its default daily command does
 not call `scripts/run_daily_platform.sh`. Production deep validation likewise

@@ -12,11 +12,13 @@ LOCK_DIR="${BACKUP_LOCK_DIR:-}"
 LOCK_MAX_AGE_SECONDS="${BACKUP_LOCK_MAX_AGE_SECONDS:-}"
 BACKUP_DUMP_MAX_ATTEMPTS="${BACKUP_DUMP_MAX_ATTEMPTS:-}"
 BACKUP_DUMP_RETRY_SLEEP_SECONDS="${BACKUP_DUMP_RETRY_SLEEP_SECONDS:-}"
+BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-}"
 MYSQLDUMP="${MYSQLDUMP:-}"
 MYSQLDUMP_CANDIDATES=()
 MYSQLDUMP_EXTRA_ARGS=()
 MYSQLDUMP_CONNECT_ARGS=()
 DATABASES=()
+MANIFEST_FILE=""
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export LANG="${LANG:-en_GB.UTF-8}"
@@ -114,6 +116,10 @@ load_script_config() {
     else
       BACKUP_DIR="$PROJECT_DIR/$configured_backup_dir"
     fi
+  fi
+
+  if [[ -z "$BACKUP_STATUS_FILE" ]]; then
+    BACKUP_STATUS_FILE="$BACKUP_DIR/latest_success.json"
   fi
 
   if [[ -z "$RETENTION_DAYS" ]]; then
@@ -260,7 +266,11 @@ acquire_lock() {
   exit 0
 }
 
-release_lock() {
+cleanup() {
+  if [[ -n "$MANIFEST_FILE" ]]; then
+    rm -f "$MANIFEST_FILE"
+  fi
+
   rm -rf "$LOCK_DIR"
 }
 
@@ -355,6 +365,7 @@ resolve_mysqldump
 configure_mysqldump_extra_args
 require_command gzip
 require_command find
+require_command Rscript
 
 load_renviron
 
@@ -381,10 +392,20 @@ if [[ -z "${MARIADB_PASSWORD:-}" ]]; then
 fi
 
 RUN_TIMESTAMP="$(timestamp)"
+BACKUP_STARTED_EPOCH="$(date +%s)"
+BACKUP_HOST="$(hostname)"
+MANIFEST_FILE="$BACKUP_DIR/.${RUN_TIMESTAMP}_manifest.tsv.tmp"
 
 acquire_lock
 
-trap release_lock EXIT
+trap cleanup EXIT
+
+printf '%s\t%s\t%s\t%s\t%s\n' \
+  "database_name" \
+  "filename" \
+  "compressed_bytes" \
+  "uncompressed_bytes" \
+  "verified_at" > "$MANIFEST_FILE"
 
 log "Starting MariaDB backup into $BACKUP_DIR"
 log "Using dump command: $MYSQLDUMP"
@@ -475,25 +496,62 @@ for database in "${DATABASES[@]}"; do
 
   mv "$temporary_output_file" "$output_file"
 
+  compressed_bytes="$(
+    wc -c < "$output_file" | tr -d '[:space:]'
+  )"
+  verified_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$database" \
+    "$(basename "$output_file")" \
+    "$compressed_bytes" \
+    "$uncompressed_bytes" \
+    "$verified_at" >> "$MANIFEST_FILE"
+
   log "Wrote and verified $output_file (${uncompressed_bytes} uncompressed bytes)"
 done
 
 log "Removing backups older than $RETENTION_DAYS days"
 
-find "$BACKUP_DIR" \
+cleanup_failed=0
+
+if ! find "$BACKUP_DIR" \
   -type f \
   -name "*.sql.gz" \
-  -mtime "+$RETENTION_DAYS" \
+  -mtime "+$((RETENTION_DAYS - 1))" \
   -print \
-  -delete
+  -delete; then
+  log "Backup retention cleanup failed; reconciliation will record retained expired files."
+  cleanup_failed=1
+fi
 
 log "Removing stale temporary backup files older than $TEMPORARY_FILE_RETENTION_DAYS days"
 
-find "$BACKUP_DIR" \
+if ! find "$BACKUP_DIR" \
   -type f \
   -name "*.sql.gz.tmp" \
   -mtime "+$TEMPORARY_FILE_RETENTION_DAYS" \
   -print \
-  -delete
+  -delete; then
+  log "Temporary backup-file cleanup failed."
+  cleanup_failed=1
+fi
+
+log "Recording backup success and reconciling retained files."
+
+Rscript "$PROJECT_DIR/scripts/finalize_backup_observability.R" \
+  "$MANIFEST_FILE" \
+  "$BACKUP_DIR" \
+  "$BACKUP_STATUS_FILE" \
+  "$RETENTION_DAYS" \
+  "$RUN_TIMESTAMP" \
+  "$BACKUP_STARTED_EPOCH" \
+  "$MARIADB_HOST" \
+  "$BACKUP_HOST"
+
+if ((cleanup_failed > 0)); then
+  log "MariaDB backup files succeeded, but retention cleanup reported an error."
+  exit 1
+fi
 
 log "MariaDB backup complete"

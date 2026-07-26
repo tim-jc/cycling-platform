@@ -66,9 +66,11 @@ build and test the Docker image where practical.
 6. Runs fast Gold publication checks.
 7. Queues and delivers eligible achievement notifications.
 8. Sends a success or failure platform notification.
-9. Exits non-zero if Raw, Silver, Gold, publication checks, or achievement
+9. Includes latest off-host backup freshness and retention reconciliation from
+   Admin metadata in the existing notification.
+10. Exits non-zero if Raw, Silver, Gold, publication checks, or achievement
    delivery fail.
-10. Reports deep validation as `NOT_RUN`; deep validation is run separately.
+11. Reports deep validation as `NOT_RUN`; deep validation is run separately.
 
 ## What It Does Not Do
 
@@ -234,6 +236,12 @@ Warnings remain non-fatal by policy. A scheduled validation run with warnings
 therefore preserves cron-compatible status `0`, but sends an attention
 notification summarising affected checks, issue counts, sample rows and the
 validation run ID.
+
+When a validation notification is sent, it also includes the latest off-host
+backup and Mac-side retention reconciliation summary. Daily automation always
+includes the same two lines. Healthy backup state does not create an additional
+notification. Stale/critical wording and reconciliation warnings are therefore
+surfaced through the existing channel without a per-backup success message.
 
 Configured validation timeouts live in `config/platform.yml`:
 

@@ -10,6 +10,7 @@
 #' @param gold_transform_summary Optional Gold transform summary lines.
 #' @param achievement_notification_summary Optional achievement notification
 #'   summary lines.
+#' @param backup_health_summary Optional off-host backup health lines.
 #' @param error_message Optional error message.
 #'
 #' @return Invisibly returns TRUE when a notification was sent, otherwise FALSE.
@@ -21,6 +22,7 @@ send_platform_automation_notification <- function(
   silver_transform_summary = NULL,
   gold_transform_summary = NULL,
   achievement_notification_summary = NULL,
+  backup_health_summary = NULL,
   error_message = NULL
 ) {
   notifications <- config$notifications
@@ -121,6 +123,15 @@ send_platform_automation_notification <- function(
       "",
       "Achievement notifications:",
       achievement_notification_summary$lines
+    )
+  }
+
+  if (!is.null(backup_health_summary)) {
+    body_lines <- c(
+      body_lines,
+      "",
+      "Backup health:",
+      backup_health_summary$lines
     )
   }
 

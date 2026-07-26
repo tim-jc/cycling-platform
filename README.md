@@ -187,7 +187,10 @@ Non-secret runtime behaviour is configured in `config/platform.yml`.
 `scripts/backup_mariadb.sh` creates compressed logical dumps of Admin, Raw,
 Silver, and Gold. Stage is excluded intentionally. The backup job runs on the
 Mac against MariaDB on `cycling-prod`, keeping the dumps off-host from the Pi SD
-card.
+card. Each fully verified run writes `backups/latest_success.json`, records
+append-only run/file metadata in `cycling_platform_admin`, and reconciles the
+30-day Mac file set. Existing platform notifications report freshness and
+retention health; the backup does not send a separate success notification.
 
 See [Backup and Recovery](docs/backup_and_recovery.md).
 

@@ -458,6 +458,7 @@ gold_publication_results <- data.frame()
 silver_transform_summary <- NULL
 gold_transform_summary <- NULL
 achievement_notification_summary <- NULL
+backup_health_summary <- NULL
 
 get_latest_silver_transform_summary <- function() {
   connection <- get_connection("cycling_platform_admin")
@@ -996,6 +997,32 @@ run_status <- if (is.null(automation_error)) {
   "FAILED"
 }
 
+backup_health_summary <- tryCatch(
+  {
+    connection <- get_connection("cycling_platform_admin")
+
+    tryCatch(
+      backup_health_notification_summary(
+        connection = connection,
+        config = config
+      ),
+      finally = {
+        if (DBI::dbIsValid(connection)) {
+          DBI::dbDisconnect(connection)
+        }
+      }
+    )
+  },
+  error = function(e) {
+    list(
+      lines = paste0(
+        "Backup observability: unavailable ⚠ — ",
+        substr(conditionMessage(e), 1, 160)
+      )
+    )
+  }
+)
+
 notification_started_at <- Sys.time()
 
 tryCatch(
@@ -1008,6 +1035,7 @@ tryCatch(
       silver_transform_summary = silver_transform_summary,
       gold_transform_summary = gold_transform_summary,
       achievement_notification_summary = achievement_notification_summary,
+      backup_health_summary = backup_health_summary,
       error_message = if (is.null(automation_error)) {
         NULL
       } else {

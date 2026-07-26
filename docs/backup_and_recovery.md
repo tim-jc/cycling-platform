@@ -17,7 +17,8 @@ Backup configuration exists in `config/platform.yml`.
 
 The backup implementation is `scripts/backup_mariadb.sh`. It creates
 timestamped compressed `mysqldump` backups for the configured platform
-databases and applies local retention cleanup.
+databases, applies local retention cleanup, and reconciles the retained files
+against durable operational metadata.
 
 The intended job runs on the Mac, connects across the network to MariaDB on
 `cycling-prod`, and stores dumps under the Mac checkout (or another configured
@@ -72,6 +73,8 @@ Optional values:
 * `BACKUP_DUMP_MAX_ATTEMPTS`, defaults to `backups.dump_max_attempts`
 * `BACKUP_DUMP_RETRY_SLEEP_SECONDS`, defaults to
   `backups.dump_retry_sleep_seconds`
+* `BACKUP_STATUS_FILE`, defaults to `backups/latest_success.json` under the
+  configured backup directory
 * `MYSQLDUMP`, optional absolute path to `mysqldump` or `mariadb-dump`
 
 The script resolves the dump client from `backups.dump_command_candidates`,
@@ -93,6 +96,7 @@ Output shape:
 
 ```text
 backups/
+  latest_success.json
   2026-06-23_230000_cycling_platform_admin.sql.gz
   2026-06-23_230000_cycling_platform_raw.sql.gz
   2026-06-23_230000_cycling_platform_silver.sql.gz
@@ -100,6 +104,21 @@ backups/
 ```
 
 Backup files are ignored by git.
+
+`latest_success.json` is updated atomically only after all four expected dumps
+have passed verification. A failed or incomplete backup therefore leaves the
+previous successful artefact intact. It contains the UTC start/completion
+timestamps, Mac backup host, MariaDB source host, filename prefix, database
+list, filenames, compressed/uncompressed byte counts, and per-file verification
+timestamps.
+
+The same successful run is recorded append-only in:
+
+* `cycling_platform_admin.backup_run`
+* `cycling_platform_admin.backup_run_file`
+
+Backup metadata is deliberately retained beyond the 30-day file window. It is
+small operational history and is not deleted when physical dumps expire.
 
 ## Verification and Cleanup
 
@@ -121,6 +140,56 @@ Retention cleanup removes:
 * completed `*.sql.gz` backups older than `backups.retention_days`
 * stale `*.sql.gz.tmp` files older than
   `backups.temporary_file_retention_days`
+
+After cleanup, the Mac compares physical `*.sql.gz` files with successful
+backup metadata and appends a result to
+`cycling_platform_admin.backup_reconciliation_run`. Reconciliation detects:
+
+* missing files for successful runs still inside the retention window
+* successful retained runs without exactly Admin, Raw, Silver, and Gold
+* retained files without managed backup metadata
+* files older than the configured retention threshold
+* malformed filenames and unexpected schemas, including Stage
+
+Metadata older than the retention window is not treated as missing when its
+physical files have expired normally. Files predating the first observability
+record are not treated as orphans during rollout, but expired legacy files are
+still detected.
+
+If metadata recording fails after dumps succeed, the verified files and local
+success artefact remain in place and the script exits with an error. It does
+not delete a valid new backup merely because observability failed.
+
+## Freshness and Notifications
+
+Pi-hosted platform and validation notifications read backup state from
+`cycling_platform_admin`; they never inspect the Mac filesystem directly.
+Normal summary lines are:
+
+```text
+Off-host backup: 25 Jul 05:16 — 21h ago ✓
+Retention: 30-day set reconciled ✓
+```
+
+Freshness is healthy through 30 hours, stale above 30 hours, and critical above
+48 hours. Reconciliation problems are warnings regardless of age. These lines
+are added to existing notifications—there is no separate success notification
+or notification channel.
+
+Because the platform runs at 02:00, validation at 03:30, and the Mac backup at
+05:00, Pi notifications normally describe the previous day's 05:00 backup.
+That is intentional: the check asks whether the off-host backup regime is
+current, not whether a future backup has run.
+
+For an existing deployment, run the normal bootstrap after pulling/rebuilding
+to create the new Admin tables safely:
+
+```sh
+docker compose run --rm cycling-platform Rscript bootstrap_platform.R
+```
+
+The backup finalizer also uses idempotent table creation, but applying schema
+changes during deployment avoids a temporary “observability unavailable” line.
 
 ## Mac Scheduling
 

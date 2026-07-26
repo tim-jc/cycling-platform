@@ -196,7 +196,8 @@ Priority work:
 * remove duplicate Mac production schedules after cutover
 * define retry/recovery behaviour for failed runs
 * implement operational monitoring views or dashboard
-* finalise notification content and thresholds
+* continue refining notification content and thresholds as operational evidence
+  accumulates
 * add data quality result storage and reporting
 
 Automation should be completed before significant MCP development resumes.

@@ -67,6 +67,7 @@ format_platform_validation_notification_body <- function(
   validation_results,
   validation_run_id = NULL,
   log_location = NULL,
+  backup_health_summary = NULL,
   max_sample_rows = 5L
 ) {
   warning_rows <- platform_validation_warning_rows(validation_results)
@@ -186,6 +187,15 @@ format_platform_validation_notification_body <- function(
     )
   }
 
+  if (!is.null(backup_health_summary)) {
+    body_lines <- c(
+      body_lines,
+      "",
+      "Backup health:",
+      backup_health_summary$lines
+    )
+  }
+
   paste(
     body_lines,
     collapse = "\n"
@@ -202,6 +212,7 @@ send_platform_validation_notification <- function(
   validation_summary,
   validation_results,
   validation_run_id = NULL,
+  backup_health_summary = NULL,
   error_message = NULL
 ) {
   notifications <- config$notifications
@@ -249,7 +260,8 @@ send_platform_validation_notification <- function(
     validation_summary = validation_summary,
     validation_results = validation_results,
     validation_run_id = validation_run_id,
-    log_location = notifications$validation_log_location
+    log_location = notifications$validation_log_location,
+    backup_health_summary = backup_health_summary
   )
 
   if (!is.null(error_message) && nzchar(error_message)) {

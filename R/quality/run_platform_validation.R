@@ -203,6 +203,11 @@ run_platform_validation <- function(
     }
 
     if (isTRUE(notify)) {
+      backup_health_summary <- backup_health_notification_summary(
+        connection = connection,
+        config = config
+      )
+
       send_platform_validation_notification(
         config = config,
         job_name = "platform_validation",
@@ -219,6 +224,7 @@ run_platform_validation <- function(
         validation_summary = validation_summary,
         validation_results = validation_results,
         validation_run_id = validation_run_id,
+        backup_health_summary = backup_health_summary,
         error_message = error_message
       )
     }
@@ -265,6 +271,11 @@ run_platform_validation <- function(
   }
 
   if (isTRUE(notify)) {
+    backup_health_summary <- backup_health_notification_summary(
+      connection = connection,
+      config = config
+    )
+
     send_platform_validation_notification(
       config = config,
       job_name = "platform_validation",
@@ -284,7 +295,8 @@ run_platform_validation <- function(
       ),
       validation_summary = validation_summary,
       validation_results = validation_results,
-      validation_run_id = validation_run_id
+      validation_run_id = validation_run_id,
+      backup_health_summary = backup_health_summary
     )
   }
 

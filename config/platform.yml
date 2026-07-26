@@ -181,6 +181,12 @@ backups:
 
   retention_days: 30
 
+  # Pi-hosted notifications normally report the previous day's 05:00 Mac
+  # backup. That is healthy until it is more than 30 hours old.
+  freshness_stale_hours: 30
+
+  freshness_critical_hours: 48
+
   temporary_file_retention_days: 1
 
   lock_dir: /tmp/cycling-platform-backup.lock
