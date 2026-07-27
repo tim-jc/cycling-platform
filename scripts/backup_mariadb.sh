@@ -19,6 +19,11 @@ MYSQLDUMP_EXTRA_ARGS=()
 MYSQLDUMP_CONNECT_ARGS=()
 DATABASES=()
 MANIFEST_FILE=""
+RUNTIME_PROJECT_DIR=""
+RUNTIME_MANIFEST_FILE=""
+RUNTIME_INVENTORY_FILE=""
+RUNTIME_STATUS_FILE=""
+RUNTIME_FINALIZER_SCRIPT=""
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export LANG="${LANG:-en_GB.UTF-8}"
@@ -271,7 +276,72 @@ cleanup() {
     rm -f "$MANIFEST_FILE"
   fi
 
+  if [[ -n "$RUNTIME_PROJECT_DIR" && -d "$RUNTIME_PROJECT_DIR" ]]; then
+    rm -rf "$RUNTIME_PROJECT_DIR"
+  fi
+
   rm -rf "$LOCK_DIR"
+}
+
+file_modified_epoch() {
+  local path="$1"
+
+  if stat -f '%m' "$path" >/dev/null 2>&1; then
+    stat -f '%m' "$path"
+  else
+    stat -c '%Y' "$path"
+  fi
+}
+
+prepare_observability_runtime() {
+  local backup_file
+  local compressed_bytes
+  local modified_epoch
+
+  RUNTIME_PROJECT_DIR="/tmp/cycling-platform-backup-runtime-$$"
+  RUNTIME_MANIFEST_FILE="$RUNTIME_PROJECT_DIR/backup_manifest.tsv"
+  RUNTIME_INVENTORY_FILE="$RUNTIME_PROJECT_DIR/backup_inventory.tsv"
+  RUNTIME_STATUS_FILE="$RUNTIME_PROJECT_DIR/latest_success.json"
+  RUNTIME_FINALIZER_SCRIPT="$RUNTIME_PROJECT_DIR/scripts/finalize_backup_observability.R"
+
+  rm -rf "$RUNTIME_PROJECT_DIR"
+  mkdir -p "$RUNTIME_PROJECT_DIR"
+  chmod 700 "$RUNTIME_PROJECT_DIR"
+
+  rsync -a \
+    --exclude ".git" \
+    --exclude "backups" \
+    --exclude "logs" \
+    --exclude "renv/library" \
+    --exclude "renv/staging" \
+    --exclude "renv/sandbox" \
+    "$PROJECT_DIR/" \
+    "$RUNTIME_PROJECT_DIR/"
+
+  cp "$MANIFEST_FILE" "$RUNTIME_MANIFEST_FILE"
+
+  printf '%s\t%s\t%s\n' \
+    "filename" \
+    "modified_epoch" \
+    "compressed_bytes" > "$RUNTIME_INVENTORY_FILE"
+
+  while IFS= read -r -d '' backup_file; do
+    modified_epoch="$(file_modified_epoch "$backup_file")"
+    compressed_bytes="$(
+      wc -c < "$backup_file" | tr -d '[:space:]'
+    )"
+
+    printf '%s\t%s\t%s\n' \
+      "$(basename "$backup_file")" \
+      "$modified_epoch" \
+      "$compressed_bytes" >> "$RUNTIME_INVENTORY_FILE"
+  done < <(
+    find "$BACKUP_DIR" \
+      -maxdepth 1 \
+      -type f \
+      -name "*.sql.gz" \
+      -print0
+  )
 }
 
 load_renviron() {
@@ -366,6 +436,8 @@ configure_mysqldump_extra_args
 require_command gzip
 require_command find
 require_command Rscript
+require_command rsync
+require_command stat
 
 load_renviron
 
@@ -539,15 +611,35 @@ fi
 
 log "Recording backup success and reconciling retained files."
 
-Rscript "$PROJECT_DIR/scripts/finalize_backup_observability.R" \
-  "$MANIFEST_FILE" \
-  "$BACKUP_DIR" \
-  "$BACKUP_STATUS_FILE" \
-  "$RETENTION_DAYS" \
-  "$RUN_TIMESTAMP" \
-  "$BACKUP_STARTED_EPOCH" \
-  "$MARIADB_HOST" \
-  "$BACKUP_HOST"
+prepare_observability_runtime
+
+set +e
+(
+  cd "$RUNTIME_PROJECT_DIR" &&
+    RENV_PROJECT="$RUNTIME_PROJECT_DIR" \
+      Rscript - \
+      "$RUNTIME_MANIFEST_FILE" \
+      "$RUNTIME_INVENTORY_FILE" \
+      "$RUNTIME_STATUS_FILE" \
+      "$BACKUP_DIR" \
+      "$RETENTION_DAYS" \
+      "$RUN_TIMESTAMP" \
+      "$BACKUP_STARTED_EPOCH" \
+      "$MARIADB_HOST" \
+      "$BACKUP_HOST"
+) < "$RUNTIME_FINALIZER_SCRIPT"
+observability_status=$?
+set -e
+
+if [[ -f "$RUNTIME_STATUS_FILE" ]]; then
+  cp "$RUNTIME_STATUS_FILE" "${BACKUP_STATUS_FILE}.tmp"
+  mv "${BACKUP_STATUS_FILE}.tmp" "$BACKUP_STATUS_FILE"
+fi
+
+if ((observability_status > 0)); then
+  log "Backup files succeeded, but observability finalization failed with status $observability_status."
+  exit "$observability_status"
+fi
 
 if ((cleanup_failed > 0)); then
   log "MariaDB backup files succeeded, but retention cleanup reported an error."

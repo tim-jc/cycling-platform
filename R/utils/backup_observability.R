@@ -442,7 +442,8 @@ record_backup_reconciliation <- function(
   backup_dir,
   backup_host,
   retention_days,
-  now = Sys.time()
+  now = Sys.time(),
+  disk_files = NULL
 ) {
   started_at <- Sys.time()
 
@@ -479,7 +480,11 @@ record_backup_reconciliation <- function(
   result <- reconcile_backup_inventory(
     backup_runs = backup_runs,
     backup_run_files = backup_run_files,
-    disk_files = scan_backup_directory(backup_dir),
+    disk_files = if (is.null(disk_files)) {
+      scan_backup_directory(backup_dir)
+    } else {
+      disk_files
+    },
     now = now,
     retention_days = retention_days,
     managed_since = managed_since

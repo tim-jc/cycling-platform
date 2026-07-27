@@ -2,11 +2,12 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) != 8L) {
+if (length(args) != 9L) {
   stop(
     paste(
       "Usage: finalize_backup_observability.R",
-      "<manifest.tsv> <backup_dir> <status_file> <retention_days>",
+      "<manifest.tsv> <inventory.tsv> <status_file> <backup_dir>",
+      "<retention_days>",
       "<run_prefix> <started_epoch> <source_host> <backup_host>"
     ),
     call. = FALSE
@@ -18,20 +19,24 @@ script_argument <- grep(
   commandArgs(trailingOnly = FALSE),
   value = TRUE
 )
-script_path <- sub("^--file=", "", script_argument[[1]])
-project_dir <- dirname(dirname(normalizePath(script_path)))
-setwd(project_dir)
+
+if (length(script_argument) > 0) {
+  script_path <- sub("^--file=", "", script_argument[[1]])
+  project_dir <- dirname(dirname(normalizePath(script_path)))
+  setwd(project_dir)
+}
 
 source("bootstrap.R")
 
 manifest_path <- args[[1]]
-backup_dir <- args[[2]]
+inventory_path <- args[[2]]
 status_file <- args[[3]]
-retention_days <- as.integer(args[[4]])
-run_prefix <- args[[5]]
-started_epoch <- as.numeric(args[[6]])
-source_host <- args[[7]]
-backup_host <- args[[8]]
+backup_dir <- args[[4]]
+retention_days <- as.integer(args[[5]])
+run_prefix <- args[[6]]
+started_epoch <- as.numeric(args[[7]])
+source_host <- args[[8]]
+backup_host <- args[[9]]
 
 files <- utils::read.delim(
   manifest_path,
@@ -51,6 +56,23 @@ files$verified_at <- as.POSIXct(
   format = "%Y-%m-%dT%H:%M:%SZ",
   tz = "UTC"
 )
+
+disk_files <- utils::read.delim(
+  inventory_path,
+  colClasses = c(
+    filename = "character",
+    modified_epoch = "numeric",
+    compressed_bytes = "numeric"
+  ),
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+disk_files$modified_at <- as.POSIXct(
+  disk_files$modified_epoch,
+  origin = "1970-01-01",
+  tz = "UTC"
+)
+disk_files$modified_epoch <- NULL
 
 manifest <- list(
   started_at = as.POSIXct(
@@ -88,7 +110,8 @@ tryCatch(
       connection = connection,
       backup_dir = backup_dir,
       backup_host = backup_host,
-      retention_days = retention_days
+      retention_days = retention_days,
+      disk_files = disk_files
     )
 
     message(

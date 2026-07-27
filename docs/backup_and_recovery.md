@@ -160,6 +160,21 @@ If metadata recording fails after dumps succeed, the verified files and local
 success artefact remain in place and the script exits with an error. It does
 not delete a valid new backup merely because observability failed.
 
+### macOS cron runtime
+
+The checkout is under the macOS-protected `Documents` folder. To avoid granting
+Full Disk Access to cron or R, the shell wrapper copies application code and
+configuration to `/tmp/cycling-platform-backup-runtime-$$` with `rsync`.
+Backup files themselves are not copied. The shell writes a small TSV inventory
+of their names, modification times, and sizes into the runtime directory.
+
+The finalizer runs from that temporary project with its source supplied through
+standard input (`Rscript - < finalize_backup_observability.R`). It writes the
+JSON artefact in `/tmp`, records Admin metadata, and reconciles the supplied
+inventory. The shell then atomically copies the JSON artefact back to the Mac
+backup directory and removes the temporary project. This is the same
+protected-folder workaround used by the cycling-analytics cron workflow.
+
 ## Freshness and Notifications
 
 Pi-hosted platform and validation notifications read backup state from

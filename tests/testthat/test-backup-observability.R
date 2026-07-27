@@ -445,3 +445,45 @@ testthat::test_that("backup script does not introduce success notifications", {
   testthat::expect_false(grepl("ntfy", text, ignore.case = TRUE))
   testthat::expect_false(grepl("send_notification", text, fixed = TRUE))
 })
+
+testthat::test_that("backup observability R runs from an unprotected runtime", {
+  script <- file.path("scripts", "backup_mariadb.sh")
+
+  if (!file.exists(script)) {
+    script <- file.path("..", "..", script)
+  }
+
+  text <- paste(readLines(script, warn = FALSE), collapse = "\n")
+
+  testthat::expect_match(
+    text,
+    "/tmp/cycling-platform-backup-runtime-\\$\\$"
+  )
+  testthat::expect_match(
+    text,
+    'Rscript - \\',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    text,
+    '--exclude "backups"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    text,
+    'cp "$RUNTIME_STATUS_FILE" "${BACKUP_STATUS_FILE}.tmp"',
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    text,
+    ') < "$RUNTIME_FINALIZER_SCRIPT"',
+    fixed = TRUE
+  )
+  testthat::expect_false(
+    grepl(
+      ') < "$PROJECT_DIR/scripts/finalize_backup_observability.R"',
+      text,
+      fixed = TRUE
+    )
+  )
+})
