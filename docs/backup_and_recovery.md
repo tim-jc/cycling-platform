@@ -164,7 +164,8 @@ not delete a valid new backup merely because observability failed.
 
 The checkout is under the macOS-protected `Documents` folder. To avoid granting
 Full Disk Access to cron or R, the shell wrapper copies application code and
-configuration to `/tmp/cycling-platform-backup-runtime-$$` with `rsync`.
+configuration, including the small symlink-based renv project library, to
+`/tmp/cycling-platform-backup-runtime-$$` with `rsync`.
 Backup files themselves are not copied. The shell writes a small TSV inventory
 of their names, modification times, and sizes into the runtime directory.
 

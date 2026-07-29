@@ -162,6 +162,13 @@ Detailed behaviour is documented in [Platform
 Automation](docs/platform_automation.md) and [Historical
 Backfill](docs/historical_backfill.md).
 
+Strava gear is ingested after activities and before child activity endpoints.
+Raw retains distinct source observations; Silver publishes one canonical
+resolved row per gear ID. Ride-summary consumers join
+`silver.activities.gear_id` to `silver.gear.gear_id`. See the
+[endpoint-onboarding runbook](docs/runbooks/add-api-endpoint.md), which uses
+gear as the reference implementation.
+
 ## Configuration and Secrets
 
 `.Renviron.example` lists required secret names without values:
@@ -203,3 +210,4 @@ See [Backup and Recovery](docs/backup_and_recovery.md).
 * [Data quality](docs/data_quality.md)
 * [Google Health authentication](docs/google_health_authentication.md)
 * [Backlog and technical debt](docs/backlog.md)
+* [Add an API endpoint](docs/runbooks/add-api-endpoint.md)

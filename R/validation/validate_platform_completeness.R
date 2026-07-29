@@ -384,10 +384,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(2L)
+    return(4L)
   }
 
-  check_count <- 27L
+  check_count <- 30L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -775,7 +775,155 @@ validate_platform_completeness <- function(
     )
   )
 
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_gear_required_fields_valid",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT
+          gear_id,
+          gear_name,
+          gear_type,
+          source_observation_run_id,
+          source_payload_hash
+        FROM cycling_platform_silver.gear
+        WHERE gear_id = ''
+           OR gear_name IS NULL
+           OR gear_name = ''
+           OR gear_type NOT IN ('bike', 'shoes', 'unknown')
+           OR source_observation_run_id IS NULL
+           OR source_payload_hash IS NULL
+           OR source_payload_hash = ''
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "activity_gear_ids_unresolved",
+      check_scope = "publication",
+      severity = "WARNING",
+      query = "
+        SELECT
+          activities.gear_id,
+          COUNT(*) AS activity_count,
+          MIN(activities.start_date_local) AS earliest_activity_date,
+          MAX(activities.start_date_local) AS latest_activity_date,
+          attempts.resolution_status AS last_resolution_status,
+          attempts.attempted_at AS last_resolution_attempt_at
+        FROM cycling_platform_silver.activities activities
+        LEFT JOIN cycling_platform_silver.gear gear
+          ON gear.gear_id = activities.gear_id
+        LEFT JOIN cycling_platform_raw.gear_resolution_attempts attempts
+          ON attempts.gear_id = activities.gear_id
+         AND attempts.attempted_at = (
+           SELECT MAX(latest_attempt.attempted_at)
+           FROM cycling_platform_raw.gear_resolution_attempts latest_attempt
+           WHERE latest_attempt.gear_id = activities.gear_id
+         )
+        WHERE activities.gear_id IS NOT NULL
+          AND gear.gear_id IS NULL
+        GROUP BY
+          activities.gear_id,
+          attempts.resolution_status,
+          attempts.attempted_at
+        ORDER BY activity_count DESC, activities.gear_id
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
   if (identical(validation_scope, "deep")) {
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_gear_duplicate_business_key",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            gear_id,
+            payload_hash,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.gear_observations
+          GROUP BY gear_id, payload_hash
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_gear_duplicate_key",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT gear_id, COUNT(*) AS issue_count
+          FROM cycling_platform_silver.gear
+          GROUP BY gear_id
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_gear_latest_raw_observation_mismatch",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          WITH latest AS (
+            SELECT
+              observations.gear_id,
+              observations.payload_hash,
+              ROW_NUMBER() OVER (
+                PARTITION BY observations.gear_id
+                ORDER BY
+                  observations.last_observed_at DESC,
+                  observations.gear_observation_id DESC
+              ) AS observation_rank
+            FROM cycling_platform_raw.gear_observations observations
+          )
+          SELECT
+            latest.gear_id,
+            latest.payload_hash AS raw_payload_hash,
+            gear.source_payload_hash AS silver_payload_hash
+          FROM latest
+          LEFT JOIN cycling_platform_silver.gear gear
+            ON gear.gear_id = latest.gear_id
+          WHERE latest.observation_rank = 1
+            AND (
+              gear.gear_id IS NULL
+              OR gear.source_payload_hash <> latest.payload_hash
+            )
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
     checks <- append_validation_result(
       checks,
       run_validation_query(

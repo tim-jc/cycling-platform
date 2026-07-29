@@ -221,6 +221,7 @@ sql_files <- list.files(
 )
 
 expected_tables <- c(
+  "admin/032_create_api_endpoint_run.sql" = "cycling_platform_admin.api_endpoint_run",
   "admin/040_create_transform_run.sql" = "cycling_platform_admin.transform_run",
   "admin/041_create_transform_run_batch.sql" = "cycling_platform_admin.transform_run_batch",
   "admin/060_create_notification_outbox.sql" = "cycling_platform_admin.notification_outbox",
@@ -233,6 +234,7 @@ expected_tables <- c(
   "raw/020_create_strava_activity_streams.sql" = "cycling_platform_raw.activity_streams",
   "raw/030_create_strava_activity_details.sql" = "cycling_platform_raw.activity_details",
   "raw/040_create_strava_activity_laps.sql" = "cycling_platform_raw.activity_laps",
+  "raw/050_create_strava_gear_observations.sql" = "cycling_platform_raw.gear_observations",
   "raw/100_create_google_health_heart_rate_responses.sql" = "cycling_platform_raw.google_health_heart_rate_responses",
   "raw/110_create_google_health_sleep_logs.sql" = "cycling_platform_raw.google_health_sleep_logs",
   "raw/120_create_google_health_daily_resting_heart_rate.sql" = "cycling_platform_raw.google_health_daily_resting_heart_rate",
@@ -240,6 +242,7 @@ expected_tables <- c(
   "raw/140_create_google_health_daily_respiratory_rate.sql" = "cycling_platform_raw.google_health_daily_respiratory_rate",
   "silver/010_create_activities.sql" = "cycling_platform_silver.activities",
   "silver/030_create_activity_streams.sql" = "cycling_platform_silver.activity_streams",
+  "silver/040_create_gear.sql" = "cycling_platform_silver.gear",
   "gold/010_create_activity_best_efforts.sql" = "cycling_platform_gold.activity_best_efforts",
   "gold/020_create_activity_achievements.sql" = "cycling_platform_gold.activity_achievements"
 )

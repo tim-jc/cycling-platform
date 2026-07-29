@@ -53,6 +53,13 @@ https://www.strava.com/oauth/token
 
 * `read`
 * `activity:read_all`
+* `profile:read_all` (required for the detailed authenticated-athlete gear
+  collection used by Strava gear ingestion)
+
+The individual `GET /gear/{id}` endpoint uses the existing bearer token.
+`GET /athlete` returns a detailed athlete only when `profile:read_all` is
+granted; the gear loader fails clearly rather than treating an omitted
+`bikes`/`shoes` collection as an authoritative empty snapshot.
 
 ## Token Rotation
 

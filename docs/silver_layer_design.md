@@ -86,7 +86,7 @@ One row per Strava activity.
 
 * `raw.activities`
 * `raw.activity_details`, where available
-* future `raw.gear`
+* `raw.gear_observations` through the separate `silver.gear` relationship
 * future `raw.athlete`
 
 ### Purpose
@@ -138,6 +138,35 @@ Measures:
 Flags:
 
 * `is_device_watts`
+
+## `silver.gear`
+
+The grain and primary key are one row per Strava `gear_id`. The latest Raw
+payload supplies the current canonical attributes, while Raw retains prior
+payload observations. `first_observed_at`, `last_observed_at`,
+`source_observation_run_id`, `source_payload_hash`, and
+`transform_version = strava_gear_v1` provide lineage.
+
+Canonical `gear_type` values are `bike`, `shoes`, and `unknown`. `unknown`
+means an individually resolved historical record whose type could not be
+established from the current `/athlete` collection; the transform does not
+infer type from an ID prefix.
+
+`is_current` means the gear appeared in the latest completely successful gear
+entity run. Failed or incomplete ingestion cannot retire prior gear.
+`is_historical` is the inverse for resolved gear retained to support historical
+activities. Silver is a simple current entity rather than an SCD; observation
+history remains in Raw.
+
+The supported relationship is:
+
+```text
+cycling_platform_silver.activities.gear_id
+  → cycling_platform_silver.gear.gear_id
+```
+
+Names are not duplicated into every activity. Consumer presentation uses a
+join so Strava renames propagate predictably.
 * `is_manual`, derived from raw/details payload where available
 * `is_trainer`, derived from raw/details payload where available
 * `has_streams`

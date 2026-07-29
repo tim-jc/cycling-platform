@@ -51,6 +51,12 @@ run_silver_transformations <- function(
     mode = "full"
   )
 
+  rebuild_silver_gear(
+    connection = connection,
+    sql_dir = sql_dir,
+    mode = "full"
+  )
+
   rebuild_silver_activity_streams(
     connection = connection,
     batch_size = silver_stream_batch_size,

@@ -489,7 +489,7 @@ get_latest_silver_transform_summary <- function() {
               ) AS entity_recency_rank
             FROM cycling_platform_admin.transform_run
             WHERE layer_name = 'silver'
-              AND entity_name IN ('activities', 'activity_streams')
+              AND entity_name IN ('activities', 'gear', 'activity_streams')
           )
           SELECT
             transform_run_id,
@@ -507,7 +507,7 @@ get_latest_silver_transform_summary <- function() {
             error_message
           FROM ranked
           WHERE entity_recency_rank = 1
-          ORDER BY FIELD(entity_name, 'activities', 'activity_streams')
+          ORDER BY FIELD(entity_name, 'activities', 'gear', 'activity_streams')
         "
       )
 
@@ -543,9 +543,13 @@ get_latest_silver_transform_summary <- function() {
             completed_batches,
             total_batches,
             duration_seconds) {
-            activity_part <- glue::glue(
-              " · {activities_completed}/{activities_planned} activities"
-            )
+            activity_part <- if (identical(entity_name, "gear")) {
+              glue::glue(" · {rows_inserted} gear records")
+            } else {
+              glue::glue(
+                " · {activities_completed}/{activities_planned} activities"
+              )
+            }
 
             batch_part <- if (total_batches > 0) {
               glue::glue(

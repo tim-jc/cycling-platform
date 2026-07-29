@@ -47,6 +47,20 @@ ingest_activities()
         ↓
     update_etl_run_entity()
     ↓
+ingest_gear()
+        ↓
+    discover current bikes and shoes from /athlete
+        ↓
+    union current IDs with distinct raw.activities.gear_id values
+        ↓
+    fetch /gear/{id} once per distinct ID
+        ↓
+    append changed Raw observations and touch identical observations
+        ↓
+    record 403/404 historical resolution attempts
+        ↓
+    update endpoint and entity run metadata
+    ↓
 get_pending_stream_activity_ids()
     ↓
 ingest_streams()
@@ -169,6 +183,9 @@ send_notification()
 | `create_etl_run_entity()` | Create an entity execution record.                      |
 | `get_activities()`        | Extract activities from the Strava API.                 |
 | `upsert_activities()`     | Load activities into `raw.activities`.                  |
+| `ingest_gear()`           | Load current and activity-referenced historical gear observations. |
+| `get_gear()`              | Discover `/athlete` gear and fetch detailed `/gear/{id}` records. |
+| `upsert_gear_observations()` | Deduplicate identical payloads while retaining source changes. |
 | `get_pending_stream_activity_ids()` | Return activities requiring stream ingestion. |
 | `ingest_streams()`        | Orchestrate batched stream ingestion.                   |
 | `get_streams()`           | Extract activity streams from the Strava API.           |
@@ -194,8 +211,8 @@ send_notification()
 | `send_notification()`     | Send a summary notification.                            |
 
 In `streams_only` mode, `ingest_activities()`,
-`ingest_activity_details()`, and `ingest_activity_laps()` are intentionally
-skipped.
+`ingest_gear()`, `ingest_activity_details()`, and `ingest_activity_laps()` are
+intentionally skipped.
 
 ## Error Handling
 
@@ -210,6 +227,13 @@ Send notification
 ```
 
 All failures should be logged with sufficient detail to support troubleshooting and reruns.
+
+Gear is a required Raw entity in manual, scheduled, and backfill runs. An
+authentication, scope, malformed-response, or transient endpoint failure fails
+the Raw phase. Its database writes are transactional and the Silver phase does
+not run, so the prior valid `silver.gear` publication remains intact. A 403 or
+404 from an individual historical lookup is an expected unresolved outcome:
+the attempt is recorded and the remaining gear load continues.
 
 For streams, activity details, and activity laps, each batch is committed
 independently. If a later batch fails because of a Strava rate limit or another

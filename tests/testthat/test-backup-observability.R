@@ -469,6 +469,9 @@ testthat::test_that("backup observability R runs from an unprotected runtime", {
     '--exclude "backups"',
     fixed = TRUE
   )
+  testthat::expect_false(
+    grepl('--exclude "renv/library"', text, fixed = TRUE)
+  )
   testthat::expect_match(
     text,
     'cp "$RUNTIME_STATUS_FILE" "${BACKUP_STATUS_FILE}.tmp"',

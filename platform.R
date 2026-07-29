@@ -78,6 +78,13 @@ tryCatch(
         refresh_days = activity_refresh_days,
         config = config
       )
+
+      ingest_gear(
+        connection = connection,
+        run_id = run_id,
+        source_id = 1L,
+        config = config
+      )
     }
 
     stream_activity_ids <- get_pending_stream_activity_ids(

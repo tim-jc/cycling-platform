@@ -15,8 +15,8 @@ for idempotency and validation.
 | Google Health Daily Resting Heart Rate | `/users/me/dataTypes/daily-resting-heart-rate/dataPoints` | `raw.google_health_daily_resting_heart_rate` | `daily_resting_heart_rate_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily RHR; full data-point payload and source ecosystem provenance retained |
 | Google Health Daily HRV | `/users/me/dataTypes/daily-heart-rate-variability/dataPoints` | `raw.google_health_daily_heart_rate_variability` | `daily_heart_rate_variability_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily HRV; source ecosystem provenance retained; intraday HRV remains deferred |
 | Google Health Daily Respiratory Rate | `/users/me/dataTypes/daily-respiratory-rate/dataPoints` | `raw.google_health_daily_respiratory_rate` | `daily_respiratory_rate_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily respiratory rate in breaths per minute; source ecosystem provenance retained |
-| Athlete          | `/athlete`                 | `raw.athlete`          | `athlete_id`                 | High     | Full refresh                  | Planned    | Current athlete snapshot           |
-| Gear             | `/gear/{id}`               | `raw.gear`             | `gear_id`                    | Medium   | On demand                     | Planned    | Retrieved from activity references |
+| Athlete gear collection | `/athlete` | discovery only | current `bikes` and `shoes` arrays | High | Daily snapshot discovery | Implemented | Requires `profile:read_all`; no Raw athlete entity is created by the gear flow |
+| Gear | `/gear/{id}` | `raw.gear_observations` | `gear_id`, `payload_hash` | High | Daily current collection + historical activity references | Implemented | Detailed current and historical gear; 403/404 attempts remain auditable |
 | Routes           | `/routes/{id}`             | `raw.routes`           | `route_id`                   | Low      | On demand                     | Planned    | Optional route enrichment          |
 | Zones            | `/athlete/zones`           | `raw.zones`            | `athlete_id`                 | Medium   | Full refresh                  | Planned    | Training zones snapshot            |
 
@@ -62,3 +62,25 @@ duplicates are evaluated against the full source grain.
 
 Baselines, trends, deviations, readiness, and recovery scores belong in Gold,
 not Raw.
+
+## Strava Gear
+
+The gear flow uses `GET /athlete` to discover the authenticated athlete's
+current `bikes` and `shoes` arrays, then calls `GET /gear/{id}` once for every
+distinct current or unresolved activity-referenced ID. Resolved historical IDs
+are retained without daily re-fetching; 403/404 IDs are retried after 30 days.
+The collection is not paginated.
+The authenticated-athlete response requires `profile:read_all` to reliably
+include detailed profile fields. Existing bearer-token refresh, retry, timeout,
+and rate-limit handling is reused.
+
+Raw grain is one row per `gear_id` and distinct source payload hash. Identical
+responses update the observation's last-seen timestamp rather than adding
+duplicate history; mutable payload changes add observations. A successful gear
+entity run is the snapshot-completeness boundary. Failed runs never make prior
+gear non-current.
+
+Silver publishes one resolved row per Strava gear ID. Types are controlled
+values `bike`, `shoes`, or `unknown`. `unknown` is used for a historical
+individual lookup when the current athlete collection cannot establish its
+type; ID prefixes are not treated as a canonical type contract.

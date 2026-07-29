@@ -312,7 +312,6 @@ prepare_observability_runtime() {
     --exclude ".git" \
     --exclude "backups" \
     --exclude "logs" \
-    --exclude "renv/library" \
     --exclude "renv/staging" \
     --exclude "renv/sandbox" \
     "$PROJECT_DIR/" \

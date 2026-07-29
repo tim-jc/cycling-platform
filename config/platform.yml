@@ -76,6 +76,9 @@ ingestion:
   # Default pause between lap endpoint requests
   lap_request_pause_seconds: 0.25
 
+  # Retry unresolved historical Strava gear IDs without spending requests daily
+  gear_resolution_retry_days: 30
+
   # Number of days refreshed during routine Google Health ingestion runs
   google_health_refresh_days: 7
 

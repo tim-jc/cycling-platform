@@ -80,8 +80,10 @@ packages, Linux paths, and bundled shell dependencies.
 
 Current status:
 
-* Strava raw endpoints are deployed for activities, details, streams, and laps.
-* Strava activities, details, streams, and laps are complete.
+* Strava Raw endpoints are deployed for activities, details, streams, laps,
+  and gear observations.
+* `silver.gear` provides current canonical Strava gear identity and resolves
+  activity `gear_id` values where the API permits.
 * Google Health/Fitbit Raw ingestion exists for heart-rate responses, sleep
   logs, daily resting heart rate, daily heart-rate variability, and daily
   respiratory rate. These objects are in Raw observation; health Silver and Gold
@@ -185,6 +187,24 @@ an unquoted `row_number` identifier.
 Database connections must select an owned platform database. Generic
 connections through the MariaDB `mysql` system database are prohibited because
 the production application user intentionally has no access to it.
+
+## Gear Domain Boundary
+
+Strava gear ingestion provides source-system identity and activity resolution.
+It does not replace the richer bike-library domain model.
+
+`cycling-platform` retains mutable Strava observations in Raw and publishes one
+resolved canonical Silver row per Strava gear ID. The canonical platform must
+retain or resolve historical gear referenced by activities where possible,
+even if that gear is no longer active in the current Strava gear collection.
+The Strava ID is the initial platform key and may later map to a separately
+owned bike-library identifier.
+
+Bike specifications, components, maintenance, documents, photos, wear, and
+replacement planning remain outside this repository. Consumers join
+`silver.activities.gear_id` to `silver.gear.gear_id`; they should display
+`Not recorded` for null IDs and a visible `Unknown gear (<gear_id>)` fallback
+for unresolved non-null IDs.
 
 ## Operational Lessons
 

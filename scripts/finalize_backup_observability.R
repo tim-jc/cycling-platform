@@ -20,7 +20,10 @@ script_argument <- grep(
   value = TRUE
 )
 
-if (length(script_argument) > 0) {
+if (
+  length(script_argument) > 0 &&
+    !identical(sub("^--file=", "", script_argument[[1]]), "-")
+) {
   script_path <- sub("^--file=", "", script_argument[[1]])
   project_dir <- dirname(dirname(normalizePath(script_path)))
   setwd(project_dir)

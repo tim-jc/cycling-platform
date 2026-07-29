@@ -146,7 +146,7 @@ testthat::test_that("validation results retain check timing for slowest summary"
   )
 })
 
-testthat::test_that("publication scope counts only fast blocking checks", {
+testthat::test_that("publication scope counts fast blocking and audit checks", {
   validation_file <- file.path(
     "R",
     "validation",
@@ -176,7 +176,7 @@ testthat::test_that("publication scope counts only fast blocking checks", {
         "heartrate_bpm"
       )
     ),
-    2L
+    4L
   )
 
   testthat::expect_equal(
@@ -190,7 +190,7 @@ testthat::test_that("publication scope counts only fast blocking checks", {
         "heartrate_bpm"
       )
     ),
-    49L
+    52L
   )
 })
 
