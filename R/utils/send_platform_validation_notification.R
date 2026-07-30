@@ -79,17 +79,16 @@ format_platform_validation_notification_body <- function(
   )
 
   body_lines <- c(
-    paste0(
-      "Job: ",
-      job_name
+    format_platform_execution_context(
+      platform_execution_context(
+        pipeline = job_name,
+        status = validation_outcome,
+        duration_seconds = elapsed_seconds
+      )
     ),
     paste0(
       "Execution status: ",
       execution_status
-    ),
-    paste0(
-      "Validation outcome: ",
-      validation_outcome
     ),
     paste0(
       "Completed: ",
@@ -97,10 +96,6 @@ format_platform_validation_notification_body <- function(
         completed_at,
         "%Y-%m-%d %H:%M:%S %Z"
       )
-    ),
-    paste0(
-      "Elapsed: ",
-      format_platform_duration(elapsed_seconds)
     ),
     "",
     paste0(
@@ -268,13 +263,11 @@ send_platform_validation_notification <- function(
     body <- paste(
       body,
       "",
-      paste0(
-        "Error: ",
-        substr(
-          error_message,
-          1,
-          500
-        )
+      "Error:",
+      substr(
+        error_message,
+        1,
+        500
       ),
       sep = "\n"
     )

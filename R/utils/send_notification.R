@@ -158,13 +158,15 @@ send_notification <- function(
       )
 
       body_lines <- c(
-        paste0(
-          "Status: ",
-          run$run_status[[1]]
+        format_platform_execution_context(
+          platform_execution_context(
+            pipeline = "raw-ingestion",
+            status = run$run_status[[1]],
+            duration_seconds = run$duration_seconds[[1]]
+          )
         ),
         glue::glue(
-          "Run: raw #{run$run_id[[1]]} · {run$run_mode[[1]]} · ",
-          "{format_platform_duration(run$duration_seconds[[1]])}"
+          "Run: raw #{run$run_id[[1]]} · {run$run_mode[[1]]}"
         ),
         "",
         "Entities:"
@@ -220,10 +222,8 @@ send_notification <- function(
           body_lines,
           "",
           failed_entity_line,
-          paste0(
-            "Error: ",
-            error_message
-          )
+          "Error:",
+          error_message
         )
       }
 

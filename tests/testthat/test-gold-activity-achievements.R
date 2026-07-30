@@ -1,5 +1,6 @@
 source_activity_achievement_files <- function() {
   helper_files <- c(
+    file.path("R", "utils", "execution_context.R"),
     file.path("R", "utils", "format_notification_helpers.R"),
     file.path("R", "transforms", "rebuild_gold_activity_achievements.R"),
     file.path("R", "utils", "activity_achievement_notifications.R")
@@ -303,4 +304,29 @@ testthat::test_that("achievement queue summary describes existing notifications"
   testthat::expect_false(
     grepl("skipped", summary)
   )
+})
+
+testthat::test_that("delivered achievement body includes execution context", {
+  source_activity_achievement_files()
+
+  notification <- data.frame(
+    payload_json = jsonlite::toJSON(
+      list(message_lines = c("Sunday Ride", "New power best")),
+      auto_unbox = TRUE
+    )
+  )
+
+  body <- render_outbox_notification(
+    notification,
+    execution_context = platform_execution_context(
+      pipeline = "activity-achievement",
+      status = "SUCCESS",
+      host = "test-host"
+    )
+  )
+
+  testthat::expect_match(body, "Host: test-host", fixed = TRUE)
+  testthat::expect_match(body, "Pipeline: activity-achievement", fixed = TRUE)
+  testthat::expect_match(body, "Status: SUCCESS", fixed = TRUE)
+  testthat::expect_match(body, "Sunday Ride", fixed = TRUE)
 })

@@ -3,6 +3,11 @@ source_validation_notification_files <- function() {
     file.path(
       "R",
       "utils",
+      "execution_context.R"
+    ),
+    file.path(
+      "R",
+      "utils",
       "format_notification_helpers.R"
     ),
     file.path(
@@ -171,6 +176,17 @@ testthat::test_that("validation notification body includes summary counts", {
   )
 
   testthat::expect_true(grepl("Warnings: 1 checks", body, fixed = TRUE))
+  testthat::expect_true(grepl("Host: ", body, fixed = TRUE))
+  testthat::expect_true(
+    grepl("Pipeline: platform_validation", body, fixed = TRUE)
+  )
+  testthat::expect_true(
+    grepl("Status: PASSED_WITH_WARNINGS", body, fixed = TRUE)
+  )
+  testthat::expect_true(
+    grepl("Execution status: SUCCESS", body, fixed = TRUE)
+  )
+  testthat::expect_true(grepl("Duration: 1m 2s", body, fixed = TRUE))
   testthat::expect_true(grepl("warning_check: 2 issues", body, fixed = TRUE))
   testthat::expect_true(grepl("Validation run: 123", body, fixed = TRUE))
   testthat::expect_true(grepl("Backup health:", body, fixed = TRUE))

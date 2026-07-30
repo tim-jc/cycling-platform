@@ -62,6 +62,13 @@ Production runs on:
 MariaDB is a continuously running Compose service. `cycling-platform` is an
 ephemeral job container, not a daemon or long-running service.
 
+Notification execution context uses the runtime OS nodename. Docker normally
+sets that nodename, and `HOSTNAME`, to the container hostname; for ephemeral
+jobs the default may be a generated container ID. A stable friendly label is an
+infrastructure/Compose responsibility. The application deliberately contains
+no production host-name constant. See [Platform
+Automation](platform_automation.md#notification-execution-context).
+
 Normal production execution:
 
 ```sh
@@ -103,9 +110,20 @@ rebuild after changes to application code, SQL, configuration copied into the
 image, `renv.lock`, or `Dockerfile`:
 
 ```sh
-git pull
+git status --short
+git fetch origin
+git status -sb
+git pull --ff-only
 docker compose build cycling-platform
+docker compose images cycling-platform
 ```
+
+Before pulling, `git status -sb` should show the intended production branch,
+no unexplained local changes, and whether it is behind its upstream. Stop if
+the production checkout is dirty or has diverged; do not hide that state with a
+reset. The infrastructure deployment wrapper currently performs the
+fast-forward-only pull, build, and image listing, but the operator must still
+confirm branch and worktree state before invoking it.
 
 Dependency-only changes can invalidate different Docker layers:
 
@@ -113,6 +131,26 @@ Dependency-only changes can invalidate different Docker layers:
 * `Dockerfile` changes may alter Debian/system dependencies;
 * ordinary application or SQL changes require the final application layer to
   rebuild.
+
+After building, use a non-ingesting image check before any controlled
+production write:
+
+```sh
+docker compose run --rm cycling-platform \
+  Rscript --vanilla tests/smoke_check.R
+```
+
+If the new endpoint changed DDL, apply the additive idempotent bootstrap before
+the endpoint's manual ingestion. Then follow the controlled and scheduled
+acceptance process in [Add an API
+Endpoint](runbooks/add-api-endpoint.md#controlled-production-validation).
+
+Rollback normally means checking out the previously accepted application
+revision through the normal Git workflow, rebuilding that image, and verifying
+its identity and smoke check. Do not drop additive Raw/Admin tables or delete
+source observations merely to roll application code back. If new orchestration
+is unsafe, prevent the scheduled call through the infrastructure-owned
+scheduler while preserving the prior published Silver data.
 
 ## Production Scheduling
 
@@ -266,6 +304,51 @@ native-host shell wrappers.
 The Docker image runs R entry points directly. Its default daily command does
 not call `scripts/run_daily_platform.sh`. Production deep validation likewise
 overrides the image command with `Rscript run_platform_validation.R`.
+
+## Repository Ownership Boundary
+
+`cycling-platform` owns:
+
+* OAuth and API behaviour;
+* application entry points and image contents;
+* Raw ingestion, Silver/Gold transforms, and publication validation;
+* application tests, metrics, notifications, and data contracts.
+
+`cycling-infrastructure` owns:
+
+* host directory creation and machine recovery;
+* the production Compose definition, environment injection, and bind mounts;
+* service-account ownership and filesystem permissions;
+* deployment, cron, host logs, and scheduling locks;
+* database host lifecycle, restore orchestration, and off-host backup wiring.
+
+Application docs may name the current production paths and service name, but
+those are environment-specific deployment facts rather than library defaults.
+If they change, update the infrastructure definition first and then reconcile
+the application runbook.
+
+## Production Container Troubleshooting
+
+If a fix appears in the checkout but not in a one-off job, assume the image may
+be stale until proven otherwise:
+
+```sh
+docker compose images cycling-platform
+docker image inspect cycling-platform:dev \
+  --format 'id={{.Id}} created={{.Created}}'
+docker compose run --rm --entrypoint sh cycling-platform -c \
+  'test -f scripts/bootstrap_strava_oauth.R && echo helper-present'
+docker compose build cycling-platform
+```
+
+Inspect only non-secret source paths and metadata. `--entrypoint` is useful for
+isolating image or wrapper behaviour, but is not a normal execution path.
+
+Interactive one-off helpers need stdin attached. The supported Strava
+bootstrap therefore uses `docker compose run --rm -i`; a shell pipe reaching a
+container does not by itself prove that non-interactive R helper code reads
+process stdin. See [Strava Authentication](strava_authentication.md) for the
+minimal safe probe and recovery steps.
 
 ## Future Execution-Path Simplification
 

@@ -36,6 +36,11 @@ Lite / Debian:
 See [Development and Deployment](docs/development_and_deployment.md) for the
 full workflow.
 
+For Strava credential administration, use [Strava
+Authentication](docs/strava_authentication.md). For a new or changed API
+source, follow [Add an API Endpoint](docs/runbooks/add-api-endpoint.md) from
+design through scheduled production acceptance.
+
 ## Data Architecture
 
 The platform uses five MariaDB databases:
@@ -91,6 +96,11 @@ docker compose build cycling-platform
 
 Then run the relevant smoke check or operational command before relying on the
 next scheduled job.
+
+The infrastructure repository owns the production checkout, Compose file,
+mounts, host permissions, scheduler, and deployment wrapper. This repository
+owns the image contents and application commands; see [Development and
+Deployment](docs/development_and_deployment.md#repository-ownership-boundary).
 
 ## Native Development Commands
 

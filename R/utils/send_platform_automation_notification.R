@@ -77,13 +77,12 @@ send_platform_automation_notification <- function(
   )
 
   body_lines <- c(
-    paste0(
-      "Status: ",
-      run_status
-    ),
-    paste0(
-      "Run: automation · ",
-      format_platform_duration(automation_duration_seconds)
+    format_platform_execution_context(
+      platform_execution_context(
+        pipeline = "daily-platform",
+        status = run_status,
+        duration_seconds = automation_duration_seconds
+      )
     )
   )
 

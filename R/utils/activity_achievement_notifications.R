@@ -365,16 +365,26 @@ fetch_due_notifications <- function(
   )
 }
 
-render_outbox_notification <- function(notification) {
+render_outbox_notification <- function(
+  notification,
+  execution_context = platform_execution_context(
+    pipeline = "activity-achievement",
+    status = "SUCCESS"
+  )
+) {
   payload <- jsonlite::fromJSON(
     notification$payload_json[[1]],
     simplifyVector = FALSE
   )
 
   paste(
-    unlist(
-      payload$message_lines,
-      use.names = FALSE
+    c(
+      format_platform_execution_context(execution_context),
+      "",
+      unlist(
+        payload$message_lines,
+        use.names = FALSE
+      )
     ),
     collapse = "\n"
   )

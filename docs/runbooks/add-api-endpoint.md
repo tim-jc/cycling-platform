@@ -107,40 +107,133 @@ The publication warning exposes unresolved IDs. Ride-summary display is:
 
 ## Deployment
 
-1. Create a feature branch.
-2. Inspect the API contract and repository schemas.
-3. Add DDL, client, parser, loader, fixtures, tests, transform, checks, and docs.
-4. Run local tests and lint/smoke checks without requiring live MariaDB.
-5. Build and test the Docker image on the ARM64 Mac.
-6. Push reviewed code; pull it on `cycling-prod`.
-7. Rebuild the application image—pulling source alone is not deployment.
-8. Apply DDL with an ephemeral job:
+### Authentication Impact
+
+Compare the endpoint's official scope requirement with the canonical scope
+definition and the scopes already granted. If existing scopes are sufficient,
+do not re-authorise. If the set expands, update the canonical definition and
+tests, then follow [Strava Authentication](../strava_authentication.md).
+Refresh-token exchange cannot add a scope.
+
+### Pre-deployment
+
+1. Create a feature branch and record provider/architecture decisions.
+2. Add DDL, client, parser, loader, fixtures, tests, transforms, publication
+   checks, observability, automation, and docs.
+3. Review the complete diff and remove temporary diagnostics.
+4. Run targeted tests, the full suite, smoke check, `renv::status()`, and
+   `git diff --check`.
+5. Build and smoke-test the Docker image on the ARM64 Mac where practical.
+6. Push reviewed code.
+7. On `cycling-prod`, confirm the intended branch, clean worktree, and upstream
+   state before a fast-forward-only pull:
+
+   ```sh
+   git -C /home/tim/cycling-platform status --short
+   git -C /home/tim/cycling-platform fetch origin
+   git -C /home/tim/cycling-platform status -sb
+   git -C /home/tim/cycling-platform pull --ff-only
+   ```
+
+8. From `/home/tim/cycling-infrastructure/compose`, validate Compose, rebuild
+   and identify the image, then run the non-ingesting smoke check. Pulling
+   source alone is not deployment because the Dockerfile copies source into
+   the image:
+
+   ```sh
+   docker compose config --quiet
+   docker compose build cycling-platform
+   docker compose images cycling-platform
+   docker compose run --rm cycling-platform \
+     Rscript --vanilla tests/smoke_check.R
+   ```
+
+9. If DDL changed, apply the additive idempotent bootstrap:
 
    ```sh
    docker compose run --rm cycling-platform Rscript bootstrap_platform.R
    ```
 
-9. Run the endpoint manually with notifications suppressed where supported,
-   inspect Raw rows and Admin logs, then run Silver and the resolution audit.
-10. Run publication/deep validation, enable scheduled integration, and monitor
-    the first scheduled run and API request counts.
+Host checkouts, Compose, mounts, permissions, scheduling, and deployment
+wrappers belong to `cycling-infrastructure`; application commands and
+acceptance semantics belong here.
+
+### Controlled Production Validation
+
+Do not treat one successful HTTP call as production acceptance.
+
+1. Confirm required scopes and persistent credential visibility without
+   printing values.
+2. Run the new Raw path manually with notifications suppressed where supported.
+3. Inspect Admin entity status, request metrics, row counts, failure messages,
+   and representative Raw records.
+4. Run the related Silver transform and record whether its CLI also rebuilds
+   other entities.
+5. Run publication checks and the endpoint audit/reconciliation query.
+6. Verify representative resolved, null, changed, and unresolved cases.
+7. Confirm logs and terminal capture contain no secrets or redirect URL.
 
 For gear, the manual sequence is:
 
 ```sh
+# PRODUCTION WRITE: incremental Raw ingestion for all configured sources.
 docker compose run --rm cycling-platform \
   Rscript platform.R manual --no-notification
+
+# PRODUCTION WRITE: repair mode runs every Silver transform, including gear.
 docker compose run --rm cycling-platform Rscript run_silver.R repair
+
+# Read-only data audit.
 docker compose run --rm cycling-platform \
   Rscript -e 'source("bootstrap.R"); con <- get_connection(); print(report_gear_resolution(con)); DBI::dbDisconnect(con)'
-docker compose run --rm cycling-platform Rscript run_platform_validation.R
+
+# Records publication validation metadata and can send a notification.
+docker compose run --rm cycling-platform \
+  Rscript run_platform_validation.R --publication
 ```
 
-Rollback is application-first: restore the previous image and disable the new
-orchestration call if necessary. Additive Raw/Admin tables may remain. Do not
-drop Raw observations. Because a failed gear run blocks new Silver publication,
-the previous canonical table remains available. Record any production
-intervention in the deployment issue; never make undocumented schema edits.
+There is no gear-only Raw or Silver CLI. These commands deliberately run the
+normal Raw path and all Silver transforms. Gear's payload-hash key deduplicates
+identical observations; Silver repair is deterministic, but both commands
+write production data and operational metadata.
+
+### Scheduled Acceptance and Completion
+
+Allow the normal scheduled automation to execute. Record its run identifier
+and relevant counts, then confirm the new Raw entity, Silver publication,
+downstream phases, notifications, and overall run succeeded. Review request
+volume and unresolved counts for plausibility.
+
+For the completed gear rollout, scheduled run `#121` succeeded and Silver gear
+published 15 records. This is an acceptance record, not a permanent expected
+row-count assertion.
+
+After acceptance, update contracts and inventory, record remaining debt, remove
+temporary diagnostics, declare the rollout complete, and move follow-up work
+into stabilisation.
+
+Rollback is application-first: deploy the previously accepted revision and
+rebuild its image; pause only the new infrastructure-owned scheduled path if
+necessary. Additive Raw/Admin tables may remain. Do not drop Raw observations.
+A failed gear run leaves the previous canonical publication available. Record
+every production intervention; never make undocumented schema edits.
+
+## Verification Commands
+
+Run from the application repository root unless Compose is shown:
+
+```sh
+Rscript --vanilla -e 'testthat::test_file("tests/testthat/test-strava-oauth-bootstrap.R")'
+Rscript --vanilla -e 'testthat::test_file("tests/testthat/test-strava-gear.R")'
+Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
+Rscript --vanilla tests/smoke_check.R
+Rscript --vanilla -e 'renv::status()'
+git diff --check
+```
+
+The first two are focused tests, the third is the complete suite, and the smoke
+check is non-ingesting. `renv::status()` reports dependency-lock consistency.
+There is no configured Markdown or link checker in this repository.
 
 ## Documentation
 
@@ -160,8 +253,20 @@ limitations, and this runbook when a new reusable pattern emerges.
 - [ ] Transaction, idempotency, repair, and failure policy tested
 - [ ] Fixtures cover normal, empty, malformed, auth, limits, and historical cases
 - [ ] Publication checks, reconciliation, and manual audit added
-- [ ] Native and container checks passed
-- [ ] Image rebuilt and DDL applied on production
-- [ ] Manual first run inspected before scheduling
-- [ ] First scheduled run monitored
+- [ ] Targeted and full tests passed
+- [ ] Native and container smoke checks passed
+- [ ] Required and granted scopes confirmed
+- [ ] OAuth bootstrap completed only if required
+- [ ] Rotated refresh token persisted and visible in a new container
+- [ ] Production branch, worktree, and upstream state checked
+- [ ] Image rebuilt and its identity inspected
+- [ ] Additive DDL applied where required
+- [ ] Manual Raw ingestion passed and Raw records were verified
+- [ ] Manual Silver transform and publication checks passed
+- [ ] Representative resolved, null, changed, and unresolved data verified
+- [ ] Scheduled automation passed and run ID/counts were recorded
+- [ ] Unrelated phases remained operational
+- [ ] Logs and terminal capture contain no secrets
+- [ ] Documentation updated and temporary diagnostics removed
+- [ ] Technical debt recorded
 - [ ] Rollback procedure and known limitations recorded

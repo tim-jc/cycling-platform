@@ -72,6 +72,43 @@ build and test the Docker image where practical.
    delivery fail.
 11. Reports deep validation as `NOT_RUN`; deep validation is run separately.
 
+## Notification Execution Context
+
+Every ntfy body begins with the same compact execution context:
+
+```text
+Host: cycling-prod
+Pipeline: daily-platform
+Status: SUCCESS
+Duration: 4m 12s
+```
+
+The shared formatter is used by:
+
+* end-to-end daily automation;
+* standalone Raw ingestion;
+* validation success, warning, failure, and timeout notifications;
+* activity-achievement notifications.
+
+Duration is omitted where the event has no meaningful pipeline duration.
+Existing entity, transform, validation, achievement, backup, phase, and error
+details follow the context header. Failure details use a separate `Error:`
+section so they remain readable on mobile devices.
+
+The host is collected at delivery time by one shared helper. It prefers the
+operating-system nodename from `Sys.info()[["nodename"]]`, falls back to the
+`HOSTNAME` environment variable, and finally reports `unknown`. No application
+host names are hard-coded. This context object is intentionally small so future
+metadata such as environment, image revision, or Git commit can be added
+centrally.
+
+In Docker, both the OS nodename and `HOSTNAME` normally identify the container;
+with an ephemeral Compose job this may be a generated container ID. If a
+stable, operator-friendly name such as `cycling-prod` is required, the
+infrastructure-owned Compose deployment should set the container hostname from
+its deployment context. The application should not infer or hard-code the
+physical host.
+
 ## What It Does Not Do
 
 * It does not run deep validation.
