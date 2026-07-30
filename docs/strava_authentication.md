@@ -71,7 +71,10 @@ the browser redirect and token response.
 
 The helper prompts for the **complete redirect URL**, not a command-line
 argument. The URL contains the short-lived, single-use authorisation code and
-the granted scopes. The concealed prompt keeps the code out of shell history.
+the granted scopes. Paste it into the helper's standard-input prompt and press
+Enter. The pasted URL may be visible in the terminal because standard input is
+echoed, but it is not entered as a shell command and is therefore not written
+to shell history.
 
 For an initial setup:
 
@@ -83,7 +86,7 @@ For an initial setup:
 4. Create the host runtime file if it does not exist, restrict its permissions,
    and confirm the container sees it at the mounted path below.
 5. Run the helper, approve all three scopes, and paste the complete redirect
-   URL into its concealed prompt.
+   URL into its standard-input prompt.
 
 For scope expansion, repeat the same consent flow. Do not attempt to add scopes
 to the refresh request: refresh-token exchange can only preserve the scopes

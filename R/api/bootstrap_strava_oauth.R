@@ -329,13 +329,38 @@ validate_strava_token_response <- function(response) {
   invisible(granted_scopes)
 }
 
-prompt_for_strava_redirect <- function() {
-  askpass::askpass(
-    paste(
-      "Paste the complete Strava redirect URL.",
-      "The value will not be echoed or stored in shell history:"
-    )
+prompt_for_strava_redirect <- function(
+  input = stdin(),
+  output = stdout()
+) {
+  cat(
+    paste0(
+      "Paste the complete Strava redirect URL and press Enter.\n",
+      "The pasted URL may be visible in this terminal: "
+    ),
+    file = output
   )
+  flush(output)
+
+  redirect_url <- readLines(
+    con = input,
+    n = 1L,
+    warn = FALSE
+  )
+
+  if (
+    is.null(redirect_url) ||
+      length(redirect_url) != 1L ||
+      is.na(redirect_url[[1]]) ||
+      !nzchar(trimws(redirect_url[[1]]))
+  ) {
+    stop(
+      "No Strava redirect URL was supplied.",
+      call. = FALSE
+    )
+  }
+
+  trimws(redirect_url[[1]])
 }
 
 bootstrap_strava_oauth <- function(

@@ -353,7 +353,55 @@ testthat::test_that("OAuth state is a cryptographically generated 256-bit hex va
   testthat::expect_false(identical(state_one, state_two))
 })
 
-testthat::test_that("cancelled concealed redirect input fails clearly", {
+testthat::test_that("stdin redirect prompt reads and trims one complete line", {
+  input <- textConnection(
+    "  http://localhost/?code=example&state=known-state  \n",
+    open = "r"
+  )
+  output <- textConnection("prompt_output", open = "w", local = TRUE)
+  on.exit(close(input), add = TRUE)
+  on.exit(close(output), add = TRUE)
+
+  value <- prompt_for_strava_redirect(
+    input = input,
+    output = output
+  )
+
+  testthat::expect_equal(
+    value,
+    "http://localhost/?code=example&state=known-state"
+  )
+  testthat::expect_match(
+    paste(prompt_output, collapse = "\n"),
+    "press Enter"
+  )
+})
+
+testthat::test_that("stdin redirect prompt rejects blank input", {
+  input <- textConnection("   \n", open = "r")
+  output <- textConnection(NULL, open = "w")
+  on.exit(close(input), add = TRUE)
+  on.exit(close(output), add = TRUE)
+
+  testthat::expect_error(
+    prompt_for_strava_redirect(input = input, output = output),
+    "No Strava redirect URL was supplied"
+  )
+})
+
+testthat::test_that("stdin redirect prompt rejects EOF", {
+  input <- textConnection(character(), open = "r")
+  output <- textConnection(NULL, open = "w")
+  on.exit(close(input), add = TRUE)
+  on.exit(close(output), add = TRUE)
+
+  testthat::expect_error(
+    prompt_for_strava_redirect(input = input, output = output),
+    "No Strava redirect URL was supplied"
+  )
+})
+
+testthat::test_that("authorization redirect parser rejects NULL input", {
   testthat::expect_error(
     parse_strava_authorization_redirect(
       NULL,
