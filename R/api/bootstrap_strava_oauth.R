@@ -329,30 +329,28 @@ validate_strava_token_response <- function(response) {
   invisible(granted_scopes)
 }
 
-prompt_for_strava_redirect <- function(
-  input = stdin(),
-  output = stdout()
-) {
+prompt_for_strava_redirect <- function() {
   cat(
     paste0(
       "Paste the complete Strava redirect URL and press Enter.\n",
       "The pasted URL may be visible in this terminal: "
-    ),
-    file = output
+    )
   )
-  flush(output)
+  flush.console()
 
-  redirect_url <- readLines(
-    con = input,
+  connection <- file("stdin", open = "r")
+  on.exit(close(connection), add = TRUE)
+
+  input <- readLines(
+    con = connection,
     n = 1L,
     warn = FALSE
   )
 
   if (
-    is.null(redirect_url) ||
-      length(redirect_url) != 1L ||
-      is.na(redirect_url[[1]]) ||
-      !nzchar(trimws(redirect_url[[1]]))
+    length(input) == 0L ||
+      is.na(input[[1]]) ||
+      !nzchar(trimws(input[[1]]))
   ) {
     stop(
       "No Strava redirect URL was supplied.",
@@ -360,7 +358,7 @@ prompt_for_strava_redirect <- function(
     )
   }
 
-  trimws(redirect_url[[1]])
+  trimws(input[[1]])
 }
 
 bootstrap_strava_oauth <- function(
