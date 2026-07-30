@@ -22,8 +22,6 @@ get_access_token <- function() {
     ) |>
     httr2::req_perform()
 
-  body <- httr2::resp_body_json(response)
-
   body <- httr2::resp_body_json(
     response,
     simplifyVector = TRUE

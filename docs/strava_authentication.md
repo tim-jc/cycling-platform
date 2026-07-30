@@ -76,6 +76,12 @@ Enter. The pasted URL may be visible in the terminal because standard input is
 echoed, but it is not entered as a shell command and is therefore not written
 to shell history.
 
+For future interactive `Rscript` helpers, use the same lightweight CLI
+convention: print and flush the prompt, then read one required line from the
+real process standard input. Do not gate input on `interactive()` or use a
+password-prompt helper where terminal echo is explicitly acceptable; those
+approaches may return immediately in ephemeral Docker jobs.
+
 For an initial setup:
 
 1. Register or inspect the application at

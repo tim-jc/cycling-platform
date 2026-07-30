@@ -249,7 +249,8 @@ build_strava_authorization_code_request <- function(
 perform_strava_authorization_code_exchange <- function(
   code,
   client_id = Sys.getenv("STRAVA_CLIENT_ID"),
-  client_secret = Sys.getenv("STRAVA_CLIENT_SECRET")
+  client_secret = Sys.getenv("STRAVA_CLIENT_SECRET"),
+  perform_fn = httr2::req_perform
 ) {
   request <- build_strava_authorization_code_request(
     code = code,
@@ -258,7 +259,7 @@ perform_strava_authorization_code_exchange <- function(
   )
 
   response <- tryCatch(
-    httr2::req_perform(request),
+    perform_fn(request),
     error = function(error) {
       stop(
         paste(
@@ -329,36 +330,66 @@ validate_strava_token_response <- function(response) {
   invisible(granted_scopes)
 }
 
-prompt_for_strava_redirect <- function() {
+# Read one required line from the real process stdin by default.
+#
+# Interactive Rscript helpers should use this pattern instead of
+# interactive(), readline(), or askpass, which can behave differently in an
+# ephemeral Docker Compose job.
+read_required_stdin_line <- function(
+  prompt,
+  input = NULL,
+  output = stdout(),
+  missing_message
+) {
   cat(
-    paste0(
-      "Paste the complete Strava redirect URL and press Enter.\n",
-      "The pasted URL may be visible in this terminal: "
-    )
+    prompt,
+    file = output
   )
-  flush.console()
+  flush(output)
 
-  connection <- file("stdin", open = "r")
-  on.exit(close(connection), add = TRUE)
+  close_input <- FALSE
+  if (is.null(input)) {
+    input <- file("stdin", open = "r")
+    close_input <- TRUE
+  }
 
-  input <- readLines(
-    con = connection,
+  if (close_input) {
+    on.exit(close(input), add = TRUE)
+  }
+
+  value <- readLines(
+    con = input,
     n = 1L,
     warn = FALSE
   )
 
   if (
-    length(input) == 0L ||
-      is.na(input[[1]]) ||
-      !nzchar(trimws(input[[1]]))
+    length(value) == 0L ||
+      is.na(value[[1]]) ||
+      !nzchar(trimws(value[[1]]))
   ) {
     stop(
-      "No Strava redirect URL was supplied.",
+      missing_message,
       call. = FALSE
     )
   }
 
-  trimws(input[[1]])
+  trimws(value[[1]])
+}
+
+prompt_for_strava_redirect <- function(
+  input = NULL,
+  output = stdout()
+) {
+  read_required_stdin_line(
+    prompt = paste0(
+      "Paste the complete Strava redirect URL and press Enter.\n",
+      "The pasted URL may be visible in this terminal: "
+    ),
+    input = input,
+    output = output,
+    missing_message = "No Strava redirect URL was supplied."
+  )
 }
 
 bootstrap_strava_oauth <- function(

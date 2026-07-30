@@ -7,6 +7,7 @@ gear_source <- function(path) {
 }
 
 gear_source(file.path("api", "get_gear.R"))
+gear_source(file.path("database", "upsert_gear_observations.R"))
 gear_source(file.path("quality", "report_gear_resolution.R"))
 
 testthat::test_that("gear parser preserves detailed bike payload and lineage", {
@@ -157,6 +158,22 @@ testthat::test_that("gear DDL and transform encode history and safe disappearanc
   )
   transform_text <- paste(readLines(transform_file), collapse = "\n")
   testthat::expect_match(transform_text, "DBI::dbWithTransaction", fixed = TRUE)
+})
+
+testthat::test_that("gear loader distinguishes updated and unchanged metrics", {
+  result <- upsert_gear_observations(
+    connection = NULL,
+    observations = tibble::tibble()
+  )
+
+  testthat::expect_equal(
+    result,
+    list(
+      rows_inserted = 0L,
+      rows_updated = 0L,
+      rows_unchanged = 0L
+    )
+  )
 })
 
 testthat::test_that("gear client fetches current and historical IDs once", {

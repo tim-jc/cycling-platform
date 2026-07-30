@@ -165,6 +165,72 @@ testthat::test_that("authorization code exchange uses the OAuth code grant", {
   testthat::expect_equal(request$body$type, "form")
 })
 
+testthat::test_that("authorization code exchange handles transport failures safely", {
+  testthat::expect_error(
+    perform_strava_authorization_code_exchange(
+      code = "one-time-code",
+      client_id = "12345",
+      client_secret = "client-secret",
+      perform_fn = function(request) {
+        stop(
+          "transport included client-secret and one-time-code",
+          call. = FALSE
+        )
+      }
+    ),
+    paste(
+      "could not be completed.*",
+      "No credentials were changed",
+      sep = ""
+    )
+  )
+
+  error <- tryCatch(
+    perform_strava_authorization_code_exchange(
+      code = "one-time-code",
+      client_id = "12345",
+      client_secret = "client-secret",
+      perform_fn = function(request) {
+        stop("client-secret one-time-code", call. = FALSE)
+      }
+    ),
+    error = identity
+  )
+
+  testthat::expect_false(grepl(
+    "client-secret|one-time-code",
+    conditionMessage(error)
+  ))
+})
+
+testthat::test_that("authorization code exchange reports HTTP failure without body", {
+  response <- httr2::response(
+    status_code = 400L,
+    body = charToRaw(
+      '{"message":"client-secret one-time-code"}'
+    )
+  )
+
+  error <- tryCatch(
+    perform_strava_authorization_code_exchange(
+      code = "one-time-code",
+      client_id = "12345",
+      client_secret = "client-secret",
+      perform_fn = function(request) response
+    ),
+    error = identity
+  )
+
+  testthat::expect_match(
+    conditionMessage(error),
+    "HTTP 400"
+  )
+  testthat::expect_false(grepl(
+    "client-secret|one-time-code",
+    conditionMessage(error)
+  ))
+})
+
 testthat::test_that("token response validation requires tokens and scopes", {
   valid_response <- list(
     access_token = "access-token",

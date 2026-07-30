@@ -100,7 +100,7 @@ ingest_gear <- function(connection, run_id, source_id, config) {
         run_entity_id = run_entity_id,
         entity_status = "SUCCESS",
         rows_inserted = load_result$rows_inserted,
-        rows_updated = load_result$rows_unchanged
+        rows_updated = load_result$rows_updated
       )
 
       update_api_endpoint_run(

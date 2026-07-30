@@ -1,7 +1,13 @@
 #' Insert changed gear observations and touch identical observations
 upsert_gear_observations <- function(connection, observations) {
   if (nrow(observations) == 0) {
-    return(list(rows_inserted = 0L, rows_unchanged = 0L))
+    return(
+      list(
+        rows_inserted = 0L,
+        rows_updated = 0L,
+        rows_unchanged = 0L
+      )
+    )
   }
 
   existing <- DBI::dbGetQuery(
@@ -62,6 +68,9 @@ upsert_gear_observations <- function(connection, observations) {
 
   list(
     rows_inserted = sum(!is_existing),
+    # Identical payloads only advance observation/control metadata. They are
+    # reported separately rather than as source-record updates.
+    rows_updated = 0L,
     rows_unchanged = sum(is_existing)
   )
 }
