@@ -182,10 +182,14 @@ gear as the reference implementation.
 * Notifications: `NTFY_TOPIC`
 
 For native Mac execution, place values in the ignored project `.Renviron`.
-Production Compose must inject the same variables into the ephemeral container
-through its environment/secrets configuration. `.Renviron` is excluded from
+Production Compose injects client credentials and bind-mounts a persistent
+runtime `.Renviron` for rotating refresh tokens. The mounted file is selected
+with `CYCLING_PLATFORM_RENVIRON_PATH` and `R_ENVIRON_USER` at
+`/run/cycling-platform/runtime.Renviron`, backed by the host file
+`/srv/cycling/config/platform/runtime.Renviron`. `.Renviron` is excluded from
 the Docker build context and secrets must never be baked into the image or
-committed.
+committed. See [Strava Authentication](docs/strava_authentication.md) for the
+interactive bootstrap and scope-expansion procedure.
 
 Non-secret runtime behaviour is configured in `config/platform.yml`.
 

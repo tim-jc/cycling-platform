@@ -28,6 +28,7 @@ r_files <- c(
   "run_gold_activity_best_efforts.R",
   "run_power_source_classification_audit.R",
   "run_platform_notifications.R",
+  file.path("scripts", "bootstrap_strava_oauth.R"),
   "run_silver.R",
   "validate_platform.R"
 )
@@ -155,6 +156,7 @@ api_files <- list.files(
 )
 
 direct_request_allowed <- c(
+  file.path("R", "api", "bootstrap_strava_oauth.R"),
   file.path("R", "api", "get_access_token.R"),
   file.path("R", "api", "get_google_health_access_token.R"),
   file.path("R", "api", "perform_google_health_request.R"),
