@@ -148,6 +148,18 @@ testthat::test_that("collation validation covers platform metadata", {
   testthat::expect_match(query, "information_schema.schemata", fixed = TRUE)
   testthat::expect_match(query, "information_schema.tables", fixed = TRUE)
   testthat::expect_match(query, "information_schema.columns", fixed = TRUE)
+  testthat::expect_match(query, "information_schema.collations", fixed = TRUE)
+  testthat::expect_match(
+    query,
+    paste(
+      "table_collations.collation_name =",
+      "tables.table_collation"
+    ),
+    fixed = TRUE
+  )
+  testthat::expect_false(
+    grepl("character_set_name(", query, fixed = TRUE)
+  )
   testthat::expect_match(query, "utf8mb4_general_ci", fixed = TRUE)
 
   for (schema in platform_database_schemas()) {

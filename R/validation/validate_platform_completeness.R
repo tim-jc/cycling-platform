@@ -114,12 +114,19 @@ platform_collation_validation_query <- function() {
       tables.table_schema,
       tables.table_name,
       NULL AS column_name,
-      character_set_name(tables.table_collation) AS actual_character_set,
+      table_collations.character_set_name AS actual_character_set,
       tables.table_collation AS actual_collation
     FROM information_schema.tables tables
+    LEFT JOIN information_schema.collations table_collations
+      ON table_collations.collation_name = tables.table_collation
     WHERE tables.table_schema IN ({schemas_sql})
       AND tables.table_type = 'BASE TABLE'
-      AND tables.table_collation <> '{platform_canonical_collation()}'
+      AND (
+        table_collations.character_set_name IS NULL
+        OR table_collations.character_set_name <> '{platform_canonical_character_set()}'
+        OR tables.table_collation IS NULL
+        OR tables.table_collation <> '{platform_canonical_collation()}'
+      )
 
     UNION ALL
 
@@ -133,12 +140,17 @@ platform_collation_validation_query <- function() {
     FROM information_schema.columns columns
     WHERE columns.table_schema IN ({schemas_sql})
       AND columns.character_set_name IS NOT NULL
-      AND columns.collation_name <> '{platform_canonical_collation()}'
       AND NOT (
-        columns.collation_name = 'utf8mb4_bin'
+        columns.character_set_name = '{platform_canonical_character_set()}'
+        AND columns.collation_name = 'utf8mb4_bin'
         AND (
           {json_exceptions_sql}
         )
+      )
+      AND (
+        columns.character_set_name <> '{platform_canonical_character_set()}'
+        OR columns.collation_name IS NULL
+        OR columns.collation_name <> '{platform_canonical_collation()}'
       )
     ORDER BY table_schema, table_name, column_name, object_type
   ")
