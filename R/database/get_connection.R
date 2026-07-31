@@ -1,3 +1,48 @@
+#' Load MariaDB Connection Configuration
+#'
+#' Validate presence and basic shape without logging secret values.
+#'
+#' @param environment Named environment-variable vector.
+#'
+#' @return Validated connection configuration.
+load_mariadb_connection_config <- function(environment = Sys.getenv()) {
+  required_keys <- c(
+    "MARIADB_HOST",
+    "MARIADB_PORT",
+    "MARIADB_USER",
+    "MARIADB_PASSWORD"
+  )
+  values <- environment[required_keys]
+  values[is.na(values)] <- ""
+  missing_keys <- required_keys[!nzchar(trimws(values))]
+
+  if (length(missing_keys) > 0L) {
+    stop(
+      "MariaDB configuration is incomplete. Missing runtime credential(s): ",
+      paste(missing_keys, collapse = ", "),
+      ". Check the active .Renviron or container secret mount.",
+      call. = FALSE
+    )
+  }
+
+  port <- suppressWarnings(as.integer(values[["MARIADB_PORT"]]))
+
+  if (is.na(port) || port < 1L || port > 65535L) {
+    stop(
+      "MariaDB configuration is invalid: MARIADB_PORT must be an integer ",
+      "between 1 and 65535.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    host = trimws(values[["MARIADB_HOST"]]),
+    port = port,
+    user = trimws(values[["MARIADB_USER"]]),
+    password = values[["MARIADB_PASSWORD"]]
+  )
+}
+
 #' Get Connection
 #'
 #' Establish a connection to MariaDB.
@@ -9,49 +54,33 @@
 get_connection <- function(
   database_name = "cycling_platform_admin"
 ) {
-  host <- Sys.getenv("MARIADB_HOST")
-
-  port <- Sys.getenv("MARIADB_PORT")
-
-  user <- Sys.getenv("MARIADB_USER")
-
-  if (!nzchar(host)) {
+  if (
+    length(database_name) != 1L ||
+      is.na(database_name) ||
+      !nzchar(trimws(database_name))
+  ) {
     stop(
-      "MariaDB connection failed: MARIADB_HOST is not set.",
+      "MariaDB connection configuration is invalid: database name is blank.",
       call. = FALSE
     )
   }
 
-  if (!nzchar(port)) {
-    stop(
-      "MariaDB connection failed: MARIADB_PORT is not set.",
-      call. = FALSE
-    )
-  }
-
-  if (!nzchar(user)) {
-    stop(
-      "MariaDB connection failed: MARIADB_USER is not set.",
-      call. = FALSE
-    )
-  }
+  connection_config <- load_mariadb_connection_config()
 
   tryCatch(
     {
       DBI::dbConnect(
         drv = RMariaDB::MariaDB(),
 
-        host = host,
+        host = connection_config$host,
 
-        port = as.integer(
-          port
-        ),
+        port = connection_config$port,
 
         dbname = database_name,
 
-        user = user,
+        user = connection_config$user,
 
-        password = Sys.getenv("MARIADB_PASSWORD")
+        password = connection_config$password
       )
     },
     error = function(e) {
@@ -60,11 +89,12 @@ get_connection <- function(
           "MariaDB connection failed for database '",
           database_name,
           "' at ",
-          host,
+          connection_config$host,
           ":",
-          port,
-          ". Check that the Raspberry Pi is reachable from this network, ",
-          "MariaDB is running, port 3306 is open, and credentials are current. ",
+          connection_config$port,
+          ". Runtime configuration was present, but the connection attempt ",
+          "failed. Check host reachability, MariaDB service state, grants, ",
+          "and whether the configured credentials are valid. ",
           "Original error: ",
           conditionMessage(e)
         ),

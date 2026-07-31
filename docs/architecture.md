@@ -91,6 +91,10 @@ Applied versions and checksums are recorded in
 immutable. Publication validation checks database, table, and text-column
 collations before running cross-schema joins.
 
+The formal decisions are recorded in
+[ADR-002](architecture_decisions/ADR-002-canonical-mariadb-schema-standard.md)
+and [ADR-003](architecture_decisions/ADR-003-versioned-schema-migrations.md).
+
 ## Current Operating Position
 
 The platform runs in production on MariaDB 11.8 on the Raspberry Pi 5 host
@@ -148,6 +152,11 @@ After idempotent object creation, bootstrap applies any unapplied versioned
 schema migrations. MariaDB DDL auto-commits, so migrations are ordered,
 checksum-protected, and recorded only after the complete migration file
 succeeds.
+
+Migration filenames must use `NNN_description.sql`. Bootstrap rejects malformed
+names, duplicate versions, renamed applied files, and checksum changes before
+continuing. An interrupted migration is not recorded as successful; its SQL
+must be idempotent so bootstrap can safely retry it.
 
 `platform.R` is currently a raw-ingestion orchestrator. The unattended wrapper
 runs Silver transforms only after successful raw ingestion; `platform.R` itself

@@ -67,6 +67,21 @@ update_renviron <- function(
   value,
   renviron_path = find_project_renviron()
 ) {
+  if (
+    length(key) != 1L ||
+      is.na(key) ||
+      !grepl("^[A-Z][A-Z0-9_]*$", key)
+  ) {
+    stop("Invalid runtime credential key.", call. = FALSE)
+  }
+
+  if (length(value) != 1L || is.na(value) || !nzchar(value)) {
+    stop(
+      "Refusing to persist a missing or blank runtime credential value.",
+      call. = FALSE
+    )
+  }
+
   lines <- if (file.exists(renviron_path)) {
     readLines(
       renviron_path,
@@ -94,10 +109,44 @@ update_renviron <- function(
     lines <- c(lines, replacement)
   }
 
-  writeLines(
-    lines,
-    renviron_path
+  renviron_directory <- dirname(renviron_path)
+
+  if (!dir.exists(renviron_directory)) {
+    stop(
+      "Runtime credential directory does not exist: ",
+      renviron_directory,
+      call. = FALSE
+    )
+  }
+
+  existing_mode <- if (file.exists(renviron_path)) {
+    file.info(renviron_path)$mode[[1]]
+  } else {
+    "600"
+  }
+  temporary_path <- tempfile(
+    pattern = ".runtime-renviron-",
+    tmpdir = renviron_directory
   )
+
+  on.exit(
+    {
+      if (file.exists(temporary_path)) {
+        unlink(temporary_path)
+      }
+    },
+    add = TRUE
+  )
+
+  writeLines(lines, temporary_path)
+  Sys.chmod(temporary_path, mode = existing_mode)
+
+  if (!file.rename(temporary_path, renviron_path)) {
+    stop(
+      "Failed to atomically replace the persistent runtime credential file.",
+      call. = FALSE
+    )
+  }
 
   do.call(
     Sys.setenv,

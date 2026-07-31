@@ -77,6 +77,14 @@ platform_collation_validation_query <- function() {
     "'",
     collapse = ", "
   )
+  expected_schemas_sql <- paste(
+    paste0(
+      "SELECT '",
+      platform_database_schemas(),
+      "' AS schema_name"
+    ),
+    collapse = "\n      UNION ALL\n      "
+  )
 
   json_columns <- platform_json_columns()
   json_exceptions_sql <- paste(
@@ -95,17 +103,19 @@ platform_collation_validation_query <- function() {
   glue::glue("
     SELECT
       'database' AS object_type,
-      schemata.schema_name AS table_schema,
+      expected_schemata.schema_name AS table_schema,
       NULL AS table_name,
       NULL AS column_name,
       schemata.default_character_set_name AS actual_character_set,
       schemata.default_collation_name AS actual_collation
-    FROM information_schema.schemata schemata
-    WHERE schemata.schema_name IN ({schemas_sql})
-      AND (
-        schemata.default_character_set_name <> '{platform_canonical_character_set()}'
+    FROM (
+      {expected_schemas_sql}
+    ) expected_schemata
+    LEFT JOIN information_schema.schemata schemata
+      ON schemata.schema_name = expected_schemata.schema_name
+    WHERE schemata.schema_name IS NULL
+       OR schemata.default_character_set_name <> '{platform_canonical_character_set()}'
         OR schemata.default_collation_name <> '{platform_canonical_collation()}'
-      )
 
     UNION ALL
 

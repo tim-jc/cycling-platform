@@ -347,17 +347,52 @@ for (file in create_sql_files) {
 
 message("Checking bootstrap excludes transformation SQL...")
 
-bootstrap_text <- paste(
-  readLines("bootstrap_platform.R", warn = FALSE),
-  collapse = "\n"
-)
+source(file.path("R", "database", "bootstrap_platform_schema.R"))
+bootstrap_sql_files <- list_platform_bootstrap_sql_files()
+derived_bootstrap_files <- bootstrap_sql_files[
+  grepl("/sql/(silver|gold)/", bootstrap_sql_files)
+]
 
-if (!grepl("^[0-9]+_create_", bootstrap_text, fixed = TRUE)) {
+if (!all(grepl("^[0-9]+_create_", basename(derived_bootstrap_files)))) {
   fail("bootstrap_platform.R should only run create SQL for derived layers")
 }
 
-if (!grepl("run_schema_migrations(connection)", bootstrap_text, fixed = TRUE)) {
+bootstrap_helper_text <- paste(
+  readLines(
+    file.path("R", "database", "bootstrap_platform_schema.R"),
+    warn = FALSE
+  ),
+  collapse = "\n"
+)
+
+if (!grepl("run_schema_migrations", bootstrap_helper_text, fixed = TRUE)) {
   fail("bootstrap_platform.R must apply versioned schema migrations")
+}
+
+message("Checking loaders cannot create persistent tables implicitly...")
+
+direct_write_files <- r_files[vapply(
+  r_files,
+  function(file) {
+    text <- paste(readLines(file, warn = FALSE), collapse = "\n")
+    grepl("DBI::dbWriteTable(", text, fixed = TRUE)
+  },
+  logical(1)
+)]
+
+allowed_direct_write <- file.path(
+  "R",
+  "database",
+  "append_existing_table.R"
+)
+
+if (!identical(direct_write_files, allowed_direct_write)) {
+  fail(
+    paste(
+      "Only append_existing_table.R may call DBI::dbWriteTable directly; found:",
+      paste(direct_write_files, collapse = ", ")
+    )
+  )
 }
 
 message("Smoke checks passed.")

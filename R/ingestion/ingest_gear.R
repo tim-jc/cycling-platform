@@ -80,13 +80,13 @@ ingest_gear <- function(connection, run_id, source_id, config) {
               .before = "resolution_status"
             )
 
-            DBI::dbWriteTable(
-              connection,
-              DBI::Id(
+            append_existing_table(
+              conn = connection,
+              name = DBI::Id(
                 schema = "cycling_platform_raw",
                 table = "gear_resolution_attempts"
               ),
-              attempts,
+              value = attempts,
               append = TRUE
             )
           }

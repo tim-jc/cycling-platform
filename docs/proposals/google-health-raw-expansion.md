@@ -752,7 +752,7 @@ If the token does not contain both, regenerate it and update `.Renviron`.
 The auth check should eventually report:
 
 * token file path;
-* refresh-token presence and prefix;
+* refresh-token presence and length, never its value or prefix;
 * granted scopes from token introspection;
 * whether each configured Google Health data type has a required scope;
 * a small live probe result for each newly enabled data type.

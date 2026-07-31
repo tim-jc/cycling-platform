@@ -494,7 +494,7 @@ insert_silver_activity_stream_batch <- function(
         "insert chunk {chunk_number}/{length(row_indexes)} ",
         "({length(indexes)} rows)"
       ),
-      DBI::dbWriteTable(
+      append_existing_table(
         conn = connection,
         name = DBI::Id(
           schema = "cycling_platform_silver",

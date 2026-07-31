@@ -16,12 +16,7 @@ google_health_token_diagnostics <- function(
     client_id_present = nzchar(Sys.getenv("GOOGLE_HEALTH_CLIENT_ID")),
     client_secret_present = nzchar(Sys.getenv("GOOGLE_HEALTH_CLIENT_SECRET")),
     refresh_token_present = nzchar(refresh_token),
-    refresh_token_length = nchar(refresh_token),
-    refresh_token_prefix = if (nzchar(refresh_token)) {
-      substr(refresh_token, 1, 4)
-    } else {
-      NA_character_
-    }
+    refresh_token_length = nchar(refresh_token)
   )
 }
 
@@ -123,13 +118,22 @@ get_google_health_access_token <- function(verbose = FALSE) {
       renviron_path = token_config$renviron_path
     )
 
+    error_code <- if (!is.null(body$error)) {
+      as.character(body$error[[1]])
+    } else {
+      "unknown_error"
+    }
+    error_description <- if (!is.null(body$error_description)) {
+      as.character(body$error_description[[1]])
+    } else {
+      "No OAuth error description returned."
+    }
+
     stop(
       paste(
         "Google Health token refresh failed:",
-        paste(
-          unlist(body),
-          collapse = " "
-        ),
+        error_code,
+        error_description,
         "| token_file:",
         diagnostics$renviron_path,
         "| token_file_modified:",
@@ -137,10 +141,21 @@ get_google_health_access_token <- function(verbose = FALSE) {
         "| refresh_token_present:",
         diagnostics$refresh_token_present,
         "| refresh_token_length:",
-        diagnostics$refresh_token_length,
-        "| refresh_token_prefix:",
-        diagnostics$refresh_token_prefix
+        diagnostics$refresh_token_length
       ),
+      call. = FALSE
+    )
+  }
+
+  if (
+    is.null(body[["access_token"]]) ||
+      length(body[["access_token"]]) != 1L ||
+      is.na(body[["access_token"]]) ||
+      !nzchar(body[["access_token"]])
+  ) {
+    stop(
+      "Google Health token refresh returned an incomplete response: ",
+      "access_token was missing. Persistent credentials were not changed.",
       call. = FALSE
     )
   }

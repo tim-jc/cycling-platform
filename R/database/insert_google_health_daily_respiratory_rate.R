@@ -6,7 +6,7 @@ insert_google_health_daily_respiratory_rate <- function(
     return(0L)
   }
 
-  DBI::dbWriteTable(
+  append_existing_table(
     conn = connection,
     name = DBI::Id(
       schema = "cycling_platform_raw",

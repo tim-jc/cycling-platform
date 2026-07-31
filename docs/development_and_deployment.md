@@ -150,6 +150,23 @@ Bootstrap also applies ordered migrations from `sql/migrations/`. Never edit a
 migration after it has been applied; add a new numbered migration. The
 migration ledger verifies checksums so accidental history changes are visible.
 
+Verify the ledger after bootstrap:
+
+```sql
+SELECT
+    migration_version,
+    migration_filename,
+    migration_checksum,
+    applied_at
+FROM cycling_platform_admin.schema_migration
+ORDER BY migration_version;
+```
+
+Migration 001 must report `001_enforce_canonical_collation.sql` with checksum
+`d21cd9713ed4a9736626f41575d10fa762945a58400b40de80f36b4a5fe55224`.
+Deployment evidence is complete only when the ledger is correct, publication
+validation passes, and a full platform run succeeds.
+
 Rollback normally means checking out the previously accepted application
 revision through the normal Git workflow, rebuilding that image, and verifying
 its identity and smoke check. Do not drop additive Raw/Admin tables or delete
@@ -216,6 +233,20 @@ Do not:
 * put secret values in `Dockerfile`, Compose files committed to a public
   repository, or `config/platform.yml`;
 * use `MARIADB_DATABASE=cycling` as an architectural shortcut.
+
+Startup distinguishes configuration absence from credential rejection:
+
+* missing MariaDB or OAuth variables produce an `incomplete configuration`
+  error naming only the missing variable names;
+* invalid/revoked credentials produce a connection or token-refresh failure
+  after configuration has passed presence checks;
+* diagnostics may report credential presence, file path, modification time, or
+  token length, but never secret values or token prefixes.
+
+During recovery, first verify that the expected persistent runtime `.Renviron`
+is mounted and selected by `CYCLING_PLATFORM_RENVIRON_PATH` / `R_ENVIRON_USER`.
+Do not respond to a missing-variable error by rotating credentials; restore the
+runtime configuration path first.
 
 The application uses five databases and the production user needs only the
 required privileges on those databases:

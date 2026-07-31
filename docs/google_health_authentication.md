@@ -141,7 +141,7 @@ The check reports:
 * token file path;
 * token file modification time;
 * whether client id, client secret and refresh token are present;
-* refresh token length and prefix;
+* refresh token presence and length, never its value or prefix;
 * whether refresh succeeds.
 
 It never prints the full refresh token.

@@ -29,10 +29,13 @@ upsert_gear_observations <- function(connection, observations) {
   is_existing <- keys %in% existing_keys
 
   if (any(!is_existing)) {
-    DBI::dbWriteTable(
-      connection,
-      DBI::Id(schema = "cycling_platform_raw", table = "gear_observations"),
-      observations[!is_existing, , drop = FALSE],
+    append_existing_table(
+      conn = connection,
+      name = DBI::Id(
+        schema = "cycling_platform_raw",
+        table = "gear_observations"
+      ),
+      value = observations[!is_existing, , drop = FALSE],
       append = TRUE
     )
   }

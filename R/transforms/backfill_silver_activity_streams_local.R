@@ -752,7 +752,7 @@ backfill_silver_activity_streams_local <- function(
           length(row_indexes)
         ),
         tryCatch(
-          DBI::dbWriteTable(
+          append_existing_table(
             conn = connection,
             name = DBI::Id(
               schema = "cycling_platform_silver",
@@ -829,7 +829,7 @@ backfill_silver_activity_streams_local <- function(
           length(row_indexes)
         ),
         tryCatch(
-          DBI::dbWriteTable(
+          append_existing_table(
             conn = connection,
             name = staging_table,
             value = rows[indexes, , drop = FALSE],

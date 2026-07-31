@@ -288,9 +288,33 @@ free disk space, and a verified pre-migration backup. MariaDB DDL auto-commits;
 if conversion stops part-way through, resolve the cause and rerun bootstrap.
 The migration ledger is updated only after the whole migration file succeeds.
 
+Verify recovery migration evidence directly:
+
+```sql
+SELECT
+    migration_version,
+    migration_filename,
+    migration_checksum,
+    applied_at
+FROM cycling_platform_admin.schema_migration
+ORDER BY migration_version;
+```
+
+For migration 001, verify filename
+`001_enforce_canonical_collation.sql` and SHA-256 checksum
+`d21cd9713ed4a9736626f41575d10fa762945a58400b40de80f36b4a5fe55224`.
+A ledger row alone is not sufficient recovery evidence: the canonical schema
+publication check and the complete daily platform must also succeed.
+
+Backup-health warnings must not be suppressed merely because execution is on a
+recovery-test host. A restored backup contains historical backup metadata, so a
+stale or critical result may be genuine and useful. Rehearsal operators should
+record that expected condition, then establish a current verified off-host
+backup through the normal backup owner before treating the recovered service as
+production-ready.
+
 ## Future Improvements
 
-* add backup success/failure notifications
 * add automated restore verification
 * document and exercise a complete disaster-recovery test on a non-production
   MariaDB instance

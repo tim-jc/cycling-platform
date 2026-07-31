@@ -80,6 +80,38 @@ testthat::test_that("all persistent CREATE TABLE DDL is deterministic", {
   )
 })
 
+testthat::test_that("loaders cannot create persistent tables implicitly", {
+  project_root <- find_project_root()
+  r_files <- list.files(
+    file.path(project_root, "R"),
+    pattern = "[.][Rr]$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  allowed_file <- normalizePath(
+    file.path(
+      project_root,
+      "R",
+      "database",
+      "append_existing_table.R"
+    )
+  )
+
+  direct_writers <- r_files[vapply(
+    r_files,
+    function(file) {
+      text <- paste(readLines(file, warn = FALSE), collapse = "\n")
+      grepl("DBI::dbWriteTable(", text, fixed = TRUE)
+    },
+    logical(1)
+  )]
+
+  testthat::expect_identical(
+    normalizePath(direct_writers),
+    allowed_file
+  )
+})
+
 testthat::test_that("canonical migration covers databases and created tables", {
   project_root <- find_project_root()
   migration <- paste(
@@ -161,6 +193,11 @@ testthat::test_that("collation validation covers platform metadata", {
     grepl("character_set_name(", query, fixed = TRUE)
   )
   testthat::expect_match(query, "utf8mb4_general_ci", fixed = TRUE)
+  testthat::expect_match(
+    query,
+    "WHERE schemata.schema_name IS NULL",
+    fixed = TRUE
+  )
 
   for (schema in platform_database_schemas()) {
     testthat::expect_match(query, schema, fixed = TRUE)

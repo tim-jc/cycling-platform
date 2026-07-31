@@ -5,44 +5,16 @@ connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {
-    list_sql_files <- function(directory, pattern = "\\.sql$") {
-      path <- file.path("sql", directory)
-
-      if (!dir.exists(path)) {
-        return(character())
-      }
-
-      list.files(
-        path = path,
-        pattern = pattern,
-        full.names = TRUE
-      ) |>
-        sort()
-    }
-
-    sql_files <- list(
-      list_sql_files("install"),
-      list_sql_files("admin"),
-      list_sql_files("stage"),
-      list_sql_files("raw"),
-      list_sql_files("silver", "^[0-9]+_create_.*\\.sql$"),
-      list_sql_files("gold", "^[0-9]+_create_.*\\.sql$")
-    ) |>
-      unlist(use.names = FALSE)
-
-    purrr::walk(
-      sql_files,
-      execute_sql_file,
-      connection = connection
-    )
-
-    run_schema_migrations(connection)
-
-    message("Platform bootstrap complete.")
+    bootstrap_platform_schema(connection)
   },
 
   finally = {
-    if (DBI::dbIsValid(connection)) {
+    connection_is_valid <- tryCatch(
+      DBI::dbIsValid(connection),
+      error = function(e) FALSE
+    )
+
+    if (isTRUE(connection_is_valid)) {
       DBI::dbDisconnect(connection)
     }
   }

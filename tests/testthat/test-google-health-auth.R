@@ -138,12 +138,47 @@ testthat::test_that("Google Health token diagnostics do not expose full token", 
     diagnostics$refresh_token_present[[1]]
   )
 
-  testthat::expect_equal(
-    diagnostics$refresh_token_prefix[[1]],
-    "1//r"
-  )
-
   testthat::expect_false(
     "1//refresh-token-value" %in% unlist(diagnostics)
   )
+
+  testthat::expect_false(
+    "refresh_token_prefix" %in% names(diagnostics)
+  )
+})
+
+testthat::test_that("blank credential updates preserve the existing file", {
+  update_renviron_file <- file.path(
+    "R",
+    "admin",
+    "update_renviron.R"
+  )
+
+  if (!file.exists(update_renviron_file)) {
+    update_renviron_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "admin",
+      "update_renviron.R"
+    )
+  }
+
+  source(update_renviron_file)
+  renviron_file <- tempfile()
+  original <- c(
+    "GOOGLE_HEALTH_REFRESH_TOKEN=existing-token",
+    "STRAVA_REFRESH_TOKEN=unrelated-token"
+  )
+  writeLines(original, renviron_file)
+
+  testthat::expect_error(
+    update_renviron(
+      key = "GOOGLE_HEALTH_REFRESH_TOKEN",
+      value = "",
+      renviron_path = renviron_file
+    ),
+    "Refusing to persist"
+  )
+  testthat::expect_identical(readLines(renviron_file), original)
 })
