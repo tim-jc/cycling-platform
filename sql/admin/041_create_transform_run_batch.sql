@@ -43,4 +43,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.transform_run_batch (
         FOREIGN KEY (transform_run_id)
         REFERENCES cycling_platform_admin.transform_run (transform_run_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

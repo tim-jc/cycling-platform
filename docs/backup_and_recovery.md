@@ -266,6 +266,28 @@ InnoDB page layout. Restored tables can therefore have different allocated or
 reported physical sizes even when row counts, keys, and logical contents match.
 Validate logical contents rather than expecting byte-for-byte table sizes.
 
+### Schema reconciliation after restore
+
+A restore can combine historical tables with newer platform DDL. Before any
+scheduled ingestion or transformation, rebuild the current application image
+and run:
+
+```sh
+docker compose run --rm cycling-platform Rscript bootstrap_platform.R
+docker compose run --rm cycling-platform \
+  Rscript run_platform_validation.R --publication
+```
+
+Bootstrap applies the versioned collation migration, converting all five
+database defaults and existing tables to `utf8mb4` /
+`utf8mb4_general_ci`. This prevents joins from depending on either the restored
+server's or the target server's defaults.
+
+The conversion may rebuild large InnoDB tables and needs a maintenance window,
+free disk space, and a verified pre-migration backup. MariaDB DDL auto-commits;
+if conversion stops part-way through, resolve the cause and rerun bootstrap.
+The migration ledger is updated only after the whole migration file succeeds.
+
 ## Future Improvements
 
 * add backup success/failure notifications

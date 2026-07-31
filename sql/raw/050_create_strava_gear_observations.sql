@@ -67,7 +67,9 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.gear_observations (
     KEY idx_gear_observations_run_collection
         (run_id, observed_in_current_collection)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS cycling_platform_raw.gear_resolution_attempts (
 
@@ -93,4 +95,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.gear_resolution_attempts (
     KEY idx_gear_resolution_attempt_status
         (resolution_status, attempted_at)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

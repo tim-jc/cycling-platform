@@ -47,4 +47,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_streams (
 
     KEY idx_silver_activity_streams_distance_metres (distance_metres)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

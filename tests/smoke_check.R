@@ -300,6 +300,51 @@ for (file in sql_files) {
   }
 }
 
+message("Checking deterministic MariaDB table definitions...")
+
+create_sql_files <- list.files(
+  "sql",
+  pattern = "create.*[.]sql$",
+  recursive = TRUE,
+  full.names = TRUE,
+  ignore.case = TRUE
+)
+
+for (file in create_sql_files) {
+  sql <- paste(readLines(file, warn = FALSE), collapse = "\n")
+  create_count <- lengths(
+    gregexpr(
+      "CREATE[[:space:]]+TABLE",
+      sql,
+      ignore.case = TRUE,
+      perl = TRUE
+    )
+  )
+
+  required_options <- c(
+    "ENGINE=InnoDB",
+    "DEFAULT CHARACTER SET utf8mb4",
+    "DEFAULT COLLATE utf8mb4_general_ci"
+  )
+
+  for (required_option in required_options) {
+    option_count <- lengths(
+      gregexpr(required_option, sql, fixed = TRUE)
+    )
+
+    if (!identical(option_count, create_count)) {
+      fail(
+        paste(
+          file,
+          "must specify",
+          required_option,
+          "for every CREATE TABLE"
+        )
+      )
+    }
+  }
+}
+
 message("Checking bootstrap excludes transformation SQL...")
 
 bootstrap_text <- paste(
@@ -309,6 +354,10 @@ bootstrap_text <- paste(
 
 if (!grepl("^[0-9]+_create_", bootstrap_text, fixed = TRUE)) {
   fail("bootstrap_platform.R should only run create SQL for derived layers")
+}
+
+if (!grepl("run_schema_migrations(connection)", bootstrap_text, fixed = TRUE)) {
+  fail("bootstrap_platform.R must apply versioned schema migrations")
 }
 
 message("Smoke checks passed.")

@@ -66,6 +66,31 @@ five databases and must not need the MariaDB `mysql` system database.
 Control-plane and fully-qualified cross-database operations normally use
 `cycling_platform_admin` as their connection entry point.
 
+### Canonical character encoding
+
+Every platform database and table uses:
+
+* character set: `utf8mb4`;
+* collation: `utf8mb4_general_ci`;
+* storage engine: `InnoDB`.
+
+This choice is intentional. It preserves established production comparison
+behaviour and is available on both MariaDB 10.5 and 11.8. Newer server defaults,
+including `utf8mb4_uca1400_ai_ci`, must not determine platform DDL. Restoring an
+older backup and then adding tables under a different server default can
+otherwise make text-key joins fail with an illegal mix of collations.
+
+All database and table DDL specifies the standard explicitly. Text columns
+added by dynamic `ALTER TABLE` helpers do too. MariaDB implements `JSON` as
+validated `LONGTEXT` with `utf8mb4_bin`; declared JSON columns are the sole
+expected binary-collation exception and are not platform join keys.
+
+Versioned migrations under `sql/migrations/` reconcile existing objects.
+Applied versions and checksums are recorded in
+`cycling_platform_admin.schema_migration`; an applied migration file is
+immutable. Publication validation checks database, table, and text-column
+collations before running cross-schema joins.
+
 ## Current Operating Position
 
 The platform runs in production on MariaDB 11.8 on the Raspberry Pi 5 host
@@ -118,6 +143,11 @@ Rscript run_silver.R
 
 This keeps raw/admin bootstrap safe to rerun without accidentally launching a
 large silver stream expansion.
+
+After idempotent object creation, bootstrap applies any unapplied versioned
+schema migrations. MariaDB DDL auto-commits, so migrations are ordered,
+checksum-protected, and recorded only after the complete migration file
+succeeds.
 
 `platform.R` is currently a raw-ingestion orchestrator. The unattended wrapper
 runs Silver transforms only after successful raw ingestion; `platform.R` itself

@@ -13,12 +13,37 @@ source_notification_context_files <- function() {
   }
 }
 
-testthat::test_that("execution host prefers the operating-system nodename", {
+testthat::test_that("execution host prefers propagated Docker host identity", {
   source_notification_context_files()
 
   host <- platform_execution_host(
-    system_info = c(nodename = "cycling-prod"),
-    hostname_environment = "container-id"
+    system_info = c(nodename = "4f296d2e25ed"),
+    hostname_environment = "4f296d2e25ed",
+    execution_host_environment = "cycling-prod"
+  )
+
+  testthat::expect_equal(host, "cycling-prod")
+})
+
+testthat::test_that("execution host uses OS nodename for native execution", {
+  source_notification_context_files()
+
+  host <- platform_execution_host(
+    system_info = c(nodename = "Tim-Mac.local"),
+    hostname_environment = "Tim-Mac.local",
+    execution_host_environment = ""
+  )
+
+  testthat::expect_equal(host, "Tim-Mac.local")
+})
+
+testthat::test_that("execution host trims configured values", {
+  source_notification_context_files()
+
+  host <- platform_execution_host(
+    system_info = c(nodename = "container-id"),
+    hostname_environment = "container-id",
+    execution_host_environment = "  cycling-prod  "
   )
 
   testthat::expect_equal(host, "cycling-prod")
@@ -30,7 +55,8 @@ testthat::test_that("execution host falls back safely", {
   testthat::expect_equal(
     platform_execution_host(
       system_info = c(nodename = NA_character_),
-      hostname_environment = "container-id"
+      hostname_environment = "container-id",
+      execution_host_environment = ""
     ),
     "container-id"
   )
@@ -38,7 +64,8 @@ testthat::test_that("execution host falls back safely", {
   testthat::expect_equal(
     platform_execution_host(
       system_info = c(nodename = NA_character_),
-      hostname_environment = ""
+      hostname_environment = "",
+      execution_host_environment = ""
     ),
     "unknown"
   )

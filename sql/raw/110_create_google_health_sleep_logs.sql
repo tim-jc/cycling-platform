@@ -75,4 +75,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_raw.google_health_sleep_logs (
         FOREIGN KEY (source_id)
         REFERENCES cycling_platform_admin.data_source (source_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

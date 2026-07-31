@@ -34,4 +34,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.backup_run_file (
         FOREIGN KEY (backup_run_id)
         REFERENCES cycling_platform_admin.backup_run (backup_run_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

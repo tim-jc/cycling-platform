@@ -36,4 +36,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.validation_run_check (
         FOREIGN KEY (validation_run_id)
         REFERENCES cycling_platform_admin.validation_run (validation_run_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

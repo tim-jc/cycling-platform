@@ -1,16 +1,31 @@
 #' Determine the Current Execution Host
 #'
-#' Prefer the operating-system nodename. HOSTNAME is a fallback for minimal
-#' environments where Sys.info() does not provide one.
+#' Prefer an explicitly propagated physical host identity when present. This is
+#' needed in Docker, where the operating-system nodename and HOSTNAME normally
+#' identify the container rather than its host. Native execution falls back to
+#' the operating-system nodename and then HOSTNAME.
 #'
 #' @param system_info Result shaped like Sys.info().
 #' @param hostname_environment HOSTNAME environment value.
+#' @param execution_host_environment CYCLING_PLATFORM_EXECUTION_HOST value.
 #'
 #' @return Non-blank host label.
 platform_execution_host <- function(
   system_info = Sys.info(),
-  hostname_environment = Sys.getenv("HOSTNAME", unset = "")
+  hostname_environment = Sys.getenv("HOSTNAME", unset = ""),
+  execution_host_environment = Sys.getenv(
+    "CYCLING_PLATFORM_EXECUTION_HOST",
+    unset = ""
+  )
 ) {
+  if (
+    length(execution_host_environment) == 1L &&
+      !is.na(execution_host_environment) &&
+      nzchar(trimws(execution_host_environment))
+  ) {
+    return(trimws(execution_host_environment))
+  }
+
   nodename <- unname(system_info[["nodename"]])
 
   if (

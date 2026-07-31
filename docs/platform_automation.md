@@ -95,19 +95,28 @@ Existing entity, transform, validation, achievement, backup, phase, and error
 details follow the context header. Failure details use a separate `Error:`
 section so they remain readable on mobile devices.
 
-The host is collected at delivery time by one shared helper. It prefers the
-operating-system nodename from `Sys.info()[["nodename"]]`, falls back to the
-`HOSTNAME` environment variable, and finally reports `unknown`. No application
-host names are hard-coded. This context object is intentionally small so future
-metadata such as environment, image revision, or Git commit can be added
-centrally.
+The host is collected at delivery time by one shared helper. In a container it
+first uses `CYCLING_PLATFORM_EXECUTION_HOST`, which must be propagated by the
+deployment. Otherwise it uses the operating-system nodename from
+`Sys.info()[["nodename"]]`, falls back to `HOSTNAME`, and finally reports
+`unknown`. No application host names are hard-coded. This context object is
+intentionally small so future metadata such as environment, image revision, or
+Git commit can be added centrally.
 
 In Docker, both the OS nodename and `HOSTNAME` normally identify the container;
-with an ephemeral Compose job this may be a generated container ID. If a
-stable, operator-friendly name such as `cycling-prod` is required, the
-infrastructure-owned Compose deployment should set the container hostname from
-its deployment context. The application should not infer or hard-code the
-physical host.
+with an ephemeral Compose job this is commonly a generated container ID.
+Compose should therefore pass the physical host identity explicitly:
+
+```yaml
+services:
+  cycling-platform:
+    environment:
+      CYCLING_PLATFORM_EXECUTION_HOST: "${CYCLING_PLATFORM_EXECUTION_HOST}"
+```
+
+Set `CYCLING_PLATFORM_EXECUTION_HOST=cycling-prod` in the host-side Compose
+environment. The value is deployment metadata, not an application constant,
+and can differ naturally for development, recovery, or CI environments.
 
 ## What It Does Not Do
 

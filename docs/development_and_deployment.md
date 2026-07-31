@@ -62,11 +62,12 @@ Production runs on:
 MariaDB is a continuously running Compose service. `cycling-platform` is an
 ephemeral job container, not a daemon or long-running service.
 
-Notification execution context uses the runtime OS nodename. Docker normally
-sets that nodename, and `HOSTNAME`, to the container hostname; for ephemeral
-jobs the default may be a generated container ID. A stable friendly label is an
-infrastructure/Compose responsibility. The application deliberately contains
-no production host-name constant. See [Platform
+Notification execution context uses
+`CYCLING_PLATFORM_EXECUTION_HOST` when Compose propagates it. Without that
+deployment value, Docker's OS nodename and `HOSTNAME` normally resolve to the
+ephemeral container ID, as they do not expose the physical host automatically.
+Native runs fall back to their OS nodename. The application deliberately
+contains no production host-name constant. See [Platform
 Automation](platform_automation.md#notification-execution-context).
 
 Normal production execution:
@@ -144,6 +145,10 @@ If the new endpoint changed DDL, apply the additive idempotent bootstrap before
 the endpoint's manual ingestion. Then follow the controlled and scheduled
 acceptance process in [Add an API
 Endpoint](runbooks/add-api-endpoint.md#controlled-production-validation).
+
+Bootstrap also applies ordered migrations from `sql/migrations/`. Never edit a
+migration after it has been applied; add a new numbered migration. The
+migration ledger verifies checksums so accidental history changes are visible.
 
 Rollback normally means checking out the previously accepted application
 revision through the normal Git workflow, rebuilding that image, and verifying
@@ -265,6 +270,9 @@ MariaDB 11.8 production exposed several durable rules:
 * Do not connect through the MariaDB `mysql` system database. Use the database
   the operation owns, normally `cycling_platform_admin` for control or
   fully-qualified cross-database queries.
+* Do not inherit server character-set or collation defaults. Platform databases
+  and tables explicitly use `utf8mb4` / `utf8mb4_general_ci`; MariaDB version
+  upgrades can change the server default.
 * Every shell command used at runtime must exist in the Docker image. `rsync`
   was a missing dependency found during container validation and is now
   installed by `Dockerfile`.
@@ -273,6 +281,24 @@ MariaDB 11.8 production exposed several durable rules:
 * Native Mac success does not prove Linux/container portability.
 * ARM64 parity reduces architecture surprises but does not replace image-level
   testing.
+
+### Collation migration during deployment
+
+The first bootstrap containing
+`001_enforce_canonical_collation.sql` converts existing databases and tables to
+the canonical collation. Run it in a maintenance window before scheduled work:
+
+```sh
+docker compose run --rm cycling-platform Rscript bootstrap_platform.R
+docker compose run --rm cycling-platform \
+  Rscript run_platform_validation.R --publication
+```
+
+`ALTER TABLE ... CONVERT TO CHARACTER SET` can rebuild tables, acquire metadata
+locks, and require temporary disk space, especially for activity streams. Keep
+a verified backup, check free space, and stop competing platform jobs. MariaDB
+DDL auto-commits, so a failure can leave an incomplete but safely rerunnable
+conversion. The migration is recorded only after every statement succeeds.
 
 ## Operational Wrappers
 

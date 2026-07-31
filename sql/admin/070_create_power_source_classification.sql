@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.power_source_classification (
         derived_supporting_activity_id
     )
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS cycling_platform_admin.activity_power_overrides (
 
@@ -82,4 +84,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.activity_power_overrides (
         activity_id
     )
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

@@ -36,6 +36,8 @@ tryCatch(
       connection = connection
     )
 
+    run_schema_migrations(connection)
+
     message("Platform bootstrap complete.")
   },
 

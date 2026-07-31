@@ -14,6 +14,136 @@ platform_validation_has_critical_failures <- function(validation_results) {
   )
 }
 
+platform_database_schemas <- function() {
+  c(
+    "cycling_platform_admin",
+    "cycling_platform_raw",
+    "cycling_platform_stage",
+    "cycling_platform_silver",
+    "cycling_platform_gold"
+  )
+}
+
+platform_canonical_character_set <- function() {
+  "utf8mb4"
+}
+
+platform_canonical_collation <- function() {
+  "utf8mb4_general_ci"
+}
+
+platform_json_columns <- function() {
+  data.frame(
+    table_schema = c(
+      "cycling_platform_admin",
+      "cycling_platform_admin",
+      rep("cycling_platform_raw", 10L)
+    ),
+    table_name = c(
+      "notification_outbox",
+      "backup_reconciliation_run",
+      "activities",
+      "activity_streams",
+      "activity_details",
+      "activity_laps",
+      "gear_observations",
+      "google_health_heart_rate_responses",
+      "google_health_sleep_logs",
+      "google_health_daily_resting_heart_rate",
+      "google_health_daily_heart_rate_variability",
+      "google_health_daily_respiratory_rate"
+    ),
+    column_name = c(
+      "payload_json",
+      "issue_summary_json",
+      "raw_payload",
+      "stream_payload",
+      "details_payload",
+      "lap_payload",
+      "source_payload",
+      "heart_rate_payload",
+      "sleep_log_payload",
+      "daily_resting_heart_rate_payload",
+      "daily_heart_rate_variability_payload",
+      "daily_respiratory_rate_payload"
+    )
+  )
+}
+
+platform_collation_validation_query <- function() {
+  schemas_sql <- paste0(
+    "'",
+    platform_database_schemas(),
+    "'",
+    collapse = ", "
+  )
+
+  json_columns <- platform_json_columns()
+  json_exceptions_sql <- paste(
+    paste0(
+      "(columns.table_schema = '",
+      json_columns$table_schema,
+      "' AND columns.table_name = '",
+      json_columns$table_name,
+      "' AND columns.column_name = '",
+      json_columns$column_name,
+      "')"
+    ),
+    collapse = "\n          OR "
+  )
+
+  glue::glue("
+    SELECT
+      'database' AS object_type,
+      schemata.schema_name AS table_schema,
+      NULL AS table_name,
+      NULL AS column_name,
+      schemata.default_character_set_name AS actual_character_set,
+      schemata.default_collation_name AS actual_collation
+    FROM information_schema.schemata schemata
+    WHERE schemata.schema_name IN ({schemas_sql})
+      AND (
+        schemata.default_character_set_name <> '{platform_canonical_character_set()}'
+        OR schemata.default_collation_name <> '{platform_canonical_collation()}'
+      )
+
+    UNION ALL
+
+    SELECT
+      'table' AS object_type,
+      tables.table_schema,
+      tables.table_name,
+      NULL AS column_name,
+      character_set_name(tables.table_collation) AS actual_character_set,
+      tables.table_collation AS actual_collation
+    FROM information_schema.tables tables
+    WHERE tables.table_schema IN ({schemas_sql})
+      AND tables.table_type = 'BASE TABLE'
+      AND tables.table_collation <> '{platform_canonical_collation()}'
+
+    UNION ALL
+
+    SELECT
+      'column' AS object_type,
+      columns.table_schema,
+      columns.table_name,
+      columns.column_name,
+      columns.character_set_name AS actual_character_set,
+      columns.collation_name AS actual_collation
+    FROM information_schema.columns columns
+    WHERE columns.table_schema IN ({schemas_sql})
+      AND columns.character_set_name IS NOT NULL
+      AND columns.collation_name <> '{platform_canonical_collation()}'
+      AND NOT (
+        columns.collation_name = 'utf8mb4_bin'
+        AND (
+          {json_exceptions_sql}
+        )
+      )
+    ORDER BY table_schema, table_name, column_name, object_type
+  ")
+}
+
 #' Gold Best Effort Duration Table SQL
 #'
 #' @param durations Integer vector of durations in seconds.
@@ -384,10 +514,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(4L)
+    return(5L)
   }
 
-  check_count <- 30L
+  check_count <- 31L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -726,6 +856,27 @@ validate_platform_completeness <- function(
   )
 
   checks <- list()
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "platform_schema_collation_canonical",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = platform_collation_validation_query(),
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  if (platform_validation_has_critical_failures(dplyr::bind_rows(checks))) {
+    message(
+      "Validation stopped because canonical schema collation preflight failed."
+    )
+    log_validation_phase_complete(validation_started_at)
+    return(dplyr::bind_rows(checks))
+  }
 
   checks <- append_validation_result(
     checks,

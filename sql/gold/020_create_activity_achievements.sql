@@ -88,4 +88,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_gold.activity_achievements (
 
     KEY idx_gold_activity_achievements_version (calculation_version)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

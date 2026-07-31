@@ -275,7 +275,9 @@ backfill_silver_activity_streams_local <- function(
             FOREIGN KEY (run_id)
             REFERENCES cycling_platform_admin.etl_run (run_id)
 
-        )
+        ) ENGINE=InnoDB
+          DEFAULT CHARACTER SET utf8mb4
+          DEFAULT COLLATE utf8mb4_general_ci
       "
     )
   }

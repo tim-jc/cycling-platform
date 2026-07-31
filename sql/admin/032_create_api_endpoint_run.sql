@@ -50,4 +50,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.api_endpoint_run (
 
     KEY idx_api_endpoint_run_status (run_status)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

@@ -101,4 +101,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activities (
 
     KEY idx_silver_activities_gear_id (gear_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

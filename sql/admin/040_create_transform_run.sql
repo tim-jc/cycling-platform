@@ -46,4 +46,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.transform_run (
 
     KEY idx_transform_run_started_at (started_at)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

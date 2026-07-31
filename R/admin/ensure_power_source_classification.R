@@ -98,18 +98,39 @@ ensure_power_source_classification_schema <- function(connection) {
     table_schema = "cycling_platform_admin",
     table_name = "power_source_classification",
     column_name = "derived_supporting_gear_id",
-    column_definition = "VARCHAR(50) NULL"
+    column_definition = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    )
   )
 
   silver_columns <- list(
-    power_source_type = "VARCHAR(50) NULL",
-    power_source_status = "VARCHAR(50) NULL",
+    power_source_type = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    power_source_status = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
     is_measured_power = "TINYINT(1) NOT NULL DEFAULT 0",
     is_power_record_eligible = "TINYINT(1) NOT NULL DEFAULT 0",
-    power_record_exclusion_reason = "VARCHAR(150) NULL",
-    power_classification_rule = "VARCHAR(150) NULL",
-    power_classification_method = "VARCHAR(150) NULL",
-    power_classification_version = "VARCHAR(50) NULL",
+    power_record_exclusion_reason = paste(
+      "VARCHAR(150) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    power_classification_rule = paste(
+      "VARCHAR(150) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    power_classification_method = paste(
+      "VARCHAR(150) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    power_classification_version = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
     power_meter_cutover_at = "DATETIME NULL"
   )
 
@@ -125,9 +146,18 @@ ensure_power_source_classification_schema <- function(connection) {
 
   gold_columns <- list(
     is_record_eligible = "TINYINT(1) NOT NULL DEFAULT 1",
-    record_exclusion_reason = "VARCHAR(150) NULL",
-    source_classification = "VARCHAR(50) NULL",
-    power_classification_version = "VARCHAR(50) NULL"
+    record_exclusion_reason = paste(
+      "VARCHAR(150) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    source_classification = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    ),
+    power_classification_version = paste(
+      "VARCHAR(50) CHARACTER SET utf8mb4",
+      "COLLATE utf8mb4_general_ci NULL"
+    )
   )
 
   for (column_name in names(gold_columns)) {

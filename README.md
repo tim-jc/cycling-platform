@@ -62,6 +62,11 @@ The Stage database is intentionally excluded from backups and must not be used
 by consumers. Technical details are in [Platform
 Architecture](docs/architecture.md).
 
+All five databases use the explicit platform standard `utf8mb4` /
+`utf8mb4_general_ci` with InnoDB tables. Schema DDL never relies on a MariaDB
+server default; bootstrap also applies checksum-protected versioned migrations
+needed after upgrades or restores.
+
 ## Production Commands
 
 From the Compose project directory on `cycling-prod`, normal scheduled

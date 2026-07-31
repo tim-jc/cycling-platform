@@ -11,6 +11,10 @@ MARIADB_PORT=
 MARIADB_USER=
 MARIADB_PASSWORD=
 
+# Optional for native R; required in ephemeral Docker jobs if notifications
+# should show the physical host rather than the generated container ID.
+CYCLING_PLATFORM_EXECUTION_HOST=
+
 STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
 STRAVA_REFRESH_TOKEN=

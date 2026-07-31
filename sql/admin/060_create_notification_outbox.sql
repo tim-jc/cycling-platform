@@ -52,4 +52,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.notification_outbox (
 
     KEY idx_notification_outbox_created_at (created_at)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

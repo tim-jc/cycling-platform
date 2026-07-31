@@ -12,4 +12,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.data_source (
 
     UNIQUE KEY uq_data_source_name (source_name)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

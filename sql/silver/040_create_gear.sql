@@ -50,4 +50,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.gear (
 
     KEY idx_silver_gear_current (is_current, gear_type)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;

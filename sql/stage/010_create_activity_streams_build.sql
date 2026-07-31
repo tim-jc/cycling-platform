@@ -49,4 +49,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_stage.activity_streams_build (
         FOREIGN KEY (run_id)
         REFERENCES cycling_platform_admin.etl_run (run_id)
 
-);
+) ENGINE=InnoDB
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_general_ci;
