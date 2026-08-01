@@ -8,6 +8,11 @@ MCP tools, and future gold models.
 Consumers should use silver or gold data only. Raw tables remain the source of
 truth for ingestion, auditability, and reprocessing.
 
+Draft object-level semantic contracts and generated mechanical metadata are in
+[Silver data contracts](data-contracts/silver/README.md). The contracts are the
+review surface for meaning; this design document and the implementation remain
+inputs rather than substitutes for semantic agreement.
+
 ## Design Principles
 
 * Preserve raw payloads in the raw layer; do not duplicate full source JSON in

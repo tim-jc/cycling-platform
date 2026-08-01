@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cycling-platform.local/metadata/schema/data-contract.schema.json",
+  "title": "cycling-platform data contract metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metadata_version", "object", "governance", "physical_schema", "lineage", "data_quality", "human_todos"],
+  "properties": {
+    "metadata_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "database_schema", "name", "type", "ddl_path"],
+      "properties": {
+        "schema": {"enum": ["silver", "gold"]},
+        "database_schema": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "type": {"enum": ["table", "view"]},
+        "ddl_path": {"type": "string", "minLength": 1}
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "lifecycle", "contract_path", "semantic_review_status", "last_verified_date"],
+      "properties": {
+        "owner": {"type": "string", "minLength": 1},
+        "lifecycle": {"enum": ["draft", "implemented", "semantically_reviewed", "certified", "deprecated"]},
+        "contract_path": {"type": "string", "minLength": 1},
+        "semantic_review_status": {"enum": ["not_started", "in_review", "reviewed"]},
+        "last_verified_date": {"type": "string", "format": "date"}
+      }
+    },
+    "physical_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "columns", "primary_key", "unique_constraints"],
+      "properties": {
+        "authority": {"const": "repository_ddl"},
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "ordinal_position", "data_type", "raw_data_type", "nullable", "default", "primary_key", "unique"],
+            "properties": {
+              "name": {"type": "string"},
+              "ordinal_position": {"type": "integer", "minimum": 1},
+              "data_type": {"type": "string"},
+              "raw_data_type": {"type": "string"},
+              "nullable": {"type": "boolean"},
+              "default": {"type": ["string", "number", "boolean", "null"]},
+              "primary_key": {"type": "boolean"},
+              "unique": {"type": "boolean"}
+            }
+          }
+        },
+        "primary_key": {"type": "array", "items": {"type": "string"}},
+        "unique_constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "columns"],
+            "properties": {
+              "name": {"type": "string"},
+              "columns": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_objects", "source_columns", "transformation_files", "transformation_functions", "transformation_description", "authorship", "confidence", "review_required"],
+      "properties": {
+        "source_objects": {"type": "array", "items": {"type": "string"}},
+        "source_columns": {"type": "array", "items": {"type": "string"}},
+        "transformation_files": {"type": "array", "items": {"type": "string"}},
+        "transformation_functions": {"type": "array", "items": {"type": "string"}},
+        "transformation_description": {"type": "string"},
+        "authorship": {"enum": ["generated", "human_authored", "generated_and_human_reviewed"]},
+        "confidence": {"enum": ["high", "medium", "low", "unknown"]},
+        "review_required": {"type": "boolean"}
+      }
+    },
+    "data_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uniqueness_expectations", "not_null_expectations", "referential_integrity_expectations", "accepted_values", "implemented_validations"],
+      "properties": {
+        "uniqueness_expectations": {"type": "array", "items": {"type": "string"}},
+        "not_null_expectations": {"type": "array", "items": {"type": "string"}},
+        "referential_integrity_expectations": {"type": "array", "items": {"type": "string"}},
+        "accepted_values": {"type": "array", "items": {"type": "string"}},
+        "implemented_validations": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "human_todos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "field", "severity", "status", "text", "resolution"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(SILVER|GOLD)-[A-Z0-9_]+-[0-9]{3}$"},
+          "field": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["blocking", "non_blocking", "future"]},
+          "status": {"enum": ["open", "resolved", "accepted"]},
+          "text": {"type": "string", "minLength": 1},
+          "resolution": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

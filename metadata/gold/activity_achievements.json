@@ -1,0 +1,312 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "gold",
+    "database_schema": "cycling_platform_gold",
+    "name": "activity_achievements",
+    "type": "table",
+    "ddl_path": "sql/gold/020_create_activity_achievements.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform (semantic owner to confirm)",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/gold/activity_achievements.md",
+    "semantic_review_status": "in_review",
+    "last_verified_date": "2026-08-01"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "activity_achievement_key",
+        "ordinal_position": 1,
+        "data_type": "char",
+        "raw_data_type": "CHAR(64)",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "activity_id",
+        "ordinal_position": 2,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "achievement_type",
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "metric_name",
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "duration_seconds",
+        "ordinal_position": 5,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "comparison_scope",
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "comparison_period_start",
+        "ordinal_position": 7,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "comparison_period_end",
+        "ordinal_position": 8,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "achievement_rank",
+        "ordinal_position": 9,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": "1",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "metric_value",
+        "ordinal_position": 10,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "previous_best_value",
+        "ordinal_position": 11,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "previous_best_activity_id",
+        "ordinal_position": 12,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "previous_best_date",
+        "ordinal_position": 13,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "days_since_previous_best",
+        "ordinal_position": 14,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "achievement_title",
+        "ordinal_position": 15,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "achievement_detail",
+        "ordinal_position": 16,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "calculation_status",
+        "ordinal_position": 17,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "calculation_version",
+        "ordinal_position": 18,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "notification_eligible",
+        "ordinal_position": 19,
+        "data_type": "boolean",
+        "raw_data_type": "TINYINT(1)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_transform_run_id",
+        "ordinal_position": 20,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "computed_at",
+        "ordinal_position": 21,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "created_at",
+        "ordinal_position": 22,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "updated_at",
+        "ordinal_position": 23,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "activity_achievement_key",
+    "unique_constraints": [
+      {
+        "name": "uq_gold_activity_achievements_business_key\n        activity_id,\n        achievement_type,\n        metric_name,\n        duration_seconds,\n        comparison_scope,\n        comparison_period_start,\n        comparison_period_end\n    )",
+        "columns": ["activity_id", "achievement_type", "metric_name", "duration_seconds", "comparison_scope", "comparison_period_start", "comparison_period_end"]
+      }
+    ]
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_silver.activities",
+      "cycling_platform_gold.activity_best_efforts"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "R/transforms/rebuild_gold_activity_achievements.R",
+      "R/transforms/run_gold_transformations.R"
+    ],
+    "transformation_functions": [
+      "rebuild_gold_activity_achievements",
+      "run_gold_transformations"
+    ],
+    "transformation_description": "Derives versioned achievements by comparing eligible metrics within configured scopes.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "medium",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "Achievement key and declared business key are unique."
+    ],
+    "not_null_expectations": [
+      "Identity, scope, period, metric and calculation fields are populated."
+    ],
+    "referential_integrity_expectations": [
+      "activity_id resolves to Silver activities; previous_best_activity_id may be null."
+    ],
+    "accepted_values": [],
+    "implemented_validations": [
+      "gold_achievement_business_key_uniqueness",
+      "gold_achievement_publication"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "GOLD-ACTIVITY_ACHIEVEMENTS-001",
+      "field": "business_definition",
+      "severity": "blocking",
+      "status": "open",
+      "text": "Confirm the owner-approved meaning of each achievement type and scope.",
+      "resolution": null
+    },
+    {
+      "id": "GOLD-ACTIVITY_ACHIEVEMENTS-002",
+      "field": "tie_policy",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Document equal-value and historical-recalculation treatment.",
+      "resolution": null
+    }
+  ]
+}

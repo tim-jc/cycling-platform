@@ -1,0 +1,518 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "silver",
+    "database_schema": "cycling_platform_silver",
+    "name": "activities",
+    "type": "table",
+    "ddl_path": "sql/silver/010_create_activities.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform (semantic owner to confirm)",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/silver/activities.md",
+    "semantic_review_status": "in_review",
+    "last_verified_date": "2026-08-01"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "activity_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "athlete_id",
+        "ordinal_position": 2,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_id",
+        "ordinal_position": 3,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "gear_id",
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "activity_name",
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "sport_type",
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "activity_type",
+        "ordinal_position": 7,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "timezone_name",
+        "ordinal_position": 8,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_datetime_utc",
+        "ordinal_position": 9,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_datetime_local",
+        "ordinal_position": 10,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_date_local",
+        "ordinal_position": 11,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_time_local",
+        "ordinal_position": 12,
+        "data_type": "time",
+        "raw_data_type": "TIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "distance_metres",
+        "ordinal_position": 13,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "distance_kilometres",
+        "ordinal_position": 14,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "distance_miles",
+        "ordinal_position": 15,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "moving_time_seconds",
+        "ordinal_position": 16,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "elapsed_time_seconds",
+        "ordinal_position": 17,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "elevation_gain_metres",
+        "ordinal_position": 18,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_speed_metres_per_second",
+        "ordinal_position": 19,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_speed_kilometres_per_hour",
+        "ordinal_position": 20,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_speed_miles_per_hour",
+        "ordinal_position": 21,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_cadence_rpm",
+        "ordinal_position": 22,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_heartrate_bpm",
+        "ordinal_position": 23,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_power_watts",
+        "ordinal_position": 24,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "weighted_average_power_watts",
+        "ordinal_position": 25,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "energy_kilojoules",
+        "ordinal_position": 26,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_device_watts",
+        "ordinal_position": 27,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_source_type",
+        "ordinal_position": 28,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_source_status",
+        "ordinal_position": 29,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_measured_power",
+        "ordinal_position": 30,
+        "data_type": "boolean",
+        "raw_data_type": "TINYINT(1)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_power_record_eligible",
+        "ordinal_position": 31,
+        "data_type": "boolean",
+        "raw_data_type": "TINYINT(1)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_record_exclusion_reason",
+        "ordinal_position": 32,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(150)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_classification_rule",
+        "ordinal_position": 33,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(150)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_classification_method",
+        "ordinal_position": 34,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(150)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_classification_version",
+        "ordinal_position": 35,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_meter_cutover_at",
+        "ordinal_position": 36,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_manual",
+        "ordinal_position": 37,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_trainer",
+        "ordinal_position": 38,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "has_streams",
+        "ordinal_position": 39,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "has_details",
+        "ordinal_position": 40,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "has_laps",
+        "ordinal_position": 41,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_activity_retrieved_at",
+        "ordinal_position": 42,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_detail_retrieved_at",
+        "ordinal_position": 43,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "transformed_at",
+        "ordinal_position": 44,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "activity_id",
+    "unique_constraints": []
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_raw.activities",
+      "cycling_platform_raw.activity_details"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "sql/silver/020_transform_activities.sql",
+      "R/transforms/rebuild_silver_activities.R",
+      "R/transforms/run_silver_transformations.R"
+    ],
+    "transformation_functions": [
+      "rebuild_silver_activities",
+      "run_silver_transformations"
+    ],
+    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations and classifies power eligibility.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "high",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "One row per activity_id."
+    ],
+    "not_null_expectations": [
+      "DDL-defined NOT NULL columns are populated."
+    ],
+    "referential_integrity_expectations": [
+      "Non-null gear_id values resolve to Silver gear or remain visible in the unresolved audit."
+    ],
+    "accepted_values": [],
+    "implemented_validations": [
+      "silver_activity_uniqueness",
+      "activity_gear_ids_unresolved"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "SILVER-ACTIVITIES-001",
+      "field": "canonical_claim",
+      "severity": "blocking",
+      "status": "open",
+      "text": "Confirm the canonical treatment of manually entered and subsequently edited activities.",
+      "resolution": null
+    },
+    {
+      "id": "SILVER-ACTIVITIES-002",
+      "field": "date_time_semantics",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Confirm the authority and DST treatment of local timestamps and timezone_name.",
+      "resolution": null
+    }
+  ]
+}

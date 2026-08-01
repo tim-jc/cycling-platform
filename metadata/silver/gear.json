@@ -1,0 +1,271 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "silver",
+    "database_schema": "cycling_platform_silver",
+    "name": "gear",
+    "type": "table",
+    "ddl_path": "sql/silver/040_create_gear.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform (semantic owner to confirm)",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/silver/gear.md",
+    "semantic_review_status": "in_review",
+    "last_verified_date": "2026-08-01"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "gear_id",
+        "ordinal_position": 1,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "source_id",
+        "ordinal_position": 2,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "gear_type",
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "gear_name",
+        "ordinal_position": 4,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "brand_name",
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "model_name",
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "frame_type",
+        "ordinal_position": 7,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "description",
+        "ordinal_position": 8,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_primary",
+        "ordinal_position": 9,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_distance_metres",
+        "ordinal_position": 10,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_current",
+        "ordinal_position": 11,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_historical",
+        "ordinal_position": 12,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "resolution_status",
+        "ordinal_position": 13,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "first_observed_at",
+        "ordinal_position": 14,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "last_observed_at",
+        "ordinal_position": 15,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_observation_run_id",
+        "ordinal_position": 16,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_payload_hash",
+        "ordinal_position": 17,
+        "data_type": "char",
+        "raw_data_type": "CHAR(64)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "transform_version",
+        "ordinal_position": 18,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "silver_updated_at",
+        "ordinal_position": 19,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "gear_id",
+    "unique_constraints": []
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_raw.gear_observations",
+      "cycling_platform_raw.gear_resolution_attempts"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "sql/silver/050_transform_gear.sql",
+      "R/transforms/rebuild_silver_gear.R",
+      "R/transforms/run_silver_transformations.R"
+    ],
+    "transformation_functions": [
+      "rebuild_silver_gear",
+      "run_silver_transformations"
+    ],
+    "transformation_description": "Publishes the latest resolved Raw observation for each Strava gear identifier.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "high",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "One row per gear_id."
+    ],
+    "not_null_expectations": [
+      "Canonical name, type, status and lineage are populated."
+    ],
+    "referential_integrity_expectations": [
+      "gear_id resolves activity references where Strava permits."
+    ],
+    "accepted_values": [
+      "gear_type: bike, shoes, unknown",
+      "resolution_status: RESOLVED"
+    ],
+    "implemented_validations": [
+      "silver_gear_business_key_uniqueness",
+      "activity_gear_ids_unresolved"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "SILVER-GEAR-001",
+      "field": "canonical_claim",
+      "severity": "blocking",
+      "status": "open",
+      "text": "Confirm the identity boundary between Strava gear and a future bike-library entity.",
+      "resolution": null
+    },
+    {
+      "id": "SILVER-GEAR-002",
+      "field": "current_state",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Confirm consumer semantics for historical-only gear and source disappearance.",
+      "resolution": null
+    }
+  ]
+}

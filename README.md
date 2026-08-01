@@ -222,6 +222,8 @@ See [Backup and Recovery](docs/backup_and_recovery.md).
 
 ## Documentation Map
 
+- [Data contract governance](docs/data_contract_governance.md) — Silver/Gold contract authority, lifecycle, TODOs and validation.
+
 * [Architecture and data layers](docs/architecture.md)
 * [Development and deployment](docs/development_and_deployment.md)
 * [Automation, run modes, and validation](docs/platform_automation.md)

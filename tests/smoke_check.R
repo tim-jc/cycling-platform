@@ -29,6 +29,8 @@ r_files <- c(
   "run_power_source_classification_audit.R",
   "run_platform_notifications.R",
   file.path("scripts", "bootstrap_strava_oauth.R"),
+  file.path("scripts", "generate_data_contract_metadata.R"),
+  file.path("scripts", "validate_data_contracts.R"),
   "run_silver.R",
   "validate_platform.R"
 )

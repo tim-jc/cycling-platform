@@ -1,0 +1,257 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "silver",
+    "database_schema": "cycling_platform_silver",
+    "name": "activity_streams",
+    "type": "table",
+    "ddl_path": "sql/silver/030_create_activity_streams.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform (semantic owner to confirm)",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/silver/activity_streams.md",
+    "semantic_review_status": "in_review",
+    "last_verified_date": "2026-08-01"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "activity_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "sample_index",
+        "ordinal_position": 2,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "time_seconds",
+        "ordinal_position": 3,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "distance_metres",
+        "ordinal_position": 4,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "latitude",
+        "ordinal_position": 5,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "longitude",
+        "ordinal_position": 6,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "altitude_metres",
+        "ordinal_position": 7,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "velocity_smooth_metres_per_second",
+        "ordinal_position": 8,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "heartrate_bpm",
+        "ordinal_position": 9,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "cadence_rpm",
+        "ordinal_position": 10,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "watts",
+        "ordinal_position": 11,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "temperature_celsius",
+        "ordinal_position": 12,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_moving",
+        "ordinal_position": 13,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "grade_smooth_percent",
+        "ordinal_position": 14,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_stream_count",
+        "ordinal_position": 15,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_max_original_size",
+        "ordinal_position": 16,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_stream_retrieved_at",
+        "ordinal_position": 17,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "transformed_at",
+        "ordinal_position": 18,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": ["activity_id", "sample_index"],
+    "unique_constraints": []
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_raw.activity_streams"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "R/transforms/rebuild_silver_activity_streams.R",
+      "R/transforms/backfill_silver_activity_streams_local.R",
+      "R/transforms/run_silver_transformations.R"
+    ],
+    "transformation_functions": [
+      "rebuild_silver_activity_streams",
+      "run_silver_transformations"
+    ],
+    "transformation_description": "Expands Raw stream payload arrays into aligned per-activity sample rows.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "medium",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "One row per activity_id and sample_index."
+    ],
+    "not_null_expectations": [
+      "Sample identity and Raw lineage columns are populated."
+    ],
+    "referential_integrity_expectations": [
+      "activity_id should resolve to Silver activities."
+    ],
+    "accepted_values": [],
+    "implemented_validations": [
+      "silver_stream_business_key_uniqueness",
+      "silver_stream_activity_completeness"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "SILVER-ACTIVITY_STREAMS-001",
+      "field": "canonical_claim",
+      "severity": "blocking",
+      "status": "open",
+      "text": "Confirm positional alignment when Strava stream arrays differ in length.",
+      "resolution": null
+    },
+    {
+      "id": "SILVER-ACTIVITY_STREAMS-002",
+      "field": "null_semantics",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Document missing-stream, missing-sample and source-null distinctions.",
+      "resolution": null
+    }
+  ]
+}

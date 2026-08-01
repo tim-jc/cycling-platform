@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "objects": [],
+  "supporting_contract_documents": [
+    "docs/data-contracts/silver/README.md",
+    "docs/data-contracts/silver/gap-report.md",
+    "docs/data-contracts/silver/migration-note.md",
+    "docs/data-contracts/gold/README.md"
+  ]
+}

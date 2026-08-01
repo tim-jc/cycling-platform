@@ -1,0 +1,287 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "gold",
+    "database_schema": "cycling_platform_gold",
+    "name": "activity_best_efforts",
+    "type": "table",
+    "ddl_path": "sql/gold/010_create_activity_best_efforts.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform (semantic owner to confirm)",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/gold/activity_best_efforts.md",
+    "semantic_review_status": "in_review",
+    "last_verified_date": "2026-08-01"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "activity_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "metric_name",
+        "ordinal_position": 2,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "duration_seconds",
+        "ordinal_position": 3,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "peak_value",
+        "ordinal_position": 4,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_sample_index",
+        "ordinal_position": 5,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_sample_index",
+        "ordinal_position": 6,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_time_seconds",
+        "ordinal_position": 7,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_time_seconds",
+        "ordinal_position": 8,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_distance_metres",
+        "ordinal_position": 9,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_distance_metres",
+        "ordinal_position": 10,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_latitude",
+        "ordinal_position": 11,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_longitude",
+        "ordinal_position": 12,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_latitude",
+        "ordinal_position": 13,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_longitude",
+        "ordinal_position": 14,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "sample_count",
+        "ordinal_position": 15,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_record_eligible",
+        "ordinal_position": 16,
+        "data_type": "boolean",
+        "raw_data_type": "TINYINT(1)",
+        "nullable": false,
+        "default": "1",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "record_exclusion_reason",
+        "ordinal_position": 17,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(150)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "source_classification",
+        "ordinal_position": 18,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "power_classification_version",
+        "ordinal_position": 19,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "calculation_version",
+        "ordinal_position": 20,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "computed_at",
+        "ordinal_position": 21,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": ["activity_id", "metric_name", "duration_seconds"],
+    "unique_constraints": []
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_silver.activities",
+      "cycling_platform_silver.activity_streams"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "R/transforms/rebuild_gold_activity_best_efforts.R",
+      "R/transforms/run_gold_transformations.R"
+    ],
+    "transformation_functions": [
+      "rebuild_gold_activity_best_efforts",
+      "run_gold_transformations"
+    ],
+    "transformation_description": "Computes configured duration-based peak efforts from canonical streams.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "medium",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "One row per activity_id, metric_name and duration_seconds."
+    ],
+    "not_null_expectations": [
+      "Effort identity, peak value, boundaries and lineage are populated."
+    ],
+    "referential_integrity_expectations": [
+      "activity_id should resolve to Silver activities."
+    ],
+    "accepted_values": [],
+    "implemented_validations": [
+      "gold_best_effort_business_key_uniqueness",
+      "gold_best_effort_publication"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "GOLD-ACTIVITY_BEST_EFFORTS-001",
+      "field": "business_definition",
+      "severity": "blocking",
+      "status": "open",
+      "text": "Confirm duration-effort semantics for irregular or gapped samples.",
+      "resolution": null
+    },
+    {
+      "id": "GOLD-ACTIVITY_BEST_EFFORTS-002",
+      "field": "eligibility",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Confirm the policy for record eligibility and excluded power sources.",
+      "resolution": null
+    }
+  ]
+}

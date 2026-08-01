@@ -1,0 +1,54 @@
+{
+  "version": "0.1.0",
+  "status": "draft",
+  "standards": [
+    {
+      "concept": "activity_identifier",
+      "preferred_name": "activity_id",
+      "semantic_definition": "Source activity identifier currently used as the platform activity key; multi-source identity semantics remain under review.",
+      "allowed_physical_types": ["bigint"],
+      "timezone_or_date_convention": null,
+      "deviation_allowed_with_justification": true
+    },
+    {
+      "concept": "source_system_identifier",
+      "preferred_name": "source_id",
+      "semantic_definition": "Identifier of the registered source system responsible for the source observation.",
+      "allowed_physical_types": ["integer"],
+      "timezone_or_date_convention": null,
+      "deviation_allowed_with_justification": true
+    },
+    {
+      "concept": "transformation_timestamp",
+      "preferred_name": "transformed_at",
+      "semantic_definition": "UTC timestamp at which the Silver transformation produced the row; not business event time.",
+      "allowed_physical_types": ["datetime"],
+      "timezone_or_date_convention": "Stored as UTC in timezone-less MariaDB DATETIME.",
+      "deviation_allowed_with_justification": true
+    },
+    {
+      "concept": "calculation_timestamp",
+      "preferred_name": "computed_at",
+      "semantic_definition": "UTC timestamp at which a derived Gold calculation was produced.",
+      "allowed_physical_types": ["datetime"],
+      "timezone_or_date_convention": "Stored as UTC in timezone-less MariaDB DATETIME.",
+      "deviation_allowed_with_justification": true
+    },
+    {
+      "concept": "record_creation_timestamp",
+      "preferred_name": "created_at",
+      "semantic_definition": "Timestamp at which the persisted record was first created.",
+      "allowed_physical_types": ["datetime", "timestamp"],
+      "timezone_or_date_convention": "Database/session timezone must be documented by the owning object.",
+      "deviation_allowed_with_justification": true
+    },
+    {
+      "concept": "record_update_timestamp",
+      "preferred_name": "updated_at",
+      "semantic_definition": "Timestamp at which the persisted record was most recently updated.",
+      "allowed_physical_types": ["datetime", "timestamp"],
+      "timezone_or_date_convention": "Database/session timezone must be documented by the owning object.",
+      "deviation_allowed_with_justification": true
+    }
+  ]
+}
