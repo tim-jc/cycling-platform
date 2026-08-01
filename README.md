@@ -90,6 +90,17 @@ docker compose run --rm cycling-platform \
   Rscript run_platform_validation.R
 ```
 
+Long-running manual Silver runs publish durable heartbeat/status JSON. Inspect
+the latest full rebuild from another session with:
+
+```sh
+docker compose run --rm cycling-platform \
+  Rscript scripts/show_job_status.R silver-full
+```
+
+See the [manual job status runbook](docs/runbooks/manual-job-status.md) for
+staleness, persistent host paths, history, and failure interpretation.
+
 Pulling new source onto `cycling-prod` does not update an existing image because
 the application is copied into the image at build time. Rebuild after
 application code, SQL, `renv.lock`, or `Dockerfile` changes:

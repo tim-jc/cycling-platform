@@ -31,6 +31,7 @@ r_files <- c(
   file.path("scripts", "bootstrap_strava_oauth.R"),
   file.path("scripts", "audit_silver_activity_population.R"),
   file.path("scripts", "generate_data_contract_metadata.R"),
+  file.path("scripts", "show_job_status.R"),
   file.path("scripts", "validate_data_contracts.R"),
   "run_silver.R",
   "validate_platform.R"

@@ -160,6 +160,9 @@ logging:
 
   retention_days: 30
 
+  # Durable manual-job status heartbeat interval
+  status_heartbeat_seconds: 60
+
 automation:
 
   daily_lock_dir: /tmp/cycling-platform-daily.lock

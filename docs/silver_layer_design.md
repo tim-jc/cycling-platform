@@ -316,6 +316,11 @@ Rscript run_silver.R
 Rscript run_silver.R repair
 ```
 
+Manual runs also publish durable status and heartbeat JSON beneath
+`logs/status`. See [Manual job status and heartbeat](runbooks/manual-job-status.md)
+for lifecycle, production mount mapping, inspection, locking, staleness, and
+retention behaviour.
+
 The default mode truncates and fully rebuilds `silver.activity_streams`.
 `repair` mode compares raw stream `original_size` values with existing silver
 row counts, then deletes and rebuilds only missing or incomplete activities.

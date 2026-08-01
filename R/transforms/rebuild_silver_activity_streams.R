@@ -395,8 +395,15 @@ build_silver_activity_stream_rows <- function(raw_streams) {
   )
 }
 
-log_silver_stream_phase <- function(batch_index, phase, expr, log_level = "INFO") {
+log_silver_stream_phase <- function(
+  batch_index,
+  phase,
+  expr,
+  log_level = "INFO",
+  status_callback = NULL
+) {
   started_at <- Sys.time()
+  if (!is.null(status_callback)) status_callback(list(), force = FALSE)
 
   silver_stream_debug(glue::glue(
     "Silver stream batch {batch_index}: starting {phase}."
@@ -411,6 +418,7 @@ log_silver_stream_phase <- function(batch_index, phase, expr, log_level = "INFO"
       units = "secs"
     )
   )
+  if (!is.null(status_callback)) status_callback(list(), force = FALSE)
 
   silver_stream_debug(glue::glue(
     "Silver stream batch {batch_index}: completed {phase} in ",
@@ -435,7 +443,8 @@ insert_silver_activity_stream_batch <- function(
   activity_ids,
   insert_chunk_size = 500L,
   batch_index = NA_integer_,
-  log_level = "INFO"
+  log_level = "INFO",
+  status_callback = NULL
 ) {
   if (length(activity_ids) == 0) {
     return(0L)
@@ -450,7 +459,8 @@ insert_silver_activity_stream_batch <- function(
       connection = connection,
       activity_ids = activity_ids
     ),
-    log_level = log_level
+    log_level = log_level,
+    status_callback = status_callback
   )
 
   if (nrow(raw_streams) == 0) {
@@ -474,7 +484,8 @@ insert_silver_activity_stream_batch <- function(
         )
       )
     },
-    log_level = log_level
+    log_level = log_level,
+    status_callback = status_callback
   )
 
   if (nrow(rows) == 0) {
@@ -507,7 +518,8 @@ insert_silver_activity_stream_batch <- function(
         append = TRUE,
         overwrite = FALSE
       ),
-      log_level = log_level
+      log_level = log_level,
+      status_callback = status_callback
     )
 
     rows_inserted <- rows_inserted + length(indexes)
@@ -527,6 +539,7 @@ insert_silver_activity_stream_batch <- function(
 #' @param progress_every_batches Emit overall progress after this many batches.
 #' @param progress_every_seconds Emit overall progress after this many seconds.
 #' @param log_level INFO for operational output or DEBUG for phase/chunk detail.
+#' @param status_callback Optional durable-status callback.
 #' @param mode Use `full` to truncate and rebuild every activity, or `repair`
 #'   to rebuild only activities with missing or incomplete silver rows.
 #'
@@ -539,6 +552,7 @@ rebuild_silver_activity_streams <- function(
   progress_every_batches = 10L,
   progress_every_seconds = 60,
   log_level = "INFO",
+  status_callback = NULL,
   mode = c(
     "full",
     "repair"
@@ -594,6 +608,23 @@ rebuild_silver_activity_streams <- function(
     max_batch_activities = batch_size,
     max_batch_expected_rows = max_expected_rows
   )
+
+  if (!is.null(status_callback)) {
+    status_callback(list(
+      status = "RUNNING",
+      current_phase = "rebuild",
+      current_entity = "activity_streams",
+      progress_completed = 0,
+      progress_total = nrow(activity_plan),
+      progress_unit = "activities",
+      rows_processed = 0,
+      rows_written = 0,
+      rows_deleted = 0,
+      current_batch = 0,
+      total_batches = length(activity_batches),
+      completed_batches = 0
+    ), force = TRUE)
+  }
 
   if (length(activity_batches) == 0) {
     message("No silver activity streams require rebuild.")
@@ -698,7 +729,8 @@ rebuild_silver_activity_streams <- function(
           activity_ids = activity_ids,
           insert_chunk_size = insert_chunk_size,
           batch_index = batch_index,
-          log_level = log_level
+          log_level = log_level,
+          status_callback = status_callback
         )
 
         silver_stream_debug(glue::glue(
@@ -757,6 +789,17 @@ rebuild_silver_activity_streams <- function(
           batch_started_at <- Sys.time()
           activity_ids <- activity_batch$activity_id
           expected_rows <- sum(activity_batch$expected_row_count)
+
+          if (!is.null(status_callback)) {
+            status_callback(list(
+              status = "RUNNING",
+              current_phase = "rebuild",
+              current_entity = "activity_streams",
+              current_batch = batch_index,
+              total_batches = length(activity_batches),
+              completed_batches = completed_batches
+            ), force = TRUE)
+          }
 
           message(glue::glue(
             "Processing silver stream batch {batch_index}/",
@@ -874,6 +917,24 @@ rebuild_silver_activity_streams <- function(
             "{rows_deleted} rows deleted, ",
             "{rows_inserted} rows inserted."
           ))
+
+          if (!is.null(status_callback)) {
+            status_callback(list(
+              status = "RUNNING",
+              current_phase = "rebuild",
+              current_entity = "activity_streams",
+              progress_completed = activities_completed,
+              progress_total = nrow(activity_plan),
+              progress_unit = "activities",
+              rows_processed = expected_rows_completed,
+              rows_written = total_rows_inserted,
+              rows_deleted = total_rows_deleted,
+              current_batch = completed_batches,
+              total_batches = length(activity_batches),
+              completed_batches = completed_batches,
+              last_business_key = as.character(max(activity_ids))
+            ), force = TRUE)
+          }
 
           if (is_slow_silver_stream_batch(batch_elapsed_seconds, prior_durations)) {
             warning(glue::glue(
