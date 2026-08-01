@@ -13,13 +13,17 @@ if (length(args) > 0) {
   raw_execution_mode <- tolower(args[[1]])
 }
 
-if (!raw_execution_mode %in% c("scheduled", "manual", "streams_only")) {
+if (!raw_execution_mode %in% c("scheduled", "manual", "hygiene", "activity_backfill", "streams_only")) {
   stop(
-    "Unknown automation raw mode. Use 'scheduled', 'manual', or 'streams_only'. ",
-    "Backfill is intentionally excluded from unattended automation.",
+    "Unknown automation raw mode. Use 'scheduled', 'manual', 'hygiene', 'activity_backfill', or 'streams_only'. ",
+    "General backfill is intentionally excluded from unattended automation.",
     call. = FALSE
   )
 }
+
+automation_lock_connection <- get_connection("cycling_platform_admin")
+acquire_platform_run_lock(automation_lock_connection, raw_execution_mode)
+Sys.setenv(CYCLING_PLATFORM_PARENT_LOCK = "1")
 
 phase_results <- data.frame(
   phase_name = character(),
@@ -131,6 +135,37 @@ get_raw_ingestion_summary <- function(previous_run_id) {
         "
       )
 
+      reconciliation <- DBI::dbGetQuery(
+        connection,
+        "SELECT reconciliation_status, child_status,
+                SUM(details_repair_required) AS details_repair_required,
+                SUM(streams_repair_required) AS streams_repair_required,
+                SUM(laps_repair_required) AS laps_repair_required,
+                COUNT(*) AS activity_count
+           FROM cycling_platform_admin.activity_reconciliation
+          WHERE run_id = ?
+          GROUP BY reconciliation_status, child_status",
+        params = list(run$run_id[[1]])
+      )
+      affected <- DBI::dbGetQuery(
+        connection,
+        "SELECT DISTINCT activity_id
+           FROM cycling_platform_admin.activity_reconciliation
+          WHERE run_id = ?
+            AND (reconciliation_status IN ('NEW','CHANGED')
+                 OR child_status IN ('INCOMPLETE','FAILED'))",
+        params = list(run$run_id[[1]])
+      )
+      reconciliation_lines <- if (nrow(reconciliation)) {
+        totals <- stats::setNames(rep(0L, 4L), c("NEW", "CHANGED", "UNCHANGED", "MISSING"))
+        grouped <- stats::aggregate(activity_count ~ reconciliation_status, reconciliation, sum)
+        totals[grouped$reconciliation_status] <- grouped$activity_count
+        c(
+          glue::glue("Reconciliation: examined {sum(reconciliation$activity_count[reconciliation$reconciliation_status != 'MISSING'])} · new/recovered {totals[['NEW']]} · changed {totals[['CHANGED']]} · unchanged {totals[['UNCHANGED']]} · missing from source {totals[['MISSING']]}"),
+          glue::glue("Selective repairs requested: details {sum(reconciliation$details_repair_required)} · streams {sum(reconciliation$streams_repair_required)} · laps {sum(reconciliation$laps_repair_required)}")
+        )
+      } else character()
+
       entity_lines <- character()
 
       if (nrow(entity_summary) > 0) {
@@ -163,6 +198,8 @@ get_raw_ingestion_summary <- function(previous_run_id) {
           "{format_platform_duration(run$duration_seconds[[1]])}"
         ),
         entity_lines = entity_lines,
+        reconciliation_lines = reconciliation_lines,
+        affected_activity_ids = affected$activity_id,
         pending_line = glue::glue(
           "Pending: streams {pending_summary$streams_remaining[[1]]} · ",
           "details {pending_summary$details_remaining[[1]]} · ",
@@ -765,7 +802,8 @@ tryCatch(
             run_silver_transformations(
               connection = connection,
               config = config,
-              stream_rebuild_mode = "repair"
+              stream_rebuild_mode = "repair",
+              activity_ids = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$affected_activity_ids else NULL
             )
           },
           finally = {
@@ -923,7 +961,11 @@ tryCatch(
       }
     )
 
-    run_phase(
+    if (raw_execution_mode == "activity_backfill") {
+      now <- Sys.time()
+      record_phase("achievement_notifications", "SKIPPED", now, now, "Historical achievement notifications suppressed by default.")
+      achievement_notification_summary <<- list(lines = "suppressed for annual historical backfill ✓")
+    } else run_phase(
       "achievement_notifications",
       {
         connection <- get_connection("cycling_platform_admin")
@@ -1040,6 +1082,9 @@ tryCatch(
       gold_transform_summary = gold_transform_summary,
       achievement_notification_summary = achievement_notification_summary,
       backup_health_summary = backup_health_summary,
+      pipeline = switch(raw_execution_mode, hygiene = "activity-hygiene", activity_backfill = "annual-backfill", "daily-platform"),
+      component = switch(raw_execution_mode, hygiene = "monthly activity hygiene", activity_backfill = "annual historical backfill", "automation"),
+      window_label = switch(raw_execution_mode, hygiene = paste0("previous ", config$ingestion$activity_hygiene_days, " days"), activity_backfill = paste0("configured history (", config$ingestion$activity_backfill_days, " days)"), paste0("previous ", config$ingestion$activity_refresh_days, " days")),
       error_message = if (is.null(automation_error)) {
         NULL
       } else {
@@ -1072,6 +1117,10 @@ tryCatch(
 
 message("Platform automation phase summary:")
 print(phase_results)
+
+release_platform_run_lock(automation_lock_connection, raw_execution_mode)
+DBI::dbDisconnect(automation_lock_connection)
+Sys.unsetenv("CYCLING_PLATFORM_PARENT_LOCK")
 
 if (nrow(publication_gate_results) > 0) {
   message("Platform automation Silver publication checks:")

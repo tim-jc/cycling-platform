@@ -114,16 +114,13 @@ testthat::test_that("loaders cannot create persistent tables implicitly", {
 
 testthat::test_that("canonical migration covers databases and created tables", {
   project_root <- find_project_root()
+  migration_files <- list.files(
+    file.path(project_root, "sql", "migrations"),
+    pattern = "[.]sql$",
+    full.names = TRUE
+  )
   migration <- paste(
-    readLines(
-      file.path(
-        project_root,
-        "sql",
-        "migrations",
-        "001_enforce_canonical_collation.sql"
-      ),
-      warn = FALSE
-    ),
+    unlist(lapply(migration_files, readLines, warn = FALSE)),
     collapse = "\n"
   )
 

@@ -23,32 +23,29 @@ if (length(args) > 0) {
   execution_mode <- tolower(args[[1]])
 }
 
-if (!execution_mode %in% c("manual", "scheduled", "backfill", "streams_only")) {
+if (!execution_mode %in% c("manual", "scheduled", "hygiene", "activity_backfill", "backfill", "streams_only")) {
   stop(
-    "Unknown execution mode. Use 'manual', 'scheduled', 'backfill', or 'streams_only'.",
+    "Unknown execution mode. Use 'manual', 'scheduled', 'hygiene', 'activity_backfill', 'backfill', or 'streams_only'.",
     call. = FALSE
   )
 }
 
-if (execution_mode == "backfill") {
-  run_mode <- "BACKFILL"
-  activity_refresh_days <- config$ingestion$activity_backfill_days
-} else if (execution_mode == "streams_only") {
-  run_mode <- "STREAMS_ONLY"
-  activity_refresh_days <- 0L
-} else if (execution_mode == "scheduled") {
-  run_mode <- "SCHEDULED"
-  activity_refresh_days <- config$ingestion$activity_refresh_days
-} else {
-  run_mode <- "MANUAL"
-  activity_refresh_days <- config$ingestion$activity_refresh_days
-}
+mode_specification <- activity_ingestion_mode(config, execution_mode)
+run_mode <- mode_specification$run_mode
+activity_refresh_days <- mode_specification$refresh_days
 
 google_health_enabled <- !is.null(config$sources$google_health$enabled) &&
   isTRUE(config$sources$google_health$enabled)
+activity_maintenance_mode <- execution_mode %in% c("hygiene", "activity_backfill")
+raw_lock_connection <- NULL
+if (!identical(Sys.getenv("CYCLING_PLATFORM_PARENT_LOCK"), "1")) {
+  raw_lock_connection <- get_connection("cycling_platform_admin")
+  acquire_platform_run_lock(raw_lock_connection, execution_mode)
+}
 
 if (
   execution_mode != "streams_only" &&
+    !activity_maintenance_mode &&
     isTRUE(google_health_enabled)
 ) {
   message("Checking Google Health OAuth token before ingestion.")
@@ -79,12 +76,14 @@ tryCatch(
         config = config
       )
 
-      ingest_gear(
-        connection = connection,
-        run_id = run_id,
-        source_id = 1L,
-        config = config
-      )
+      if (!activity_maintenance_mode) {
+        ingest_gear(
+          connection = connection,
+          run_id = run_id,
+          source_id = 1L,
+          config = config
+        )
+      }
     }
 
     stream_activity_ids <- get_pending_stream_activity_ids(
@@ -163,7 +162,7 @@ tryCatch(
       }
 
       if (
-        isTRUE(google_health_enabled)
+        isTRUE(google_health_enabled) && !activity_maintenance_mode
       ) {
         google_health_data_types <- config$sources$google_health$data_types
 
@@ -302,6 +301,11 @@ if (isTRUE(send_run_notification)) {
     run_id = run_id,
     config = config
   )
+}
+
+if (!is.null(raw_lock_connection)) {
+  release_platform_run_lock(raw_lock_connection, execution_mode)
+  DBI::dbDisconnect(raw_lock_connection)
 }
 
 if (!is.null(platform_error)) {

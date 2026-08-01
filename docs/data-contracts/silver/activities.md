@@ -32,7 +32,7 @@ UTC and source-local start values are retained. The authority and DST interpreta
 
 ## Transformations and business rules
 
-The transform merges Raw summary/detail observations, converts commonly used units and applies versioned power-source eligibility classification. JSON carries implementation lineage; code remains behaviour, not semantic authority.
+The transform merges Raw summary/detail observations, converts commonly used units and applies versioned power-source eligibility classification. Routine publication stages only activity IDs affected by summary reconciliation or incomplete children; explicit full rebuild remains available. JSON carries implementation lineage; code remains behaviour, not semantic authority.
 
 ## Data quality expectations
 

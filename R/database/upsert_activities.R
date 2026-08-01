@@ -8,7 +8,8 @@
 #' @return Named list containing rows_inserted and rows_updated.
 upsert_activities <- function(
   connection,
-  activities
+  activities,
+  reconciliation = NULL
 ) {
   if (nrow(activities) == 0) {
     return(
@@ -17,6 +18,12 @@ upsert_activities <- function(
         rows_updated = 0L
       )
     )
+  }
+
+  if (!is.null(reconciliation)) {
+    statuses <- stats::setNames(reconciliation$reconciliation_status, as.character(reconciliation$activity_id))
+    activities <- activities[statuses[as.character(activities$activity_id)] %in% c("NEW", "CHANGED"), , drop = FALSE]
+    if (nrow(activities) == 0) return(list(rows_inserted = 0L, rows_updated = 0L, rows_unchanged = sum(reconciliation$reconciliation_status == "UNCHANGED")))
   }
 
   # Get existing activity IDs
@@ -56,6 +63,7 @@ upsert_activities <- function(
 
   list(
     rows_inserted = rows_inserted,
-    rows_updated = rows_updated
+    rows_updated = rows_updated,
+    rows_unchanged = if (is.null(reconciliation)) 0L else sum(reconciliation$reconciliation_status == "UNCHANGED")
   )
 }

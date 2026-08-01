@@ -2,7 +2,8 @@
 #'
 #' Insert a row into admin.etl_run and return run_id.
 #' @param source_id Integer value corresponding to the data source.
-#' @param run_mode Character value: MANUAL, SCHEDULED or BACKFILL.
+#' @param run_mode Character value such as MANUAL, SCHEDULED, HYGIENE,
+#'   ACTIVITY_BACKFILL, BACKFILL, or STREAMS_ONLY.
 #'
 #' @return Integer ETL run identifier.
 create_etl_run <- function(

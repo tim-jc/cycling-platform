@@ -13,7 +13,8 @@ run_silver_transformations <- function(
   connection,
   sql_dir = file.path("sql", "silver"),
   config = list(),
-  stream_rebuild_mode = "full"
+  stream_rebuild_mode = "full",
+  activity_ids = NULL
 ) {
   silver_stream_batch_size <- config$transforms$silver_stream_activity_batch_size
   silver_stream_batch_max_expected_rows <-
@@ -48,7 +49,8 @@ run_silver_transformations <- function(
   rebuild_silver_activities(
     connection = connection,
     sql_dir = sql_dir,
-    mode = "full"
+    mode = if (is.null(activity_ids)) "full" else "incremental",
+    activity_ids = activity_ids
   )
 
   rebuild_silver_gear(

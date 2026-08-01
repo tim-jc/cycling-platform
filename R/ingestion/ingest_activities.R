@@ -30,13 +30,22 @@ ingest_activities <- function(
         config = config
       )
 
+      execute_sql_file("sql/admin/070_create_activity_reconciliation.sql", connection)
+      baseline <- get_activity_reconciliation_baseline(connection, refresh_days)
+      reconciliation <- classify_activity_summaries(activities, baseline)
+
       result <- DBI::dbWithTransaction(
         conn = connection,
         {
-          upsert_activities(
+          upsert_result <- upsert_activities(
             connection = connection,
-            activities = activities
+            activities = activities,
+            reconciliation = reconciliation
           )
+          changed_ids <- reconciliation$activity_id[reconciliation$reconciliation_status == "CHANGED"]
+          mark_changed_activity_children_pending(connection, changed_ids)
+          record_activity_reconciliation(connection, run_id, reconciliation)
+          upsert_result
         }
       )
 
@@ -47,6 +56,14 @@ ingest_activities <- function(
         rows_inserted = result$rows_inserted,
         rows_updated = result$rows_updated
       )
+
+      message(glue::glue(
+        "Activity reconciliation: examined {sum(reconciliation$source_present)}, ",
+        "new {sum(reconciliation$reconciliation_status == 'NEW')}, changed {sum(reconciliation$reconciliation_status == 'CHANGED')}, ",
+        "unchanged {sum(reconciliation$reconciliation_status == 'UNCHANGED')}, missing {sum(reconciliation$reconciliation_status == 'MISSING')}."
+      ))
+
+      invisible(reconciliation)
     },
 
     error = function(e) {

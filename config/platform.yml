@@ -166,6 +166,12 @@ automation:
 
   validation_lock_dir: /tmp/cycling-platform-validation.lock
 
+  # Logical mode-specific lock identities; all automation modes also take one
+  # shared MariaDB advisory lock to prevent cross-container overlap.
+  hygiene_lock_dir: /tmp/cycling-platform-hygiene.lock
+
+  annual_backfill_lock_dir: /tmp/cycling-platform-annual-backfill.lock
+
   # Maximum age before native-wrapper lock directories are treated as stale
   lock_max_age_seconds: 21600
 

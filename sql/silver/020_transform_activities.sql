@@ -1,8 +1,11 @@
--- Rebuild silver activities from raw activity and detail data.
+-- Refresh the activity IDs staged by rebuild_silver_activities().
 -- Power-source classification is the platform interpretation of source power
 -- provenance. Raw Strava fields and payloads remain unchanged.
 
-TRUNCATE TABLE cycling_platform_silver.activities;
+DELETE silver
+FROM cycling_platform_silver.activities silver
+INNER JOIN activity_refresh_ids refresh_ids
+    ON refresh_ids.activity_id = silver.activity_id;
 
 INSERT INTO cycling_platform_silver.activities (
     activity_id,
@@ -92,6 +95,8 @@ activity_evidence AS (
               AND s.stream_type = 'latlng'
         ) AS has_latlng_stream
     FROM cycling_platform_raw.activities a
+    INNER JOIN activity_refresh_ids refresh_ids
+        ON refresh_ids.activity_id = a.activity_id
 ),
 classified AS (
     SELECT

@@ -47,7 +47,8 @@ get_silver_activity_row_count <- function(connection) {
 rebuild_silver_activities <- function(
   connection,
   sql_dir = file.path("sql", "silver"),
-  mode = "full"
+  mode = "full",
+  activity_ids = NULL
 ) {
   ensure_transform_logging_tables(
     connection = connection
@@ -68,9 +69,17 @@ rebuild_silver_activities <- function(
     connection = connection
   )
 
-  activity_plan <- get_silver_activity_transform_plan(
-    connection = connection
-  )
+  DBI::dbExecute(connection, "DROP TEMPORARY TABLE IF EXISTS activity_refresh_ids")
+  DBI::dbExecute(connection, "CREATE TEMPORARY TABLE activity_refresh_ids (activity_id BIGINT PRIMARY KEY) ENGINE=InnoDB")
+  if (is.null(activity_ids)) {
+    DBI::dbExecute(connection, "INSERT INTO activity_refresh_ids (activity_id) SELECT activity_id FROM cycling_platform_raw.activities")
+  } else if (length(activity_ids) > 0) {
+    refresh_rows <- data.frame(activity_id = bit64::as.integer64(unique(as.character(activity_ids))))
+    DBI::dbAppendTable(connection, "activity_refresh_ids", refresh_rows)
+  }
+  on.exit(DBI::dbExecute(connection, "DROP TEMPORARY TABLE IF EXISTS activity_refresh_ids"), add = TRUE)
+
+  activity_plan <- DBI::dbGetQuery(connection, "SELECT COUNT(*) AS expected_row_count, MIN(activity_id) AS min_activity_id, MAX(activity_id) AS max_activity_id FROM activity_refresh_ids")
 
   expected_row_count <- activity_plan$expected_row_count[[1]]
 
@@ -113,9 +122,7 @@ rebuild_silver_activities <- function(
   rows_inserted <- 0L
 
   if (is.null(transform_error)) {
-    rows_inserted <- get_silver_activity_row_count(
-      connection = connection
-    )
+    rows_inserted <- expected_row_count
 
     update_transform_run_batch(
       connection = connection,

@@ -23,7 +23,10 @@ send_platform_automation_notification <- function(
   gold_transform_summary = NULL,
   achievement_notification_summary = NULL,
   backup_health_summary = NULL,
-  error_message = NULL
+  error_message = NULL,
+  pipeline = "daily-platform",
+  component = "automation",
+  window_label = NULL
 ) {
   notifications <- config$notifications
 
@@ -79,12 +82,13 @@ send_platform_automation_notification <- function(
   body_lines <- c(
     format_platform_execution_context(
       platform_execution_context(
-        pipeline = "daily-platform",
+        pipeline = pipeline,
         status = run_status,
         duration_seconds = automation_duration_seconds
       )
     )
   )
+  if (!is.null(window_label) && nzchar(window_label)) body_lines <- c(body_lines, paste0("Window: ", window_label))
 
   if (!is.null(raw_ingestion_summary)) {
     body_lines <- c(
@@ -93,6 +97,7 @@ send_platform_automation_notification <- function(
       "Raw ingestion:",
       raw_ingestion_summary$run_line,
       raw_ingestion_summary$entity_lines,
+      raw_ingestion_summary$reconciliation_lines,
       "",
       raw_ingestion_summary$pending_line
     )
@@ -199,7 +204,7 @@ send_platform_automation_notification <- function(
       ) |>
         httr2::req_headers(
           Title = format_platform_notification_title(
-            component = "automation",
+            component = component,
             status = run_status
           ),
           Priority = if (identical(run_status, "FAILED")) "high" else "default",

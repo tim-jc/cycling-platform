@@ -118,6 +118,12 @@ Rscript platform.R manual
 # Full Raw-to-Silver-to-Gold scheduled pipeline
 Rscript run_daily_platform.R scheduled
 
+# Monthly configured-window activity hygiene and selective repair
+Rscript run_daily_platform.R hygiene
+
+# Annual configured-history reconciliation; achievement alerts suppressed
+Rscript run_daily_platform.R activity_backfill
+
 # Deep validation
 Rscript run_platform_validation.R
 

@@ -378,15 +378,15 @@ UPSERT by activity_id
 ```text
 Refresh last 365 days
         ↓
-UPSERT by activity_id
+Classify summaries and selectively UPSERT changed/new activity_id values
 ```
 
-#### Annual Hygiene Run
+#### Annual Historical Backfill
 
 ```text
-Refresh all activities
+Refresh configured 8000-day history
         ↓
-UPSERT by activity_id
+Classify summaries and selectively repair Raw children, Silver and Gold
 ```
 
 ### Raw Data Retention
@@ -401,7 +401,10 @@ UPSERT by activity_id
 * Preserve source-system fidelity.
 * Support idempotent ingestion.
 * Prioritise auditability and lineage.
-* Optimise for convergence rather than change detection.
+* Use canonical Raw payload comparison to detect changes while preserving
+  convergence and audit evidence.
+* Treat summaries as inexpensive reconciliation; revisit details, streams and
+  laps only for new, changed, incomplete or failed activities.
 * Separate ingestion concerns from analytics concerns.
 
 ### JSON Storage

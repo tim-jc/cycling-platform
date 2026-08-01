@@ -43,6 +43,8 @@ The optional raw mode is:
 ```sh
 Rscript run_daily_platform.R scheduled
 Rscript run_daily_platform.R manual
+Rscript run_daily_platform.R hygiene
+Rscript run_daily_platform.R activity_backfill
 Rscript run_daily_platform.R streams_only
 ```
 
@@ -50,7 +52,38 @@ The default is `scheduled`, which records the Raw ETL run as `SCHEDULED`.
 `manual` remains available for ad hoc wrapper runs where that distinction
 matters.
 
-`backfill` is deliberately excluded from unattended automation.
+The broad `backfill` mode remains excluded from unattended automation. The
+activity-specific annual mode is intentionally supported and suppresses
+historical achievement notification queueing and delivery.
+
+## Activity Reconciliation Modes
+
+Daily, monthly and annual activity runs share `get_activities()` and one Raw
+reconciliation loader. Their only ingestion difference is the configured
+window: `activity_refresh_days` (30), `activity_hygiene_days` (365), or
+`activity_backfill_days` (8000).
+
+Activity summaries are the inexpensive reconciliation surface. Source JSON is
+canonicalised by recursively sorting object member names before comparison with
+Raw. Returned activities are classified `NEW`, `CHANGED`, or `UNCHANGED`;
+locally held activities inside the window but absent from a complete response
+are recorded as `MISSING`. Missing does not mean deleted: existing Raw and
+published data are retained. Child coverage is separately `COMPLETE`,
+`INCOMPLETE`, or `FAILED`.
+
+New and changed summaries make details, streams and laps pending. Existing
+incomplete/failed children are also repaired. Unchanged complete activities do
+not use child endpoint requests. Reconciliation evidence is stored in
+`cycling_platform_admin.activity_reconciliation`.
+
+For hygiene and annual runs, Silver activities refresh only affected IDs.
+Silver stream and Gold repair planners continue to select missing, incomplete,
+stale-version, or upstream-changed activities. Large summary windows therefore
+do not imply full downstream rebuilds.
+
+Raw-only operator commands are `Rscript platform.R hygiene` and
+`Rscript platform.R activity_backfill`. `platform.R backfill` remains the
+broader recovery mode, including configured Google Health history.
 
 Native execution is not the production portability check. Before deployment,
 build and test the Docker image where practical.
@@ -353,7 +386,22 @@ Compose jobs from the directory containing the production Compose definition:
 ```cron
 0 2 * * * cd /path/to/compose-project && docker compose run --rm cycling-platform
 30 3 * * * cd /path/to/compose-project && docker compose run --rm cycling-platform Rscript run_platform_validation.R
+# Monthly activity hygiene: choose one quiet monthly date/time
+30 4 1 * * cd /path/to/compose-project && docker compose run --rm cycling-platform Rscript run_daily_platform.R hygiene
+# Annual historical reconciliation: choose one quiet annual date/time
+30 5 1 1 * cd /path/to/compose-project && docker compose run --rm cycling-platform Rscript run_daily_platform.R activity_backfill
 ```
+
+These examples are recommendations only; repository code never installs cron.
+Each run takes a mode-specific MariaDB advisory lock plus the shared lock
+`cycling-platform-exclusive-run`. Monthly and annual ownership is therefore
+visible independently while the shared lock prevents overlap across ephemeral
+daily, hygiene, annual, and repair containers. MariaDB releases locks when a
+connection/container exits, so no stale advisory lock remains. Roll out by rebuilding the image, running
+idempotent bootstrap DDL, manually exercising Raw-only hygiene, then running the
+complete hygiene job and reviewing reconciliation, repair, publication and NTFY
+output before adding schedules. Roll back by removing the schedules and
+redeploying the previous image; the additive audit table can remain unused.
 
 The actual path, cron user, and environment/secrets mechanism are
 deployment-specific and are not defined in this repository. Do not leave the
