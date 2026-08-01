@@ -343,6 +343,52 @@ Silver stream rebuilds write run and batch progress to
 completed batches, activity counts, expected rows, inserted/deleted rows,
 duration, and failures.
 
+### Rebuild progress and ETA
+
+Long-running rebuilds emit a whole-run progress block after the first batch,
+the final batch, and otherwise every 10 completed batches or 60 seconds,
+whichever occurs first. The defaults are configurable with
+`transforms.silver_stream_progress_every_batches` and
+`transforms.silver_stream_progress_every_seconds`. Batch start/completion and
+warnings remain at INFO. Fetch, parse, insert-chunk, commit, and transaction
+detail is emitted only when `logging.level: DEBUG` is configured.
+
+Progress uses cumulative expected rows divided by total expected rows because
+stream batch sizes vary substantially. If expected-row totals are unavailable,
+it falls back first to completed activities and then to completed batches; the
+active basis is printed with the percentage.
+
+The implementation calculates an overall estimate internally from elapsed
+time and progress. Operator output remains `ETA: calculating...` for the first
+four completed batches. From the fifth batch it uses throughput from up to the
+10 most recent batches, and shows both a rolling ETA and an estimated local
+finish time. Estimates can move as the mix of short and long activities
+changes.
+
+Each progress block includes elapsed time, activities, expected rows,
+inserted/deleted rows, average rows per second, and whether recent throughput
+is improving, stable, or degrading. A batch is warned as unusually slow when
+it exceeds 60 seconds and, once five prior batches exist, three times their
+median duration. The completion or failure summary reports aggregate
+throughput, average batch duration, failed batches, and up to the five slowest
+completed batches. These metrics also remain queryable from the existing Admin
+run and batch tables; no progress notifications are sent.
+
+Example INFO output:
+
+```text
+Silver streams progress
+Batch: 840 / 2,784
+Progress: 29.7% (expected_rows)
+Activities: 839 / 2,784
+Expected rows: 5,482,391 / 18,442,103
+Rows inserted/deleted: 5,481,992 / 0
+Elapsed: 1h 03m 00s
+ETA: 3h 17m 12s (rolling)
+Projected finish: 21:03 BST (estimate)
+Throughput: 1,450.3 rows/sec (stable)
+```
+
 ## Data Quality Expectations
 
 Initial silver checks:

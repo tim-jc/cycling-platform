@@ -169,6 +169,13 @@ expected sample counts with existing Silver rows and rebuilds only missing or
 incomplete activities. This keeps normal daily automation idempotent and avoids
 the historical full-table stream rebuild path.
 
+The single final automation notification includes the Silver stream run's
+elapsed time, inserted rows, average rows-per-second throughput, completed
+batches, and failed-batch count when those metrics are available. Rebuild
+progress is terminal/Admin observability only; it never produces intermediate
+ntfy notifications. Failed Silver phases attempt to include the current partial
+transform-run summary rather than silently substituting a previous success.
+
 ## Gold Behaviour
 
 `gold.activity_best_efforts` runs in daily incremental mode after Silver

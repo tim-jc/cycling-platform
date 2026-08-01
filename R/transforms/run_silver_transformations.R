@@ -21,6 +21,11 @@ run_silver_transformations <- function(
     config$transforms$silver_stream_batch_max_expected_rows
   silver_stream_insert_chunk_size <-
     config$transforms$silver_stream_insert_chunk_size
+  silver_stream_progress_every_batches <-
+    config$transforms$silver_stream_progress_every_batches
+  silver_stream_progress_every_seconds <-
+    config$transforms$silver_stream_progress_every_seconds
+  log_level <- config$logging$level
 
   if (is.null(silver_stream_batch_size)) {
     silver_stream_batch_size <- 10L
@@ -33,6 +38,13 @@ run_silver_transformations <- function(
   if (is.null(silver_stream_insert_chunk_size)) {
     silver_stream_insert_chunk_size <- 500L
   }
+  if (is.null(silver_stream_progress_every_batches)) {
+    silver_stream_progress_every_batches <- 10L
+  }
+  if (is.null(silver_stream_progress_every_seconds)) {
+    silver_stream_progress_every_seconds <- 60
+  }
+  if (is.null(log_level)) log_level <- "INFO"
 
   run_sql_directory(
     connection = connection,
@@ -64,6 +76,9 @@ run_silver_transformations <- function(
     batch_size = silver_stream_batch_size,
     max_expected_rows = silver_stream_batch_max_expected_rows,
     insert_chunk_size = silver_stream_insert_chunk_size,
+    progress_every_batches = silver_stream_progress_every_batches,
+    progress_every_seconds = silver_stream_progress_every_seconds,
+    log_level = log_level,
     mode = stream_rebuild_mode
   )
 }

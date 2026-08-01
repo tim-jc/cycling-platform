@@ -250,6 +250,10 @@ transforms:
   # Rows inserted per DB write when rebuilding silver stream samples
   silver_stream_insert_chunk_size: 500
 
+  # Emit whole-run stream progress at least every N completed batches or seconds
+  silver_stream_progress_every_batches: 10
+  silver_stream_progress_every_seconds: 60
+
   # Version for governed activity power-source classification rules
   power_source_classification_version: power_source_classification_v1
 

@@ -519,12 +519,18 @@ get_latest_silver_transform_summary <- function() {
               rows_updated,
               rows_deleted,
               duration_seconds,
+              (
+                SELECT COUNT(*)
+                FROM cycling_platform_admin.transform_run_batch failed_batch
+                WHERE failed_batch.transform_run_id = tr.transform_run_id
+                  AND failed_batch.batch_status = 'FAILED'
+              ) AS failed_batches,
               error_message,
               ROW_NUMBER() OVER (
                 PARTITION BY entity_name
                 ORDER BY transform_run_id DESC
               ) AS entity_recency_rank
-            FROM cycling_platform_admin.transform_run
+            FROM cycling_platform_admin.transform_run tr
             WHERE layer_name = 'silver'
               AND entity_name IN ('activities', 'gear', 'activity_streams')
           )
@@ -541,6 +547,7 @@ get_latest_silver_transform_summary <- function() {
             rows_updated,
             rows_deleted,
             duration_seconds,
+            failed_batches,
             error_message
           FROM ranked
           WHERE entity_recency_rank = 1
@@ -566,7 +573,8 @@ get_latest_silver_transform_summary <- function() {
               "rows_deleted",
               "completed_batches",
               "total_batches",
-              "duration_seconds"
+              "duration_seconds",
+              "failed_batches"
             )
           ],
           \(entity_name,
@@ -579,7 +587,8 @@ get_latest_silver_transform_summary <- function() {
             rows_deleted,
             completed_batches,
             total_batches,
-            duration_seconds) {
+            duration_seconds,
+            failed_batches) {
             activity_part <- if (identical(entity_name, "gear")) {
               glue::glue(" · {rows_inserted} gear records")
             } else {
@@ -596,11 +605,24 @@ get_latest_silver_transform_summary <- function() {
               ""
             }
 
+            throughput_part <- if (
+              identical(entity_name, "activity_streams") &&
+                !is.na(duration_seconds) && duration_seconds > 0
+            ) {
+              glue::glue(
+                " · {round(rows_inserted / duration_seconds, 1)} rows/s",
+                " · failed {failed_batches}"
+              )
+            } else {
+              ""
+            }
+
             glue::glue(
               "{entity_name}: {run_status} · {toupper(run_mode)}",
               "{activity_part}",
               " · +{rows_inserted} / ~{rows_updated} / -{rows_deleted} rows",
               "{batch_part}",
+              "{throughput_part}",
               " · {format_platform_duration(duration_seconds)}"
             )
           }
@@ -1041,6 +1063,19 @@ run_status <- if (is.null(automation_error)) {
   "SUCCESS"
 } else {
   "FAILED"
+}
+
+if (isTRUE(
+  is.null(silver_transform_summary) &&
+    any(
+      phase_results$phase_name == "silver_transforms" &
+        phase_results$phase_status == "FAILED"
+    )
+)) {
+  silver_transform_summary <- tryCatch(
+    get_latest_silver_transform_summary(),
+    error = function(e) NULL
+  )
 }
 
 backup_health_summary <- tryCatch(
