@@ -479,7 +479,7 @@
       "rebuild_silver_activities",
       "run_silver_transformations"
     ],
-    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations and classifies power eligibility.",
+    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations, maps source manual/trainer booleans from historical array or object payloads, and classifies power eligibility.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "high",
     "review_required": true
@@ -501,7 +501,8 @@
     ],
     "implemented_validations": [
       "silver_activity_uniqueness",
-      "activity_gear_ids_unresolved"
+      "activity_gear_ids_unresolved",
+      "silver_activity_manual_source_alignment"
     ]
   },
   "human_todos": [
@@ -528,9 +529,9 @@
       "field": "is_manual",
       "category": "implementation_alignment",
       "severity": "blocking",
-      "status": "open",
+      "status": "resolved",
       "text": "Verify and align is_manual population with the agreed source-explicit manual semantics; the field cannot be certified while it appears unpopulated.",
-      "resolution": null
+      "resolution": "Silver now maps the authoritative manual boolean from both historical one-element-array and object payload shapes, preserves source NULL, and publication validation compares populated Raw values to Silver. Fixture and SQL regression tests pass."
     },
     {
       "id": "SILVER-ACTIVITIES-004",
@@ -575,6 +576,15 @@
       "severity": "future",
       "status": "open",
       "text": "Implement confirmed Strava deletion detection and removal of confirmed deleted activities from Silver.",
+      "resolution": null
+    },
+    {
+      "id": "SILVER-ACTIVITIES-009",
+      "field": "source_identity_text",
+      "category": "implementation_alignment",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Review historical array-shaped Raw extraction for external_id and device_name before changing power source classification evidence.",
       "resolution": null
     }
   ]

@@ -1,6 +1,6 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-01 14:23:30 BST
+- Validation timestamp: 2026-08-01 15:10:01 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 3
 - Managed Gold objects: 2
@@ -8,8 +8,8 @@
 - Missing metadata: 0
 - Schema mismatches: 0
 - Broken references: 0
-- Open blocking TODOs: 9
-- Open non-blocking TODOs: 4
+- Open blocking TODOs: 8
+- Open non-blocking TODOs: 5
 - Accepted limitations: 0
 
 ## Objects by lifecycle status
@@ -19,7 +19,6 @@
 
 ## Open blocking TODOs
 
-- `SILVER-ACTIVITIES-003` (blocking, implementation_alignment): Verify and align is_manual population with the agreed source-explicit manual semantics; the field cannot be certified while it appears unpopulated.
 - `SILVER-ACTIVITIES-004` (blocking, implementation_alignment): Align has_streams with existence of at least one usable row in silver.activity_streams rather than Raw availability or ingestion state.
 - `SILVER-ACTIVITIES-005` (blocking, source_research): Determine and document whether Strava type, sport_type, or a governed combination is authoritative for cycling classification.
 - `SILVER-ACTIVITIES-006` (blocking, implementation_alignment): Implement or map the agreed Silver-owned is_cycling_activity classification after source-field research is resolved.
@@ -31,6 +30,7 @@
 
 ## Open non-blocking TODOs
 
+- `SILVER-ACTIVITIES-009` (non_blocking, implementation_alignment): Review historical array-shaped Raw extraction for external_id and device_name before changing power source classification evidence.
 - `SILVER-ACTIVITY_STREAMS-002` (non_blocking): Document missing-stream, missing-sample and source-null distinctions.
 - `SILVER-GEAR-002` (non_blocking): Confirm consumer semantics for historical-only gear and source disappearance.
 - `GOLD-ACTIVITY_ACHIEVEMENTS-002` (non_blocking): Document equal-value and historical-recalculation treatment.

@@ -66,14 +66,24 @@ WITH power_config AS (
 activity_evidence AS (
     SELECT
         a.*,
-        CASE JSON_UNQUOTE(JSON_EXTRACT(a.raw_payload, '$.manual'))
+        CASE LOWER(JSON_UNQUOTE(COALESCE(
+            JSON_EXTRACT(a.raw_payload, '$.manual'),
+            JSON_EXTRACT(a.raw_payload, '$[0].manual')
+        )))
             WHEN 'true' THEN TRUE
+            WHEN '1' THEN TRUE
             WHEN 'false' THEN FALSE
+            WHEN '0' THEN FALSE
             ELSE NULL
         END AS is_manual_raw,
-        CASE JSON_UNQUOTE(JSON_EXTRACT(a.raw_payload, '$.trainer'))
+        CASE LOWER(JSON_UNQUOTE(COALESCE(
+            JSON_EXTRACT(a.raw_payload, '$.trainer'),
+            JSON_EXTRACT(a.raw_payload, '$[0].trainer')
+        )))
             WHEN 'true' THEN TRUE
+            WHEN '1' THEN TRUE
             WHEN 'false' THEN FALSE
+            WHEN '0' THEN FALSE
             ELSE NULL
         END AS is_trainer_raw,
         LOWER(CONCAT_WS(

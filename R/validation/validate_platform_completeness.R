@@ -536,10 +536,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(5L)
+    return(6L)
   }
 
-  check_count <- 31L
+  check_count <- 32L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -899,6 +899,49 @@ validate_platform_completeness <- function(
     log_validation_phase_complete(validation_started_at)
     return(dplyr::bind_rows(checks))
   }
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_manual_source_alignment",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        WITH source_manual AS (
+          SELECT
+            activity_id,
+            CASE LOWER(JSON_UNQUOTE(COALESCE(
+              JSON_EXTRACT(raw_payload, '$.manual'),
+              JSON_EXTRACT(raw_payload, '$[0].manual')
+            )))
+              WHEN 'true' THEN 1
+              WHEN '1' THEN 1
+              WHEN 'false' THEN 0
+              WHEN '0' THEN 0
+              ELSE NULL
+            END AS is_manual
+          FROM cycling_platform_raw.activities
+        )
+        SELECT
+          source.activity_id,
+          source.is_manual AS raw_is_manual,
+          silver.is_manual AS silver_is_manual
+        FROM source_manual source
+        LEFT JOIN cycling_platform_silver.activities silver
+          ON silver.activity_id = source.activity_id
+        WHERE source.is_manual IS NOT NULL
+          AND (
+            silver.is_manual IS NULL
+            OR silver.is_manual <> source.is_manual
+          )
+        ORDER BY source.activity_id
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
 
   checks <- append_validation_result(
     checks,

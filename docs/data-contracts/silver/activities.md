@@ -4,7 +4,7 @@ Status: semantically reviewed; implementation alignment required before certific
 
 ## Purpose
 
-`silver.activities` represents every activity returned by the connected Strava account, regardless of activity type or analytical significance. Filtering for training activities, significant rides, or other consumer contexts belongs downstream and must not affect admission to this object.
+`silver.activities` represents every activity returned by the connected Strava account, regardless of activity type or analytical significance. Filtering for training activities, significant rides, or other consumer contexts belongs downstream and must not affect admission to this object. `is_manual` is the canonical Silver representation of Strava's published `manual` flag.
 
 ## Business definition
 
@@ -89,7 +89,7 @@ Validation observes, reports, and recommends. Validation never silently modifies
 
 ## Transformations and business rules
 
-The transform merges Raw summary/detail observations, preserves published measurements, produces explicit unit conversions, and applies versioned power-source eligibility classification. Routine publication stages only IDs affected by reconciliation or incomplete children; explicit full rebuild remains available.
+The transform merges Raw summary/detail observations, preserves published measurements, produces explicit unit conversions, and applies versioned power-source eligibility classification. It maps `is_manual` only from Strava's published `manual` boolean, reading both historical one-element-array and object Raw payload shapes; source absence remains `NULL`. Routine publication stages only IDs affected by reconciliation or incomplete children; explicit full rebuild remains available.
 
 Agreed semantics take precedence over current implementation behaviour. Known mismatches are represented as implementation-alignment TODOs rather than being normalised away in this contract.
 
@@ -102,7 +102,6 @@ Activity identity is unique. Required lineage is populated. Non-null gear refere
 - Historical activity versions are not retained.
 - Freshness outside the latest successful refresh window is not guaranteed.
 - Confirmed source deletions are not yet implemented.
-- `is_manual` appears unpopulated and is not a certified semantic field.
 - Current `has_streams` implementation is not yet verified against the agreed usable-Silver-stream definition.
 - `is_cycling_activity` and `has_valid_power` are agreed semantic concepts without certified physical mappings.
 
@@ -127,14 +126,18 @@ Resolved semantic decisions:
 
 - `SILVER-ACTIVITIES-001`: manual activities are valid; missing streams do not imply manual status.
 - `SILVER-ACTIVITIES-002`: UTC, local wall-clock, activity-date, and Strava timezone meanings are agreed.
+- `SILVER-ACTIVITIES-003` (`implementation_alignment`): `is_manual` now maps Strava's published boolean from historical array and object payload shapes; source NULL remains NULL and publication validation checks Raw/Silver agreement.
 
 Open certification blockers:
 
-- `SILVER-ACTIVITIES-003` (`implementation_alignment`): verify and align `is_manual` population.
 - `SILVER-ACTIVITIES-004` (`implementation_alignment`): align `has_streams` with usable Silver streams.
 - `SILVER-ACTIVITIES-005` (`source_research`): decide `type` versus `sport_type` evidence.
 - `SILVER-ACTIVITIES-006` (`implementation_alignment`): provide `is_cycling_activity` after source research.
 - `SILVER-ACTIVITIES-007` (`implementation_alignment`): provide or map certified `has_valid_power` semantics.
+
+Open audit follow-up:
+
+- `SILVER-ACTIVITIES-009` (`implementation_alignment`): review historical-array extraction for `external_id` and `device_name` before changing power-classification evidence.
 
 Future enhancement:
 
