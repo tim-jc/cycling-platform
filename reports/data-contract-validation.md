@@ -1,6 +1,6 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-01 13:50:07 BST
+- Validation timestamp: 2026-08-01 14:23:30 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 3
 - Managed Gold objects: 2
@@ -8,17 +8,22 @@
 - Missing metadata: 0
 - Schema mismatches: 0
 - Broken references: 0
-- Open blocking TODOs: 5
-- Open non-blocking TODOs: 5
+- Open blocking TODOs: 9
+- Open non-blocking TODOs: 4
 - Accepted limitations: 0
 
 ## Objects by lifecycle status
 
-- implemented: 5
+- implemented: 4
+- semantically_reviewed: 1
 
 ## Open blocking TODOs
 
-- `SILVER-ACTIVITIES-001` (blocking): Confirm the canonical treatment of manually entered and subsequently edited activities.
+- `SILVER-ACTIVITIES-003` (blocking, implementation_alignment): Verify and align is_manual population with the agreed source-explicit manual semantics; the field cannot be certified while it appears unpopulated.
+- `SILVER-ACTIVITIES-004` (blocking, implementation_alignment): Align has_streams with existence of at least one usable row in silver.activity_streams rather than Raw availability or ingestion state.
+- `SILVER-ACTIVITIES-005` (blocking, source_research): Determine and document whether Strava type, sport_type, or a governed combination is authoritative for cycling classification.
+- `SILVER-ACTIVITIES-006` (blocking, implementation_alignment): Implement or map the agreed Silver-owned is_cycling_activity classification after source-field research is resolved.
+- `SILVER-ACTIVITIES-007` (blocking, implementation_alignment): Verify and align a certified has_valid_power field or mapping: genuine device measurement, watts stream present, and not estimated, while preserving published power values.
 - `SILVER-ACTIVITY_STREAMS-001` (blocking): Confirm positional alignment when Strava stream arrays differ in length.
 - `SILVER-GEAR-001` (blocking): Confirm the identity boundary between Strava gear and a future bike-library entity.
 - `GOLD-ACTIVITY_ACHIEVEMENTS-001` (blocking): Confirm the owner-approved meaning of each achievement type and scope.
@@ -26,7 +31,6 @@
 
 ## Open non-blocking TODOs
 
-- `SILVER-ACTIVITIES-002` (non_blocking): Confirm the authority and DST treatment of local timestamps and timezone_name.
 - `SILVER-ACTIVITY_STREAMS-002` (non_blocking): Document missing-stream, missing-sample and source-null distinctions.
 - `SILVER-GEAR-002` (non_blocking): Confirm consumer semantics for historical-only gear and source disappearance.
 - `GOLD-ACTIVITY_ACHIEVEMENTS-002` (non_blocking): Document equal-value and historical-recalculation treatment.

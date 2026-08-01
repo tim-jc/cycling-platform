@@ -22,7 +22,9 @@ Certification does not mean permanent truth. It means the object meets the platf
 - `certified`: current schema, quality and semantics are approved; no blocking TODO remains open.
 - `deprecated`: retained temporarily but not recommended for new consumers.
 
-TODO severity is `blocking`, `non_blocking` or `future`; status is `open`, `resolved` or `accepted`. `accepted` means an uncertainty or limitation is deliberately retained and explained. Resolved and accepted entries remain in metadata with their rationale. IDs are repository-wide and never reused.
+TODO severity is `blocking`, `non_blocking` or `future`; status is `open`, `resolved` or `accepted`. Categories are `semantic_decision`, `implementation_alignment`, `source_research`, `quality_rule`, `future_enhancement`, and `documentation`. `accepted` means an uncertainty or limitation is deliberately retained and explained. Resolved and accepted entries remain in metadata with their rationale. IDs are repository-wide and never reused.
+
+Certification fails for any unresolved blocking item, including semantic and implementation-alignment findings, and for an object whose alignment status is not `aligned`. An accepted or open future enhancement does not block certification unless it is separately classified with blocking severity.
 
 ## Validate locally
 

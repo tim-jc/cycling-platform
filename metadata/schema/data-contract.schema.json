@@ -28,6 +28,9 @@
         "lifecycle": {"enum": ["draft", "implemented", "semantically_reviewed", "certified", "deprecated"]},
         "contract_path": {"type": "string", "minLength": 1},
         "semantic_review_status": {"enum": ["not_started", "in_review", "reviewed"]},
+        "semantic_status": {"enum": ["unreviewed", "in_review", "agreed"]},
+        "implementation_status": {"enum": ["not_reviewed", "aligned", "review_required"]},
+        "alignment_status": {"enum": ["not_reviewed", "aligned", "review_required"]},
         "last_verified_date": {"type": "string", "format": "date"}
       }
     },
@@ -105,6 +108,7 @@
         "properties": {
           "id": {"type": "string", "pattern": "^(SILVER|GOLD)-[A-Z0-9_]+-[0-9]{3}$"},
           "field": {"type": "string", "minLength": 1},
+          "category": {"enum": ["semantic_decision", "implementation_alignment", "source_research", "quality_rule", "future_enhancement", "documentation"]},
           "severity": {"enum": ["blocking", "non_blocking", "future"]},
           "status": {"enum": ["open", "resolved", "accepted"]},
           "text": {"type": "string", "minLength": 1},

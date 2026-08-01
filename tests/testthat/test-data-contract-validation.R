@@ -56,3 +56,28 @@ testthat::test_that("orphan metadata and contract fail", {
   testthat::expect_true("orphan_contract" %in% error_codes(validate_data_contract_project(f$root,FALSE)))
 })
 testthat::test_that("repository contracts pass", { testthat::expect_true(validate_data_contract_project(contract_project_root,FALSE)$passed) })
+
+testthat::test_that("TODO categories and implementation alignment are governed", {
+  f <- make_contract_fixture(); m <- read_contract_json(f$metadata_path)
+  m$human_todos <- list(list(id="SILVER-WIDGET-001",field="mapping",category="not_a_category",severity="blocking",status="open",text="Review",resolution=NULL))
+  jsonlite::write_json(m,f$metadata_path,auto_unbox=TRUE,null="null")
+  testthat::expect_true("invalid_enum" %in% error_codes(validate_data_contract_project(f$root,FALSE)))
+
+  f <- make_contract_fixture(); m <- read_contract_json(f$metadata_path)
+  m$governance$lifecycle <- "certified"; m$governance$semantic_review_status <- "reviewed"; m$governance$alignment_status <- "review_required"
+  m$human_todos <- list(list(id="SILVER-WIDGET-002",field="mapping",category="implementation_alignment",severity="blocking",status="open",text="Align implementation",resolution=NULL))
+  jsonlite::write_json(m,f$metadata_path,auto_unbox=TRUE,null="null")
+  codes <- error_codes(validate_data_contract_project(f$root,FALSE))
+  testthat::expect_true(all(c("lifecycle_todo","lifecycle_alignment") %in% codes))
+})
+
+testthat::test_that("accepted and open future enhancements do not block certification", {
+  f <- make_contract_fixture(); m <- read_contract_json(f$metadata_path)
+  m$governance$lifecycle <- "certified"; m$governance$semantic_review_status <- "reviewed"; m$governance$alignment_status <- "aligned"
+  m$human_todos <- list(
+    list(id="SILVER-WIDGET-003",field="future",category="future_enhancement",severity="future",status="open",text="Future work",resolution=NULL),
+    list(id="SILVER-WIDGET-004",field="limitation",category="future_enhancement",severity="future",status="accepted",text="Accepted future limitation",resolution="Deliberately deferred.")
+  )
+  jsonlite::write_json(m,f$metadata_path,auto_unbox=TRUE,null="null")
+  testthat::expect_true(validate_data_contract_project(f$root,FALSE)$passed)
+})

@@ -12,6 +12,11 @@ contract_lifecycle_values <- c(
 contract_review_values <- c("not_started", "in_review", "reviewed")
 contract_todo_severities <- c("blocking", "non_blocking", "future")
 contract_todo_statuses <- c("open", "resolved", "accepted")
+contract_todo_categories <- c(
+  "semantic_decision", "implementation_alignment", "source_research",
+  "quality_rule", "future_enhancement", "documentation"
+)
+contract_alignment_statuses <- c("not_reviewed", "aligned", "review_required")
 
 normalise_contract_type <- function(value) {
   value <- tolower(trimws(value))
@@ -180,6 +185,8 @@ validate_metadata_structure <- function(metadata, path) {
   for (field in c("owner", "lifecycle", "contract_path", "semantic_review_status", "last_verified_date")) if (is.null(metadata$governance[[field]])) add("invalid_metadata", paste("governance missing", field))
   if (!metadata$governance$lifecycle %in% contract_lifecycle_values) add("invalid_enum", "invalid lifecycle")
   if (!metadata$governance$semantic_review_status %in% contract_review_values) add("invalid_enum", "invalid semantic review status")
+  if (!is.null(metadata$governance$semantic_status) && !metadata$governance$semantic_status %in% c("unreviewed", "in_review", "agreed")) add("invalid_enum", "invalid semantic status")
+  for (field in c("implementation_status", "alignment_status")) if (!is.null(metadata$governance[[field]]) && !metadata$governance[[field]] %in% contract_alignment_statuses) add("invalid_enum", paste("invalid", field))
   if (is.null(metadata$physical_schema$columns)) add("invalid_metadata", "physical_schema missing columns")
   for (column in metadata$physical_schema$columns) {
     required_column <- c("name", "ordinal_position", "data_type", "raw_data_type", "nullable", "default", "primary_key", "unique")
@@ -194,6 +201,7 @@ validate_metadata_structure <- function(metadata, path) {
   for (todo in metadata$human_todos) {
     if (!all(c("id", "field", "severity", "status", "text", "resolution") %in% names(todo))) add("invalid_todo", "TODO missing required fields")
     if (!is.null(todo$id) && !grepl("^(SILVER|GOLD)-[A-Z0-9_]+-[0-9]{3}$", todo$id)) add("invalid_todo", paste("invalid TODO ID", todo$id))
+    if (!is.null(todo$category) && !todo$category %in% contract_todo_categories) add("invalid_enum", paste("invalid TODO category", todo$category))
     if (!is.null(todo$severity) && !todo$severity %in% contract_todo_severities) add("invalid_enum", paste("invalid TODO severity", todo$severity))
     if (!is.null(todo$status) && !todo$status %in% contract_todo_statuses) add("invalid_enum", paste("invalid TODO status", todo$status))
     if (!is.null(todo$status) && todo$status %in% c("resolved", "accepted") && (is.null(todo$resolution) || !nzchar(trimws(todo$resolution)))) add("invalid_todo", paste(todo$id, "requires a resolution or rationale"))
@@ -268,6 +276,7 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
     todos <- metadata$human_todos
     ids <- vapply(todos, function(x) x$id, character(1)); todo_ids <- c(todo_ids, ids)
     if (metadata$governance$lifecycle == "certified" && any(vapply(todos, function(x) x$status == "open" && x$severity == "blocking", logical(1)))) add_error("lifecycle_todo", paste(key, "is certified with an open blocking TODO"), key)
+    if (metadata$governance$lifecycle == "certified" && (is.null(metadata$governance$alignment_status) || metadata$governance$alignment_status != "aligned")) add_error("lifecycle_alignment", paste(key, "is certified without alignment_status=aligned"), key)
     if (metadata$governance$lifecycle %in% c("semantically_reviewed", "certified") && metadata$governance$semantic_review_status != "reviewed") add_error("lifecycle_review", paste(key, "lifecycle requires semantic_review_status=reviewed"), key)
     for (source in metadata$lineage$source_objects) {
       source_key <- sub("^cycling_platform_", "", source)
@@ -316,7 +325,7 @@ write_contract_report <- function(result, path) {
   todos <- unlist(lapply(result$metadata, `[[`, "human_todos"), recursive = FALSE)
   todo_lines <- function(severity = NULL, status = NULL) {
     selected <- Filter(function(x) (is.null(severity) || x$severity == severity) && (is.null(status) || x$status == status), todos)
-    if (!length(selected)) "- None" else vapply(selected, function(x) paste0("- `", x$id, "` (", x$severity, "): ", x$text), character(1))
+    if (!length(selected)) "- None" else vapply(selected, function(x) paste0("- `", x$id, "` (", x$severity, if (!is.null(x$category)) paste0(", ", x$category) else "", "): ", x$text), character(1))
   }
   lines <- c(
     "# Data contract validation", "",

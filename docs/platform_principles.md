@@ -13,6 +13,42 @@
 * Stage data is temporary ETL workspace, not a platform data product.
 * Naming is an architectural contract.
 
+## Semantic architecture principles
+
+### Published vs Derived
+
+A value published by a source and a value independently calculated by the platform are different facts, even when they share units and appear comparable. Silver preserves the published fact. Derived facts use explicit names and lineage and must never silently overwrite published measurements. Reconstructed stream distance, for example, does not replace Strava's published activity distance.
+
+### Contract vs Implementation
+
+The semantic contract defines intended platform meaning. Code implements current behaviour and is measured against the contract; implementation is not allowed to redefine agreed meaning silently. Where they differ, governance records an implementation-alignment finding until code and validation are deliberately aligned.
+
+### Guaranteed vs Expected vs Observed
+
+These states are distinct:
+
+- **guaranteed** is enforced by the contract and its implementation;
+- **expected** describes what should normally exist under source or business rules;
+- **observed** describes what a particular ingestion or validation found.
+
+An observation must not be promoted to a guarantee, and an unmet expectation must not cause silent canonical mutation.
+
+### Preserve Uncertainty
+
+Unknown remains `NULL`; positively false remains `FALSE`; positively zero remains zero. The platform does not replace uncertainty with sentinel values or infer a source fact solely from absence—for example, missing streams do not prove an activity is manual.
+
+### Silver Admission Test
+
+An entity belongs in Silver when it is a reusable canonical fact required across consumers, independent of one report or analytical context. Admission follows source/entity scope, not analytical significance. Consumer-specific notions such as training relevance or significance normally belong in Gold.
+
+### Semantic Normalisation vs Gold Denormalisation
+
+Silver normalises stable identities and reusable meanings into canonical objects and relationships. Gold may denormalise those objects for a defined consumer product, with explicit lineage and semantics. Denormalisation must not transfer ownership of the canonical identity into the product.
+
+### Interpretation → Observation → Correction
+
+The platform first states an interpretation in a contract, then validates and observes implementation/data against it, then corrects through an explicit governed path. Validation observes, reports, and recommends; it never silently repairs or rewrites canonical data.
+
 ## Definitions
 
 ### System of Record
