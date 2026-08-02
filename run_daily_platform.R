@@ -156,6 +156,7 @@ get_raw_ingestion_summary <- function(previous_run_id) {
                  OR child_status IN ('INCOMPLETE','FAILED'))",
         params = list(run$run_id[[1]])
       )
+      reconciliation <- normalise_activity_reconciliation_counts(reconciliation)
       reconciliation_lines <- if (nrow(reconciliation)) {
         totals <- stats::setNames(rep(0L, 4L), c("NEW", "CHANGED", "UNCHANGED", "MISSING"))
         grouped <- stats::aggregate(activity_count ~ reconciliation_status, reconciliation, sum)
