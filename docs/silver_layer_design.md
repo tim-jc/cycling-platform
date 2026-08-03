@@ -298,7 +298,9 @@ longitude are used for map or route analysis.
 
 `silver.activity_laps` publishes one typed source-reported Strava lap per
 payload `lap_id`, with additional uniqueness by `activity_id + lap_index`.
-Consumers join to activities by `activity_id` and order by `lap_index`.
+Consumers join to activities by `activity_id` and order by the payload
+`lap_index`. `raw_response_index` separately preserves the ingestion response
+position, which is not source lap identity.
 
 Source `start_index` and `end_index` are preserved unchanged as
 `start_sample_index` and `end_sample_index`. Their index base and inclusive or

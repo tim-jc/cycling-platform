@@ -152,9 +152,11 @@ Historical lap rebuilds do not send achievement notifications.
 
 For first rollout after deploying the new object:
 
-1. rebuild the application image so the additive DDL and transform are present;
+1. run `./scripts/deploy_platform.sh` from `cycling-infrastructure`; deployment
+   pulls code, rebuilds the image and bootstraps the database, but runs no
+   transforms or validation;
 2. run `Rscript run_silver.R repair` in the ephemeral application container;
-3. run the publication validation;
+3. run the publication validation explicitly;
 4. inspect lap counts, identity reconciliation and transform-run metadata;
 5. run deep validation and review its observational boundary/reconciliation
    findings before adding consumers.

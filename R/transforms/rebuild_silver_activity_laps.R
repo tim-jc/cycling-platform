@@ -1,4 +1,4 @@
-silver_activity_laps_transform_version <- function() "strava_activity_laps_v1"
+silver_activity_laps_transform_version <- function() "strava_activity_laps_v2"
 
 lap_scalar <- function(payload, path) {
   value <- payload
@@ -74,18 +74,17 @@ parse_silver_activity_lap <- function(raw_row, transformed_at = Sys.time()) {
          ifelse(is.na(payload_activity_id), "<missing>", payload_activity_id), ".",
          call. = FALSE)
   }
-  if (is.na(payload_lap_index) || payload_lap_index != promoted_lap_index) {
-    stop("Lap index mismatch: activity ", promoted_activity_id,
-         ", promoted lap index ", promoted_lap_index,
-         ", payload lap ID ", lap_id, ", payload lap index ",
-         ifelse(is.na(payload_lap_index), "<missing>", payload_lap_index), ".",
-         call. = FALSE)
+  if (is.na(payload_lap_index) || payload_lap_index < 0L) {
+    stop("Missing or invalid payload lap index: activity ", promoted_activity_id,
+         ", promoted response index ", promoted_lap_index,
+         ", payload lap ID ", lap_id, ".", call. = FALSE)
   }
 
   data.frame(
     lap_id = bit64::as.integer64(lap_id),
     activity_id = bit64::as.integer64(promoted_activity_id),
-    lap_index = promoted_lap_index,
+    lap_index = payload_lap_index,
+    raw_response_index = promoted_lap_index,
     source_id = as.integer(raw_row$source_id[[1]]),
     lap_name = lap_nullable_character(payload, "name", blank_is_null = TRUE),
     start_datetime_utc = lap_nullable_datetime(payload, "start_date"),

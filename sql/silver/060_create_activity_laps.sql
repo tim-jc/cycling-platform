@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_laps (
 
     lap_index INT NOT NULL,
 
+    raw_response_index INT NOT NULL,
+
     source_id INT NOT NULL,
 
     lap_name VARCHAR(255) NULL,
@@ -59,6 +61,9 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_laps (
 
     CONSTRAINT chk_silver_activity_laps_lap_index
         CHECK (lap_index >= 0),
+
+    CONSTRAINT chk_silver_activity_laps_raw_response_index
+        CHECK (raw_response_index >= 1),
 
     CONSTRAINT chk_silver_activity_laps_elapsed_time
         CHECK (elapsed_time_seconds IS NULL OR elapsed_time_seconds >= 0),

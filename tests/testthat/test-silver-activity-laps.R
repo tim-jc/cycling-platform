@@ -57,7 +57,7 @@ testthat::test_that("complete payload maps to the canonical Silver row", {
   testthat::expect_equal(row$start_sample_index, 0L)
   testthat::expect_equal(row$end_sample_index, 119L)
   testthat::expect_true(row$is_device_watts)
-  testthat::expect_equal(row$transform_version, "strava_activity_laps_v1")
+  testthat::expect_equal(row$transform_version, "strava_activity_laps_v2")
   testthat::expect_equal(nchar(row$raw_payload_hash), 64L)
 })
 
@@ -103,14 +103,16 @@ testthat::test_that("malformed JSON and invalid scalar types fail clearly", {
   testthat::expect_error(parse_silver_activity_lap(invalid), "distance.*not numeric")
 })
 
-testthat::test_that("source identifiers must agree", {
+testthat::test_that("source activity identity must agree and payload index is canonical", {
   activity_mismatch <- raw_lap_fixture(lap_payload_fixture(list(
     activity = list(id = "999")
   )))
-  index_mismatch <- raw_lap_fixture(lap_payload_fixture(list(lap_index = 2L)))
+  different_index <- raw_lap_fixture(lap_payload_fixture(list(lap_index = 2L)))
   missing_id <- raw_lap_fixture(lap_payload_fixture(list(id = NULL)))
   testthat::expect_error(parse_silver_activity_lap(activity_mismatch), "activity ID mismatch")
-  testthat::expect_error(parse_silver_activity_lap(index_mismatch), "index mismatch")
+  parsed <- parse_silver_activity_lap(different_index)
+  testthat::expect_equal(parsed$lap_index, 2L)
+  testthat::expect_equal(parsed$raw_response_index, 1L)
   testthat::expect_error(parse_silver_activity_lap(missing_id), "Missing or invalid payload lap ID")
 })
 
@@ -136,6 +138,7 @@ testthat::test_that("DDL governs keys, nullability, boundaries and collation", {
   testthat::expect_match(sql, "UNIQUE KEY uq_silver_activity_laps_activity_index")
   testthat::expect_match(sql, "\\(activity_id, lap_index\\)")
   testthat::expect_match(sql, "is_device_watts BOOLEAN NULL")
+  testthat::expect_match(sql, "raw_response_index INT NOT NULL")
   testthat::expect_match(sql, "start_sample_index <= end_sample_index")
   testthat::expect_match(sql, "DEFAULT COLLATE utf8mb4_general_ci")
 })

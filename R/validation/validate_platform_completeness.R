@@ -539,7 +539,7 @@ count_platform_completeness_checks <- function(
     return(12L)
   }
 
-  check_count <- 46L
+  check_count <- 47L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -937,6 +937,7 @@ validate_platform_completeness <- function(
         WHERE lap_id IS NULL
            OR activity_id IS NULL
            OR lap_index IS NULL OR lap_index < 0
+           OR raw_response_index IS NULL OR raw_response_index < 1
            OR elapsed_time_seconds < 0
            OR moving_time_seconds < 0
            OR distance_metres < 0
@@ -1017,7 +1018,7 @@ validate_platform_completeness <- function(
            OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.activity.id')) IS NULL
            OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.activity.id')) <> CAST(raw.activity_id AS CHAR)
            OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) IS NULL
-           OR CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) AS SIGNED) <> raw.lap_index
+           OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) NOT REGEXP '^[0-9]+$'
         LIMIT 1000
       ",
       per_check_timeout_seconds = per_check_timeout_seconds,
@@ -1041,6 +1042,13 @@ validate_platform_completeness <- function(
         LEFT JOIN cycling_platform_silver.activity_laps silver
           ON silver.lap_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS UNSIGNED)
         WHERE silver.lap_id IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM cycling_platform_admin.transform_run transform
+            WHERE transform.layer_name = 'silver'
+              AND transform.entity_name = 'activity_laps'
+              AND transform.run_status = 'SUCCESS'
+          )
         LIMIT 1000
       ",
       per_check_timeout_seconds = per_check_timeout_seconds,
@@ -1050,7 +1058,7 @@ validate_platform_completeness <- function(
 
   if (platform_validation_has_critical_failures(dplyr::bind_rows(checks))) {
     message(
-      "Validation stopped because canonical schema collation preflight failed."
+      "Validation stopped because Silver publication preflight failed."
     )
     log_validation_phase_complete(validation_started_at)
     return(dplyr::bind_rows(checks))
@@ -1255,7 +1263,10 @@ validate_platform_completeness <- function(
             ON silver.lap_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS UNSIGNED)
           WHERE silver.lap_id IS NULL
              OR silver.activity_id <> raw.activity_id
-             OR silver.lap_index <> raw.lap_index
+             OR silver.lap_index <> CAST(
+                  JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) AS SIGNED
+                )
+             OR silver.raw_response_index <> raw.lap_index
              OR silver.raw_payload_hash <> SHA2(CAST(raw.lap_payload AS CHAR), 256)
           LIMIT 1000
         ",
@@ -1279,6 +1290,29 @@ validate_platform_completeness <- function(
               SELECT 1 FROM cycling_platform_silver.activity_laps laps
               WHERE laps.activity_id = activities.activity_id
             )
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_lap_response_payload_index_difference",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT activity_id, lap_index AS raw_response_index,
+                 CAST(JSON_UNQUOTE(JSON_EXTRACT(lap_payload, '$.lap_index')) AS SIGNED)
+                   AS payload_lap_index,
+                 JSON_UNQUOTE(JSON_EXTRACT(lap_payload, '$.id')) AS payload_lap_id
+          FROM cycling_platform_raw.activity_laps
+          WHERE CAST(JSON_UNQUOTE(JSON_EXTRACT(lap_payload, '$.lap_index')) AS SIGNED)
+                <> lap_index
+          ORDER BY activity_id, lap_index
           LIMIT 1000
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,

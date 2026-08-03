@@ -39,7 +39,9 @@ observation history.
 
 - Primary key: `lap_id`, the promoted Strava payload `id`.
 - Additional uniqueness: `activity_id × lap_index`.
-- Ordering key: `lap_index` within `activity_id`.
+- Ordering key: payload `lap_index` within `activity_id`.
+- Raw lineage ordering: `raw_response_index` preserves the one-based response
+  position assigned during ingestion. It is not treated as source lap identity.
 - Parent relationship: `activity_id` resolves to
   `cycling_platform_silver.activities.activity_id`.
 - Stream relationship: `start_sample_index` and `end_sample_index` are optional
@@ -78,7 +80,8 @@ Implementation:
 |---|---|---|
 | `lap_id` | `id` | Required source-system identity. |
 | `activity_id` | `activity.id` | Must equal promoted Raw `activity_id`. |
-| `lap_index` | `lap_index` | Must equal promoted Raw `lap_index`; retained for ordering. |
+| `lap_index` | `lap_index` | Preserve the payload source ordering value. |
+| `raw_response_index` | promoted Raw `lap_index` | Preserve ingestion response position for reconciliation only. |
 | `lap_name` | `name` | Trim-tested blank strings become `NULL`; meaningful text is preserved. |
 | `start_datetime_utc` | `start_date` | Parsed as UTC. |
 | `start_datetime_local` | `start_date_local` | Local wall-clock value preserved. |
@@ -96,7 +99,7 @@ Implementation:
 | `is_device_watts` | `device_watts` | Nullable source boolean; absence remains `NULL`. |
 
 Lineage fields retain source/run identity, retrieval time, payload hash,
-transform version (`strava_activity_laps_v1`) and transformation time.
+transform version (`strava_activity_laps_v2`) and transformation time.
 
 Full mode atomically replaces the complete object. Incremental mode atomically
 replaces retained Raw laps for affected activities. Repair mode finds missing,
@@ -137,7 +140,12 @@ WHERE silver.lap_id IS NULL;
 
 - Raw is upserted by `activity_id × lap_index` and does not retain complete
   snapshot membership. A disappeared source lap cannot yet be retired safely.
-- `lap_index` is currently promoted from API response order.
+- Payload `lap_index` is complete and unique within activity in the production
+  evidence reviewed on 2026-08-03. Four activities have non-contiguous source
+  indices, so continuity is observational rather than required.
+- Raw promoted `lap_index` is response position and differs from payload
+  `lap_index` for nine retained rows; it is exposed only as
+  `raw_response_index` lineage.
 - Source index base and inclusive/exclusive end-boundary meaning remain
   unresolved; values are preserved unchanged.
 - Activities without streams may still have valid laps.
