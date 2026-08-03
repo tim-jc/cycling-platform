@@ -52,6 +52,13 @@ replacing the legacy scraper project.
 The `stage` schema is not part of the medallion architecture. It is temporary
 ETL workspace only.
 
+Persistent working tables must not be created in Silver. Names ending in
+`_staging`, `_build`, or `_tmp` are treated as architectural drift by
+publication validation. The historical `silver.activity_streams_staging`
+table was not part of any tracked transform or publication-swap path and is
+removed by schema migration 006. Stream rebuild workspace is exclusively
+`stage.activity_streams_build`.
+
 Database responsibilities:
 
 * `cycling_platform_admin`: ETL/control metadata, run logging, audit,

@@ -369,6 +369,14 @@ ownership, validates staged row counts, bulk merges into
 `cycling_platform_silver.activity_streams` in small activity-ID batches, and
 removes staged rows for each batch only after a successful commit.
 
+`cycling_platform_stage.activity_streams_build` is the sole persistent stream
+rebuild workspace. Silver contains only the published `activity_streams` data
+product: the rebuild does not use a same-schema staging table, table rename,
+or atomic swap. The obsolete, empty
+`cycling_platform_silver.activity_streams_staging` artefact is removed by
+schema migration 006, and publication validation rejects persistent Silver
+tables whose names end in `_staging`, `_build`, or `_tmp`.
+
 If staging has already been populated, merge can be retried without rebuilding
 rows by running `backfill_silver_activity_streams_local(mode =
 "staging_merge", run_id = <run_id>)`.

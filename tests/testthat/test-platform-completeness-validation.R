@@ -176,7 +176,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    12L
+    13L
   )
 
   testthat::expect_equal(
@@ -190,7 +190,44 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    70L
+    71L
+  )
+})
+
+testthat::test_that("Silver working-table validation is explicit and scoped", {
+  validation_file <- file.path(
+    "R",
+    "validation",
+    "validate_platform_completeness.R"
+  )
+
+  if (!file.exists(validation_file)) {
+    validation_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "validation",
+      "validate_platform_completeness.R"
+    )
+  }
+
+  source(validation_file)
+  query <- platform_silver_working_table_query()
+
+  testthat::expect_match(
+    query,
+    "table_schema = 'cycling_platform_silver'",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    query,
+    "table_type = 'BASE TABLE'",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    query,
+    "(_staging|_build|_tmp)$",
+    fixed = TRUE
   )
 })
 

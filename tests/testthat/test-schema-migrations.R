@@ -63,6 +63,33 @@ testthat::test_that("migration 001 retains its rehearsed immutable checksum", {
   )
 })
 
+testthat::test_that("migration 006 removes only the obsolete Silver staging table", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "006_drop_obsolete_silver_activity_streams_staging.sql"
+  )
+  migration_lines <- readLines(migration_file)
+  migration_sql <- paste(migration_lines, collapse = "\n")
+
+  testthat::expect_match(
+    migration_sql,
+    "DROP TABLE IF EXISTS cycling_platform_silver.activity_streams_staging",
+    fixed = TRUE
+  )
+  executable_sql <- paste(
+    migration_lines[!grepl("^\\s*--", migration_lines)],
+    collapse = "\n"
+  )
+  testthat::expect_false(grepl(
+    "cycling_platform_stage.activity_streams_build",
+    executable_sql,
+    fixed = TRUE
+  ))
+})
+
 testthat::test_that("duplicate migration versions fail before execution", {
   migration_dir <- tempfile("migrations-")
   dir.create(migration_dir)

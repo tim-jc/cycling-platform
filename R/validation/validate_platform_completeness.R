@@ -32,6 +32,20 @@ platform_canonical_collation <- function() {
   "utf8mb4_general_ci"
 }
 
+platform_silver_working_table_query <- function() {
+  "
+    SELECT
+      table_schema,
+      table_name,
+      table_type
+    FROM information_schema.tables
+    WHERE table_schema = 'cycling_platform_silver'
+      AND table_type = 'BASE TABLE'
+      AND table_name REGEXP '(_staging|_build|_tmp)$'
+    ORDER BY table_name
+  "
+}
+
 platform_json_columns <- function() {
   data.frame(
     table_schema = c(
@@ -536,10 +550,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(12L)
+    return(13L)
   }
 
-  check_count <- 48L
+  check_count <- 49L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -887,6 +901,19 @@ validate_platform_completeness <- function(
       check_scope = "publication",
       severity = "CRITICAL",
       query = platform_collation_validation_query(),
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_schema_has_no_persistent_working_tables",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = platform_silver_working_table_query(),
       per_check_timeout_seconds = per_check_timeout_seconds,
       deadline = deadline
     )
