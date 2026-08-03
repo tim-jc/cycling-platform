@@ -3,6 +3,7 @@
 Current managed contracts:
 
 - [activities](activities.md)
+- [activity laps](activity_laps.md)
 - [activity streams](activity_streams.md)
 - [gear](gear.md)
 - [overall semantic gap report](gap-report.md)

@@ -1,0 +1,363 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "silver",
+    "database_schema": "cycling_platform_silver",
+    "name": "activity_laps",
+    "type": "table",
+    "ddl_path": "sql/silver/060_create_activity_laps.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/silver/activity_laps.md",
+    "semantic_review_status": "in_review",
+    "semantic_status": "in_review",
+    "implementation_status": "aligned",
+    "alignment_status": "aligned",
+    "last_verified_date": "2026-08-03"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "lap_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "activity_id",
+        "ordinal_position": 2,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "lap_index",
+        "ordinal_position": 3,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "source_id",
+        "ordinal_position": 4,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "lap_name",
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_datetime_utc",
+        "ordinal_position": 6,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_datetime_local",
+        "ordinal_position": 7,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "elapsed_time_seconds",
+        "ordinal_position": 8,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "moving_time_seconds",
+        "ordinal_position": 9,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "distance_metres",
+        "ordinal_position": 10,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_sample_index",
+        "ordinal_position": 11,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_sample_index",
+        "ordinal_position": 12,
+        "data_type": "integer",
+        "raw_data_type": "INT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_speed_metres_per_second",
+        "ordinal_position": 13,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_cadence_rpm",
+        "ordinal_position": 14,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_power_watts",
+        "ordinal_position": 15,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "average_heartrate_bpm",
+        "ordinal_position": 16,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "maximum_heartrate_bpm",
+        "ordinal_position": 17,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "elevation_gain_metres",
+        "ordinal_position": 18,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_device_watts",
+        "ordinal_position": 19,
+        "data_type": "boolean",
+        "raw_data_type": "BOOLEAN",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_run_id",
+        "ordinal_position": 20,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_retrieved_at",
+        "ordinal_position": 21,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "raw_payload_hash",
+        "ordinal_position": 22,
+        "data_type": "char",
+        "raw_data_type": "CHAR(64)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "transform_version",
+        "ordinal_position": 23,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "transformed_at",
+        "ordinal_position": 24,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "lap_id",
+    "unique_constraints": [
+      {
+        "name": "uq_silver_activity_laps_activity_index",
+        "columns": ["activity_id", "lap_index"]
+      }
+    ]
+  },
+  "lineage": {
+    "source_objects": [
+      "cycling_platform_raw.activity_laps",
+      "cycling_platform_silver.activities",
+      "cycling_platform_silver.activity_streams"
+    ],
+    "source_columns": [
+      "cycling_platform_raw.activity_laps.activity_id",
+      "cycling_platform_raw.activity_laps.lap_index",
+      "cycling_platform_raw.activity_laps.run_id",
+      "cycling_platform_raw.activity_laps.source_id",
+      "cycling_platform_raw.activity_laps.retrieved_at",
+      "cycling_platform_raw.activity_laps.lap_payload"
+    ],
+    "transformation_files": [
+      "R/transforms/rebuild_silver_activity_laps.R",
+      "R/transforms/run_silver_transformations.R"
+    ],
+    "transformation_functions": [
+      "parse_silver_activity_lap",
+      "build_silver_activity_lap_rows",
+      "rebuild_silver_activity_laps",
+      "run_silver_transformations"
+    ],
+    "transformation_description": "Parses retained Raw Strava lap payloads and atomically publishes typed current rows for the full object or selected activities.",
+    "authorship": "generated_and_human_reviewed",
+    "confidence": "high",
+    "review_required": true
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "lap_id is unique.",
+      "activity_id and lap_index are unique together."
+    ],
+    "not_null_expectations": [
+      "Identity, ordering, Raw lineage, payload hash and transform version are populated."
+    ],
+    "referential_integrity_expectations": [
+      "activity_id resolves to cycling_platform_silver.activities.activity_id.",
+      "Stream boundaries are contextual and do not require activity streams to exist."
+    ],
+    "accepted_values": [
+      "Times, distances and source sample indices are non-negative when present.",
+      "start_sample_index does not exceed end_sample_index when both are present."
+    ],
+    "implemented_validations": [
+      "silver_activity_laps_table_exists",
+      "silver_activity_laps_required_fields_valid",
+      "silver_activity_laps_key_uniqueness",
+      "silver_activity_laps_parent_activity_resolves",
+      "silver_activity_laps_source_identifier_alignment",
+      "raw_success_laps_missing_from_silver",
+      "silver_activity_laps_index_continuity",
+      "silver_activity_laps_index_start_distribution",
+      "silver_activity_laps_adjacent_boundary_differences",
+      "silver_activity_laps_boundaries_outside_stream_range",
+      "silver_activity_laps_parent_summary_reconciliation",
+      "silver_activity_laps_coverage_and_reconciliation",
+      "silver_activity_laps_raw_reconciliation",
+      "silver_activities_has_laps_without_lap_rows"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "SILVER-ACTIVITY_LAPS-001",
+      "field": "stream_boundary_semantics",
+      "category": "semantic_decision",
+      "severity": "non_blocking",
+      "status": "open",
+      "text": "Confirm the source index base and whether end_sample_index is inclusive or exclusive.",
+      "resolution": null
+    },
+    {
+      "id": "SILVER-ACTIVITY_LAPS-002",
+      "field": "source_disappearance",
+      "category": "implementation_alignment",
+      "severity": "non_blocking",
+      "status": "accepted",
+      "text": "Raw ingestion cannot yet prove complete source snapshots, so source disappearance is not retired automatically.",
+      "resolution": "Preserve prior publication unless retained Raw state changes; add snapshot-completeness metadata before implementing authoritative retirement."
+    },
+    {
+      "id": "SILVER-ACTIVITY_LAPS-003",
+      "field": "parent_reconciliation",
+      "category": "quality_rule",
+      "severity": "future",
+      "status": "accepted",
+      "text": "No blocking tolerance is defined for differences between summed laps and parent activity summaries.",
+      "resolution": "Retain reconciliation as observational deep validation until consumers agree materiality thresholds."
+    }
+  ]
+}

@@ -488,7 +488,7 @@ assert_validation_deadline <- function(
 
 is_likely_long_running_validation <- function(check_name) {
   grepl(
-    "stream|best_efforts|gold|raw_success",
+    "stream|lap|best_efforts|gold|raw_success",
     check_name
   )
 }
@@ -536,10 +536,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(6L)
+    return(12L)
   }
 
-  check_count <- 32L
+  check_count <- 46L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -893,6 +893,162 @@ validate_platform_completeness <- function(
   )
 
   if (platform_validation_has_critical_failures(dplyr::bind_rows(checks))) {
+    message("Validation stopped because schema/table preflight failed.")
+    log_validation_phase_complete(validation_started_at)
+    return(dplyr::bind_rows(checks))
+  }
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_laps_table_exists",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT 'cycling_platform_silver.activity_laps' AS missing_table
+        WHERE NOT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'cycling_platform_silver'
+            AND table_name = 'activity_laps'
+        )
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  if (platform_validation_has_critical_failures(dplyr::bind_rows(checks))) {
+    message("Validation stopped because required Silver tables are missing.")
+    log_validation_phase_complete(validation_started_at)
+    return(dplyr::bind_rows(checks))
+  }
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_laps_required_fields_valid",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT lap_id, activity_id, lap_index
+        FROM cycling_platform_silver.activity_laps
+        WHERE lap_id IS NULL
+           OR activity_id IS NULL
+           OR lap_index IS NULL OR lap_index < 0
+           OR elapsed_time_seconds < 0
+           OR moving_time_seconds < 0
+           OR distance_metres < 0
+           OR start_sample_index < 0
+           OR end_sample_index < 0
+           OR (start_sample_index IS NOT NULL AND end_sample_index IS NOT NULL
+               AND start_sample_index > end_sample_index)
+           OR raw_run_id IS NULL
+           OR raw_retrieved_at IS NULL
+           OR raw_payload_hash IS NULL OR raw_payload_hash = ''
+           OR transform_version IS NULL OR transform_version = ''
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_laps_key_uniqueness",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT 'lap_id' AS key_type, CAST(lap_id AS CHAR) AS key_value,
+               COUNT(*) AS issue_count
+        FROM cycling_platform_silver.activity_laps
+        GROUP BY lap_id HAVING COUNT(*) > 1
+        UNION ALL
+        SELECT 'activity_id_lap_index', CONCAT(activity_id, ':', lap_index),
+               COUNT(*) AS issue_count
+        FROM cycling_platform_silver.activity_laps
+        GROUP BY activity_id, lap_index HAVING COUNT(*) > 1
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_laps_parent_activity_resolves",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT laps.lap_id, laps.activity_id
+        FROM cycling_platform_silver.activity_laps laps
+        LEFT JOIN cycling_platform_silver.activities activities
+          ON activities.activity_id = laps.activity_id
+        WHERE activities.activity_id IS NULL
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "silver_activity_laps_source_identifier_alignment",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT raw.activity_id, raw.lap_index,
+               JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS payload_lap_id,
+               JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.activity.id')) AS payload_activity_id,
+               JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) AS payload_lap_index
+        FROM cycling_platform_raw.activity_laps raw
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) IS NULL
+           OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) NOT REGEXP '^[0-9]+$'
+           OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.activity.id')) IS NULL
+           OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.activity.id')) <> CAST(raw.activity_id AS CHAR)
+           OR JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) IS NULL
+           OR CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.lap_index')) AS SIGNED) <> raw.lap_index
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "raw_success_laps_missing_from_silver",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT raw.activity_id, raw.lap_index
+        FROM cycling_platform_raw.activity_laps raw
+        INNER JOIN cycling_platform_raw.activities activities
+          ON activities.activity_id = raw.activity_id
+         AND activities.laps_status = 'SUCCESS'
+        LEFT JOIN cycling_platform_silver.activity_laps silver
+          ON silver.lap_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS UNSIGNED)
+        WHERE silver.lap_id IS NULL
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  if (platform_validation_has_critical_failures(dplyr::bind_rows(checks))) {
     message(
       "Validation stopped because canonical schema collation preflight failed."
     )
@@ -1060,6 +1216,219 @@ validate_platform_completeness <- function(
   )
 
   if (identical(validation_scope, "deep")) {
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_index_continuity",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT activity_id, COUNT(*) AS lap_count,
+                 MIN(lap_index) AS minimum_index,
+                 MAX(lap_index) AS maximum_index,
+                 COUNT(DISTINCT lap_index) AS distinct_indices
+          FROM cycling_platform_silver.activity_laps
+          GROUP BY activity_id
+          HAVING COUNT(*) <> COUNT(DISTINCT lap_index)
+              OR MAX(lap_index) - MIN(lap_index) + 1 <> COUNT(*)
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_raw_reconciliation",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT raw.activity_id, raw.lap_index,
+                 JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS raw_lap_id,
+                 silver.lap_id AS silver_lap_id
+          FROM cycling_platform_raw.activity_laps raw
+          LEFT JOIN cycling_platform_silver.activity_laps silver
+            ON silver.lap_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(raw.lap_payload, '$.id')) AS UNSIGNED)
+          WHERE silver.lap_id IS NULL
+             OR silver.activity_id <> raw.activity_id
+             OR silver.lap_index <> raw.lap_index
+             OR silver.raw_payload_hash <> SHA2(CAST(raw.lap_payload AS CHAR), 256)
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activities_has_laps_without_lap_rows",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT activities.activity_id
+          FROM cycling_platform_silver.activities activities
+          WHERE activities.has_laps = 1
+            AND NOT EXISTS (
+              SELECT 1 FROM cycling_platform_silver.activity_laps laps
+              WHERE laps.activity_id = activities.activity_id
+            )
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_index_start_distribution",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT minimum_index, COUNT(*) AS issue_count
+          FROM (
+            SELECT activity_id, MIN(lap_index) AS minimum_index
+            FROM cycling_platform_silver.activity_laps
+            GROUP BY activity_id
+          ) starts
+          GROUP BY minimum_index
+          ORDER BY minimum_index
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_adjacent_boundary_differences",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          WITH boundaries AS (
+            SELECT activity_id, lap_index, end_sample_index,
+                   LEAD(start_sample_index) OVER (
+                     PARTITION BY activity_id ORDER BY lap_index
+                   ) AS next_start_sample_index
+            FROM cycling_platform_silver.activity_laps
+          )
+          SELECT next_start_sample_index - end_sample_index AS boundary_delta,
+                 COUNT(*) AS issue_count
+          FROM boundaries
+          WHERE end_sample_index IS NOT NULL
+            AND next_start_sample_index IS NOT NULL
+          GROUP BY next_start_sample_index - end_sample_index
+          ORDER BY boundary_delta
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_boundaries_outside_stream_range",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          WITH stream_ranges AS (
+            SELECT activity_id, MIN(sample_index) AS minimum_sample_index,
+                   MAX(sample_index) AS maximum_sample_index
+            FROM cycling_platform_silver.activity_streams
+            GROUP BY activity_id
+          )
+          SELECT laps.lap_id, laps.activity_id, laps.start_sample_index,
+                 laps.end_sample_index, streams.minimum_sample_index,
+                 streams.maximum_sample_index
+          FROM cycling_platform_silver.activity_laps laps
+          INNER JOIN stream_ranges streams ON streams.activity_id = laps.activity_id
+          WHERE (laps.start_sample_index IS NOT NULL AND
+                 (laps.start_sample_index < streams.minimum_sample_index - 1 OR
+                  laps.start_sample_index > streams.maximum_sample_index))
+             OR (laps.end_sample_index IS NOT NULL AND
+                 (laps.end_sample_index < streams.minimum_sample_index - 1 OR
+                  laps.end_sample_index > streams.maximum_sample_index))
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_parent_summary_reconciliation",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          WITH totals AS (
+            SELECT activity_id, SUM(distance_metres) AS lap_distance,
+                   SUM(elapsed_time_seconds) AS lap_elapsed,
+                   SUM(moving_time_seconds) AS lap_moving,
+                   SUM(elevation_gain_metres) AS lap_elevation
+            FROM cycling_platform_silver.activity_laps GROUP BY activity_id
+          )
+          SELECT totals.activity_id,
+                 totals.lap_distance - activities.distance_metres AS distance_difference,
+                 totals.lap_elapsed - activities.elapsed_time_seconds AS elapsed_difference,
+                 totals.lap_moving - activities.moving_time_seconds AS moving_difference,
+                 totals.lap_elevation - activities.elevation_gain_metres AS elevation_difference
+          FROM totals
+          INNER JOIN cycling_platform_silver.activities activities
+            ON activities.activity_id = totals.activity_id
+          WHERE ABS(COALESCE(totals.lap_distance - activities.distance_metres, 0)) > 0
+             OR ABS(COALESCE(totals.lap_elapsed - activities.elapsed_time_seconds, 0)) > 0
+             OR ABS(COALESCE(totals.lap_moving - activities.moving_time_seconds, 0)) > 0
+             OR ABS(COALESCE(totals.lap_elevation - activities.elevation_gain_metres, 0)) > 0
+          ORDER BY ABS(COALESCE(totals.lap_distance - activities.distance_metres, 0)) DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_coverage_and_reconciliation",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT
+            COUNT(*) AS lap_rows,
+            COUNT(DISTINCT activity_id) AS activities_with_laps,
+            SUM(average_cadence_rpm IS NOT NULL) AS cadence_rows,
+            SUM(average_power_watts IS NOT NULL) AS power_rows,
+            SUM(average_heartrate_bpm IS NOT NULL) AS heartrate_rows,
+            SUM(start_sample_index IS NOT NULL AND end_sample_index IS NOT NULL) AS boundary_rows,
+            SUM(NOT EXISTS (
+              SELECT 1 FROM cycling_platform_silver.activity_streams streams
+              WHERE streams.activity_id = laps.activity_id
+            )) AS laps_without_streams
+          FROM cycling_platform_silver.activity_laps laps
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
     checks <- append_validation_result(
       checks,
       run_validation_query(

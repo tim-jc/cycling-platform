@@ -35,10 +35,14 @@ sql/silver/
   010_create_activities.sql
   020_transform_activities.sql
   030_create_activity_streams.sql
+  040_create_gear.sql
+  050_transform_gear.sql
+  060_create_activity_laps.sql
 
 R/transforms/
   run_silver_transformations.R
   rebuild_silver_activity_streams.R
+  rebuild_silver_activity_laps.R
 ```
 
 `bootstrap_platform.R` should run only create scripts for derived layers. Silver
@@ -58,6 +62,8 @@ Current strategy:
 * scheduled automation runs `silver.activity_streams` in repair mode, rebuilding
   only missing or incomplete activities;
 * explicit full mode truncates and rebuilds all Silver stream samples;
+* `silver.activity_laps` uses atomic full, repair, or affected-activity
+  replacement after activities and streams;
 * stream work runs in activity/expected-row batches rather than one opaque
   whole-table statement;
 * bootstrap creates tables but never launches derived transformations;
@@ -287,6 +293,26 @@ Location columns depend on raw `latlng` payload precision. Historical raw
 stream payloads loaded before the `digits = NA` serialization fix have rounded
 coordinates and should be fully reloaded before silver stream latitude and
 longitude are used for map or route analysis.
+
+## `silver.activity_laps`
+
+`silver.activity_laps` publishes one typed source-reported Strava lap per
+payload `lap_id`, with additional uniqueness by `activity_id + lap_index`.
+Consumers join to activities by `activity_id` and order by `lap_index`.
+
+Source `start_index` and `end_index` are preserved unchanged as
+`start_sample_index` and `end_sample_index`. Their index base and inclusive or
+exclusive end meaning remain source semantics under review. Streams are useful
+context but are not required for a valid lap.
+
+The transform supports full, repair and affected-activity incremental modes.
+Each replacement is transactional, so parsing or write failure retains the
+previous publication. Raw ingestion does not yet record complete lap snapshot
+membership; an absent source lap therefore cannot be retired safely until that
+metadata exists.
+
+See the [activity-laps data contract](data-contracts/silver/activity_laps.md)
+for field meanings, consumer rules and remaining semantic decisions.
 
 ### Rebuild Behaviour
 

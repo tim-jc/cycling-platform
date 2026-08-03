@@ -139,6 +139,26 @@ The run will select `PENDING` and `FAILED` activity IDs for child-entity
 ingestion from the full `raw.activities` table and continue from the remaining
 work.
 
+After Raw lap history is complete, publish or repair Silver laps with the normal
+Silver runner:
+
+```sh
+docker compose run --rm cycling-platform Rscript run_silver.R repair
+```
+
+Use `full` instead of `repair` only for an explicit complete Silver rebuild.
+The Silver order is activities, gear, activity streams, then activity laps.
+Historical lap rebuilds do not send achievement notifications.
+
+For first rollout after deploying the new object:
+
+1. rebuild the application image so the additive DDL and transform are present;
+2. run `Rscript run_silver.R repair` in the ephemeral application container;
+3. run the publication validation;
+4. inspect lap counts, identity reconciliation and transform-run metadata;
+5. run deep validation and review its observational boundary/reconciliation
+   findings before adding consumers.
+
 ## Silver Repair Lessons
 
 Historical silver rebuilds are not the same workload as incremental daily

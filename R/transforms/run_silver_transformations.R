@@ -92,4 +92,12 @@ run_silver_transformations <- function(
     status_callback = status_callback,
     mode = stream_rebuild_mode
   )
+
+  emit_status(list(current_phase = "silver_transforms", current_entity = "activity_laps"), force = TRUE)
+  rebuild_silver_activity_laps(
+    connection = connection,
+    sql_dir = sql_dir,
+    mode = if (!is.null(activity_ids)) "incremental" else stream_rebuild_mode,
+    activity_ids = activity_ids
+  )
 }
