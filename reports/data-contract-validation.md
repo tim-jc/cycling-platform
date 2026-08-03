@@ -1,6 +1,6 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-03 18:35:07 BST
+- Validation timestamp: 2026-08-03 19:48:03 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 4
 - Managed Gold objects: 2
@@ -9,7 +9,7 @@
 - Schema mismatches: 0
 - Broken references: 0
 - Open blocking TODOs: 8
-- Open non-blocking TODOs: 6
+- Open non-blocking TODOs: 5
 - Accepted limitations: 2
 
 ## Objects by lifecycle status
@@ -31,7 +31,6 @@
 ## Open non-blocking TODOs
 
 - `SILVER-ACTIVITIES-009` (non_blocking, implementation_alignment): Review historical array-shaped Raw extraction for external_id and device_name before changing power source classification evidence.
-- `SILVER-ACTIVITY_LAPS-001` (non_blocking, semantic_decision): Confirm the source index base and whether end_sample_index is inclusive or exclusive.
 - `SILVER-ACTIVITY_STREAMS-002` (non_blocking): Document missing-stream, missing-sample and source-null distinctions.
 - `SILVER-GEAR-002` (non_blocking): Confirm consumer semantics for historical-only gear and source disappearance.
 - `GOLD-ACTIVITY_ACHIEVEMENTS-002` (non_blocking): Document equal-value and historical-recalculation treatment.

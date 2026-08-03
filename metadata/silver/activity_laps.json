@@ -131,7 +131,7 @@
         "unique": false
       },
       {
-        "name": "start_sample_index",
+        "name": "start_time_seconds",
         "ordinal_position": 12,
         "data_type": "integer",
         "raw_data_type": "INT",
@@ -141,7 +141,7 @@
         "unique": false
       },
       {
-        "name": "end_sample_index",
+        "name": "end_time_seconds",
         "ordinal_position": 13,
         "data_type": "integer",
         "raw_data_type": "INT",
@@ -151,27 +151,27 @@
         "unique": false
       },
       {
-        "name": "average_speed_metres_per_second",
+        "name": "start_sample_index",
         "ordinal_position": 14,
-        "data_type": "double",
-        "raw_data_type": "DOUBLE",
+        "data_type": "integer",
+        "raw_data_type": "INT",
         "nullable": true,
         "default": null,
         "primary_key": false,
         "unique": false
       },
       {
-        "name": "average_cadence_rpm",
+        "name": "end_sample_index",
         "ordinal_position": 15,
-        "data_type": "double",
-        "raw_data_type": "DOUBLE",
+        "data_type": "integer",
+        "raw_data_type": "INT",
         "nullable": true,
         "default": null,
         "primary_key": false,
         "unique": false
       },
       {
-        "name": "average_power_watts",
+        "name": "average_speed_metres_per_second",
         "ordinal_position": 16,
         "data_type": "double",
         "raw_data_type": "DOUBLE",
@@ -181,7 +181,7 @@
         "unique": false
       },
       {
-        "name": "average_heartrate_bpm",
+        "name": "average_cadence_rpm",
         "ordinal_position": 17,
         "data_type": "double",
         "raw_data_type": "DOUBLE",
@@ -191,7 +191,7 @@
         "unique": false
       },
       {
-        "name": "maximum_heartrate_bpm",
+        "name": "average_power_watts",
         "ordinal_position": 18,
         "data_type": "double",
         "raw_data_type": "DOUBLE",
@@ -201,7 +201,7 @@
         "unique": false
       },
       {
-        "name": "elevation_gain_metres",
+        "name": "average_heartrate_bpm",
         "ordinal_position": 19,
         "data_type": "double",
         "raw_data_type": "DOUBLE",
@@ -211,8 +211,28 @@
         "unique": false
       },
       {
-        "name": "is_device_watts",
+        "name": "maximum_heartrate_bpm",
         "ordinal_position": 20,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "elevation_gain_metres",
+        "ordinal_position": 21,
+        "data_type": "double",
+        "raw_data_type": "DOUBLE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_device_watts",
+        "ordinal_position": 22,
         "data_type": "boolean",
         "raw_data_type": "BOOLEAN",
         "nullable": true,
@@ -222,7 +242,7 @@
       },
       {
         "name": "raw_run_id",
-        "ordinal_position": 21,
+        "ordinal_position": 23,
         "data_type": "bigint",
         "raw_data_type": "BIGINT",
         "nullable": false,
@@ -232,7 +252,7 @@
       },
       {
         "name": "raw_retrieved_at",
-        "ordinal_position": 22,
+        "ordinal_position": 24,
         "data_type": "datetime",
         "raw_data_type": "DATETIME",
         "nullable": false,
@@ -242,7 +262,7 @@
       },
       {
         "name": "raw_payload_hash",
-        "ordinal_position": 23,
+        "ordinal_position": 25,
         "data_type": "char",
         "raw_data_type": "CHAR(64)",
         "nullable": false,
@@ -252,7 +272,7 @@
       },
       {
         "name": "transform_version",
-        "ordinal_position": 24,
+        "ordinal_position": 26,
         "data_type": "varchar",
         "raw_data_type": "VARCHAR(50)",
         "nullable": false,
@@ -262,7 +282,7 @@
       },
       {
         "name": "transformed_at",
-        "ordinal_position": 25,
+        "ordinal_position": 27,
         "data_type": "datetime",
         "raw_data_type": "DATETIME",
         "nullable": false,
@@ -318,11 +338,15 @@
     ],
     "referential_integrity_expectations": [
       "activity_id resolves to cycling_platform_silver.activities.activity_id.",
-      "Stream boundaries are contextual and do not require activity streams to exist."
+      "Elapsed-time boundaries are contextual and do not require activity streams to exist.",
+      "Source start/end sample positions must not be joined to Silver sample_index."
     ],
     "accepted_values": [
       "Times, distances and source sample indices are non-negative when present.",
-      "start_sample_index does not exceed end_sample_index when both are present."
+      "start_sample_index does not exceed end_sample_index when both are present.",
+      "lap_index is unique within an activity but is not required to be contiguous.",
+      "start_time_seconds is inclusive and end_time_seconds is exclusive.",
+      "Source start_sample_index and end_sample_index are zero-based and inclusive."
     ],
     "implemented_validations": [
       "silver_activity_laps_table_exists",
@@ -334,7 +358,8 @@
       "silver_activity_laps_index_continuity",
       "silver_activity_laps_index_start_distribution",
       "silver_activity_laps_adjacent_boundary_differences",
-      "silver_activity_laps_boundaries_outside_stream_range",
+      "silver_activity_laps_time_boundaries_outside_stream_range",
+      "silver_activity_laps_telemetry_boundary_reconciliation",
       "silver_activity_laps_parent_summary_reconciliation",
       "silver_activity_laps_coverage_and_reconciliation",
       "silver_activity_laps_raw_reconciliation",
@@ -348,9 +373,9 @@
       "field": "stream_boundary_semantics",
       "category": "semantic_decision",
       "severity": "non_blocking",
-      "status": "open",
+      "status": "resolved",
       "text": "Confirm the source index base and whether end_sample_index is inclusive or exclusive.",
-      "resolution": null
+      "resolution": "Validated as zero-based, inclusive Strava source positions. They are not equivalent to Silver sample_index; consumers use elapsed-time boundaries instead."
     },
     {
       "id": "SILVER-ACTIVITY_LAPS-002",

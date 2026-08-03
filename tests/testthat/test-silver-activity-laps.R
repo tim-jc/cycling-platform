@@ -39,6 +39,7 @@ raw_lap_fixture <- function(payload = lap_payload_fixture(), lap_index = 1L) {
     run_id = bit64::as.integer64(7),
     source_id = 1L,
     retrieved_at = as.POSIXct("2026-08-01 08:05:00", tz = "UTC"),
+    activity_start_datetime_utc = as.POSIXct("2026-08-01 08:00:00", tz = "UTC"),
     lap_payload = jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null"),
     stringsAsFactors = FALSE
   )
@@ -56,8 +57,10 @@ testthat::test_that("complete payload maps to the canonical Silver row", {
   testthat::expect_equal(row$distance_metres, 1000.5)
   testthat::expect_equal(row$start_sample_index, 0L)
   testthat::expect_equal(row$end_sample_index, 119L)
+  testthat::expect_equal(row$start_time_seconds, 0L)
+  testthat::expect_equal(row$end_time_seconds, 120L)
   testthat::expect_true(row$is_device_watts)
-  testthat::expect_equal(row$transform_version, "strava_activity_laps_v2")
+  testthat::expect_equal(row$transform_version, "strava_activity_laps_v3")
   testthat::expect_equal(nchar(row$raw_payload_hash), 64L)
 })
 
@@ -139,6 +142,8 @@ testthat::test_that("DDL governs keys, nullability, boundaries and collation", {
   testthat::expect_match(sql, "\\(activity_id, lap_index\\)")
   testthat::expect_match(sql, "is_device_watts BOOLEAN NULL")
   testthat::expect_match(sql, "raw_response_index INT NOT NULL")
+  testthat::expect_match(sql, "start_time_seconds INT NULL")
+  testthat::expect_match(sql, "end_time_seconds INT NULL")
   testthat::expect_match(sql, "start_sample_index <= end_sample_index")
   testthat::expect_match(sql, "DEFAULT COLLATE utf8mb4_general_ci")
 })
@@ -163,8 +168,19 @@ testthat::test_that("publication and deep lap validations are registered", {
     "silver_activity_laps_source_identifier_alignment",
     "silver_activity_laps_index_continuity",
     "silver_activity_laps_adjacent_boundary_differences",
+    "silver_activity_laps_time_boundaries_outside_stream_range",
+    "silver_activity_laps_telemetry_boundary_reconciliation",
     "silver_activity_laps_parent_summary_reconciliation",
     "silver_activity_laps_raw_reconciliation"
   )
   testthat::expect_true(all(vapply(expected, grepl, logical(1), x = validation, fixed = TRUE)))
+  continuity_check <- regmatches(
+    validation,
+    regexpr(
+      'check_name = "silver_activity_laps_index_continuity"[\\s\\S]{0,160}severity = "[A-Z]+"',
+      validation,
+      perl = TRUE
+    )
+  )
+  testthat::expect_match(continuity_check, 'severity = "INFO"', fixed = TRUE)
 })

@@ -303,9 +303,12 @@ Consumers join to activities by `activity_id` and order by the payload
 position, which is not source lap identity.
 
 Source `start_index` and `end_index` are preserved unchanged as
-`start_sample_index` and `end_sample_index`. Their index base and inclusive or
-exclusive end meaning remain source semantics under review. Streams are useful
-context but are not required for a valid lap.
+`start_sample_index` and `end_sample_index`. They are zero-based, inclusive
+positions in Strava's source stream and must not be joined to the independently
+generated one-based Silver `sample_index`; pauses can make the difference more
+than a simple offset. Consumer-safe boundaries are `start_time_seconds`
+(inclusive) and `end_time_seconds` (exclusive), joined to stream
+`time_seconds`. Streams remain optional for a valid lap.
 
 The transform supports full, repair and affected-activity incremental modes.
 Each replacement is transactional, so parsing or write failure retains the

@@ -44,8 +44,11 @@ observation history.
   position assigned during ingestion. It is not treated as source lap identity.
 - Parent relationship: `activity_id` resolves to
   `cycling_platform_silver.activities.activity_id`.
-- Stream relationship: `start_sample_index` and `end_sample_index` are optional
-  contextual source boundaries. Streams are not required for lap publication.
+- Stream relationship: `start_time_seconds` is inclusive and
+  `end_time_seconds` is exclusive against `activity_streams.time_seconds`.
+  Streams are not required for lap publication.
+- `start_sample_index` and `end_sample_index` are zero-based, inclusive Strava
+  source-stream positions. They are not Silver stream row indexes.
 
 ## Source and lineage
 
@@ -88,8 +91,10 @@ Implementation:
 | `elapsed_time_seconds` | `elapsed_time` | Nullable numeric source seconds. |
 | `moving_time_seconds` | `moving_time` | Nullable numeric source seconds. |
 | `distance_metres` | `distance` | Nullable numeric source metres. |
-| `start_sample_index` | `start_index` | Nullable source integer, unchanged. |
-| `end_sample_index` | `end_index` | Nullable source integer, unchanged. |
+| `start_time_seconds` | lap/activity UTC starts | Whole seconds from activity start; inclusive. |
+| `end_time_seconds` | start plus elapsed time | Exclusive elapsed-time boundary. |
+| `start_sample_index` | `start_index` | Zero-based, inclusive Strava source position, unchanged. |
+| `end_sample_index` | `end_index` | Zero-based, inclusive Strava source position, unchanged. |
 | `average_speed_metres_per_second` | `average_speed` | Nullable source summary. |
 | `average_cadence_rpm` | `average_cadence` | Nullable source summary. |
 | `average_power_watts` | `average_watts` | Nullable source summary. |
@@ -99,7 +104,23 @@ Implementation:
 | `is_device_watts` | `device_watts` | Nullable source boolean; absence remains `NULL`. |
 
 Lineage fields retain source/run identity, retrieval time, payload hash,
-transform version (`strava_activity_laps_v2`) and transformation time.
+transform version (`strava_activity_laps_v3`) and transformation time.
+
+The two index systems are not interchangeable. In particular, consumers must
+not use:
+
+```sql
+activity_streams.sample_index BETWEEN
+  activity_laps.start_sample_index AND activity_laps.end_sample_index
+```
+
+Silver stream rows are generated on a separate one-based grid, and pauses can
+cause more than a one-row offset. The supported telemetry selection is:
+
+```sql
+activity_streams.time_seconds >= activity_laps.start_time_seconds
+AND activity_streams.time_seconds < activity_laps.end_time_seconds
+```
 
 Full mode atomically replaces the complete object. Incremental mode atomically
 replaces retained Raw laps for affected activities. Repair mode finds missing,
@@ -113,9 +134,10 @@ negative measurements/boundaries, reversed boundaries, missing lineage,
 source-identifier disagreement and successful Raw laps absent from Silver.
 
 Deep validation reports lap-index continuity/start distribution, adjacent
-boundary gaps and overlaps, boundaries outside available stream ranges,
-parent-summary differences, sensor coverage, laps without streams, and
-Raw-to-Silver reconciliation. Parent-summary differences are observational.
+source-boundary gaps and overlaps, time boundaries outside available stream
+ranges, timestamp-window telemetry reconciliation, parent-summary differences,
+sensor coverage, laps without streams, and Raw-to-Silver reconciliation. These
+reconciliation differences remain informational until tolerances are agreed.
 
 Useful rollout reconciliation:
 
@@ -142,12 +164,13 @@ WHERE silver.lap_id IS NULL;
   snapshot membership. A disappeared source lap cannot yet be retired safely.
 - Payload `lap_index` is complete and unique within activity in the production
   evidence reviewed on 2026-08-03. Four activities have non-contiguous source
-  indices, so continuity is observational rather than required.
+  indices. Gaps are valid source behaviour: continuity is not a quality
+  expectation and is retained only as an informational diagnostic.
 - Raw promoted `lap_index` is response position and differs from payload
   `lap_index` for nine retained rows; it is exposed only as
   `raw_response_index` lineage.
-- Source index base and inclusive/exclusive end-boundary meaning remain
-  unresolved; values are preserved unchanged.
+- Source positions are zero-based and inclusive, but cannot safely locate rows
+  in the independently generated one-based Silver stream grid.
 - Activities without streams may still have valid laps.
 - Conditional sensor summaries may be absent because of sport, equipment,
   permissions or source behaviour.
@@ -165,15 +188,18 @@ Consumers should:
 - join to activities by `activity_id`;
 - order laps by `lap_index`;
 - use `lap_id` as source lap identity;
+- slice telemetry using inclusive `start_time_seconds` and exclusive
+  `end_time_seconds` against `activity_streams.time_seconds`;
 - treat summary metrics as source-provided and nullable;
 - not require stream boundaries for every lap;
+- never join source positions directly to `activity_streams.sample_index`;
 - not assume exact reconciliation to activity totals;
 - not reinterpret laps as climbs, best efforts or inferred intervals.
 
 ## Human review TODOs
 
-- `SILVER-ACTIVITY_LAPS-001` (open): confirm the source index base and whether
-  `end_sample_index` is inclusive or exclusive.
+- `SILVER-ACTIVITY_LAPS-001` (resolved): source positions are zero-based and
+  inclusive, and are not equivalent to Silver `sample_index`.
 - `SILVER-ACTIVITY_LAPS-002` (accepted): safe disappearance retirement requires
   authoritative Raw snapshot-completeness metadata.
 - `SILVER-ACTIVITY_LAPS-003` (accepted): parent reconciliation remains

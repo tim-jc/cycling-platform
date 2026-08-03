@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_laps (
 
     distance_metres DOUBLE NULL,
 
+    start_time_seconds INT NULL,
+
+    end_time_seconds INT NULL,
+
     start_sample_index INT NULL,
 
     end_sample_index INT NULL,
@@ -73,6 +77,17 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activity_laps (
 
     CONSTRAINT chk_silver_activity_laps_distance
         CHECK (distance_metres IS NULL OR distance_metres >= 0),
+
+    CONSTRAINT chk_silver_activity_laps_time_boundaries
+        CHECK (
+            (start_time_seconds IS NULL OR start_time_seconds >= 0)
+            AND (end_time_seconds IS NULL OR end_time_seconds >= 0)
+            AND (
+                start_time_seconds IS NULL
+                OR end_time_seconds IS NULL
+                OR start_time_seconds <= end_time_seconds
+            )
+        ),
 
     CONSTRAINT chk_silver_activity_laps_sample_indices
         CHECK (

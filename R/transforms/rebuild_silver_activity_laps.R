@@ -1,4 +1,4 @@
-silver_activity_laps_transform_version <- function() "strava_activity_laps_v2"
+silver_activity_laps_transform_version <- function() "strava_activity_laps_v3"
 
 lap_scalar <- function(payload, path) {
   value <- payload
@@ -80,6 +80,26 @@ parse_silver_activity_lap <- function(raw_row, transformed_at = Sys.time()) {
          ", payload lap ID ", lap_id, ".", call. = FALSE)
   }
 
+  start_datetime_utc <- lap_nullable_datetime(payload, "start_date")
+  start_datetime_local <- lap_nullable_datetime(payload, "start_date_local", local = TRUE)
+  elapsed_time_seconds <- lap_nullable_numeric(payload, "elapsed_time", integer = TRUE)
+  activity_start_datetime_utc <- if (
+    "activity_start_datetime_utc" %in% names(raw_row) &&
+      !is.na(raw_row$activity_start_datetime_utc[[1]])
+  ) {
+    as.POSIXct(raw_row$activity_start_datetime_utc[[1]], tz = "UTC")
+  } else {
+    as.POSIXct(NA, tz = "UTC")
+  }
+  start_time_seconds <- if (
+    is.na(start_datetime_utc) || is.na(activity_start_datetime_utc)
+  ) NA_integer_ else as.integer(round(as.numeric(difftime(
+    start_datetime_utc, activity_start_datetime_utc, units = "secs"
+  ))))
+  end_time_seconds <- if (
+    is.na(start_time_seconds) || is.na(elapsed_time_seconds)
+  ) NA_integer_ else start_time_seconds + elapsed_time_seconds
+
   data.frame(
     lap_id = bit64::as.integer64(lap_id),
     activity_id = bit64::as.integer64(promoted_activity_id),
@@ -87,11 +107,13 @@ parse_silver_activity_lap <- function(raw_row, transformed_at = Sys.time()) {
     raw_response_index = promoted_lap_index,
     source_id = as.integer(raw_row$source_id[[1]]),
     lap_name = lap_nullable_character(payload, "name", blank_is_null = TRUE),
-    start_datetime_utc = lap_nullable_datetime(payload, "start_date"),
-    start_datetime_local = lap_nullable_datetime(payload, "start_date_local", local = TRUE),
-    elapsed_time_seconds = lap_nullable_numeric(payload, "elapsed_time", integer = TRUE),
+    start_datetime_utc = start_datetime_utc,
+    start_datetime_local = start_datetime_local,
+    elapsed_time_seconds = elapsed_time_seconds,
     moving_time_seconds = lap_nullable_numeric(payload, "moving_time", integer = TRUE),
     distance_metres = lap_nullable_numeric(payload, "distance"),
+    start_time_seconds = start_time_seconds,
+    end_time_seconds = end_time_seconds,
     start_sample_index = lap_nullable_numeric(payload, "start_index", integer = TRUE),
     end_sample_index = lap_nullable_numeric(payload, "end_index", integer = TRUE),
     average_speed_metres_per_second = lap_nullable_numeric(payload, "average_speed"),
@@ -126,14 +148,18 @@ build_silver_activity_lap_rows <- function(raw_laps, transformed_at = Sys.time()
 }
 
 fetch_raw_activity_laps_for_silver <- function(connection, activity_ids = NULL) {
-  query <- "SELECT activity_id, lap_index, run_id, source_id, retrieved_at, lap_payload
-            FROM cycling_platform_raw.activity_laps"
+  query <- "SELECT raw.activity_id, raw.lap_index, raw.run_id, raw.source_id,
+                   raw.retrieved_at, raw.lap_payload,
+                   activities.start_datetime_utc AS activity_start_datetime_utc
+            FROM cycling_platform_raw.activity_laps raw
+            INNER JOIN cycling_platform_silver.activities activities
+              ON activities.activity_id = raw.activity_id"
   if (!is.null(activity_ids)) {
     if (!length(activity_ids)) return(data.frame())
-    query <- paste0(query, " WHERE activity_id IN (",
+    query <- paste0(query, " WHERE raw.activity_id IN (",
                     format_activity_id_filter(activity_ids), ")")
   }
-  DBI::dbGetQuery(connection, paste(query, "ORDER BY activity_id, lap_index"))
+  DBI::dbGetQuery(connection, paste(query, "ORDER BY raw.activity_id, raw.lap_index"))
 }
 
 lap_refresh_activity_ids <- function(connection, rows, mode, activity_ids = NULL) {

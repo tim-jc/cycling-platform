@@ -190,7 +190,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    69L
+    70L
   )
 })
 

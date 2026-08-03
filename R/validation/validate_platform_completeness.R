@@ -539,7 +539,7 @@ count_platform_completeness_checks <- function(
     return(12L)
   }
 
-  check_count <- 47L
+  check_count <- 48L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -941,6 +941,13 @@ validate_platform_completeness <- function(
            OR elapsed_time_seconds < 0
            OR moving_time_seconds < 0
            OR distance_metres < 0
+           OR start_time_seconds < 0
+           OR end_time_seconds < 0
+           OR (start_time_seconds IS NOT NULL AND end_time_seconds IS NOT NULL
+               AND start_time_seconds > end_time_seconds)
+           OR (start_time_seconds IS NOT NULL AND end_time_seconds IS NOT NULL
+               AND elapsed_time_seconds IS NOT NULL
+               AND end_time_seconds - start_time_seconds <> elapsed_time_seconds)
            OR start_sample_index < 0
            OR end_sample_index < 0
            OR (start_sample_index IS NOT NULL AND end_sample_index IS NOT NULL
@@ -1230,7 +1237,7 @@ validate_platform_completeness <- function(
         connection = connection,
         check_name = "silver_activity_laps_index_continuity",
         check_scope = "deep",
-        severity = "WARNING",
+        severity = "INFO",
         query = "
           SELECT activity_id, COUNT(*) AS lap_count,
                  MIN(lap_index) AS minimum_index,
@@ -1374,27 +1381,28 @@ validate_platform_completeness <- function(
       checks,
       run_validation_query(
         connection = connection,
-        check_name = "silver_activity_laps_boundaries_outside_stream_range",
+        check_name = "silver_activity_laps_time_boundaries_outside_stream_range",
         check_scope = "deep",
-        severity = "WARNING",
+        severity = "INFO",
         query = "
           WITH stream_ranges AS (
-            SELECT activity_id, MIN(sample_index) AS minimum_sample_index,
-                   MAX(sample_index) AS maximum_sample_index
+            SELECT activity_id, MIN(time_seconds) AS minimum_time_seconds,
+                   MAX(time_seconds) AS maximum_time_seconds
             FROM cycling_platform_silver.activity_streams
+            WHERE time_seconds IS NOT NULL
             GROUP BY activity_id
           )
-          SELECT laps.lap_id, laps.activity_id, laps.start_sample_index,
-                 laps.end_sample_index, streams.minimum_sample_index,
-                 streams.maximum_sample_index
+          SELECT laps.lap_id, laps.activity_id, laps.start_time_seconds,
+                 laps.end_time_seconds, streams.minimum_time_seconds,
+                 streams.maximum_time_seconds
           FROM cycling_platform_silver.activity_laps laps
           INNER JOIN stream_ranges streams ON streams.activity_id = laps.activity_id
-          WHERE (laps.start_sample_index IS NOT NULL AND
-                 (laps.start_sample_index < streams.minimum_sample_index - 1 OR
-                  laps.start_sample_index > streams.maximum_sample_index))
-             OR (laps.end_sample_index IS NOT NULL AND
-                 (laps.end_sample_index < streams.minimum_sample_index - 1 OR
-                  laps.end_sample_index > streams.maximum_sample_index))
+          WHERE (laps.start_time_seconds IS NOT NULL AND
+                 (laps.start_time_seconds < streams.minimum_time_seconds OR
+                  laps.start_time_seconds > streams.maximum_time_seconds))
+             OR (laps.end_time_seconds IS NOT NULL AND
+                 (laps.end_time_seconds < streams.minimum_time_seconds OR
+                  laps.end_time_seconds > streams.maximum_time_seconds + 1))
           LIMIT 1000
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,
@@ -1430,6 +1438,42 @@ validate_platform_completeness <- function(
              OR ABS(COALESCE(totals.lap_moving - activities.moving_time_seconds, 0)) > 0
              OR ABS(COALESCE(totals.lap_elevation - activities.elevation_gain_metres, 0)) > 0
           ORDER BY ABS(COALESCE(totals.lap_distance - activities.distance_metres, 0)) DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_telemetry_boundary_reconciliation",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT laps.lap_id, laps.activity_id, laps.lap_index,
+                 laps.elapsed_time_seconds,
+                 MAX(streams.time_seconds) - MIN(streams.time_seconds)
+                   AS selected_time_span_seconds,
+                 laps.distance_metres,
+                 MAX(streams.distance_metres) - MIN(streams.distance_metres)
+                   AS selected_distance_metres,
+                 laps.average_power_watts,
+                 AVG(streams.watts) AS selected_average_power_watts
+          FROM cycling_platform_silver.activity_laps laps
+          INNER JOIN cycling_platform_silver.activity_streams streams
+            ON streams.activity_id = laps.activity_id
+           AND streams.time_seconds >= laps.start_time_seconds
+           AND streams.time_seconds < laps.end_time_seconds
+          WHERE laps.start_time_seconds IS NOT NULL
+            AND laps.end_time_seconds IS NOT NULL
+          GROUP BY laps.lap_id, laps.activity_id, laps.lap_index,
+                   laps.elapsed_time_seconds, laps.distance_metres,
+                   laps.average_power_watts
+          ORDER BY ABS(COALESCE(laps.average_power_watts, 0) -
+                       COALESCE(AVG(streams.watts), 0)) DESC
           LIMIT 1000
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,
