@@ -58,10 +58,6 @@ not an operator command. Specialist source, Gold, audit, contract, and
 operational utilities live under `scripts/` and are indexed in
 [`scripts/README.md`](scripts/README.md).
 
-`platform.R` is a temporary compatibility wrapper for `run_raw_ingestion.R`.
-It emits a deprecation warning and can be removed after one successful
-deployment cycle once external command references have been checked.
-
 ## Data Architecture
 
 The platform uses five MariaDB databases:

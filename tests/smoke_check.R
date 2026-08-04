@@ -15,7 +15,6 @@ r_files <- c(
   r_files,
   "bootstrap.R",
   "bootstrap_platform.R",
-  "platform.R",
   "run_raw_ingestion.R",
   "scripts/google_health/check_authentication.R",
   "scripts/google_health/probe_capabilities.R",
@@ -73,7 +72,6 @@ root_r_files <- sort(basename(list.files(
 expected_root_r_files <- sort(c(
   "bootstrap.R",
   "bootstrap_platform.R",
-  "platform.R",
   "run_daily_platform.R",
   "run_platform_validation.R",
   "run_raw_ingestion.R",
@@ -88,27 +86,6 @@ if (!identical(root_r_files, expected_root_r_files)) {
 }
 
 message("Checking MariaDB connection entry schemas...")
-
-compatibility_wrapper <- paste(
-  readLines("platform.R", warn = FALSE),
-  collapse = "\n"
-)
-
-if (!grepl(
-  "platform.R is deprecated; use run_raw_ingestion.R instead.",
-  compatibility_wrapper,
-  fixed = TRUE
-)) {
-  fail("platform.R must warn that run_raw_ingestion.R is canonical")
-}
-
-if (!grepl(
-  'source("run_raw_ingestion.R")',
-  compatibility_wrapper,
-  fixed = TRUE
-)) {
-  fail("platform.R must delegate without duplicating Raw ingestion logic")
-}
 
 source(
   file.path("R", "database", "get_connection.R")
