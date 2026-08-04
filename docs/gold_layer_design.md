@@ -78,6 +78,10 @@ power curves, records and power achievements must filter `is_record_eligible =
 1`. Cadence and heart-rate efforts are not excluded by power-source
 classification. See `docs/power_source_classification.md`.
 
+This inheritance also applies to future lap-based power products: a lap may
+expose a source power value, but its measured-power and record-eligibility claims
+are governed by the parent activity. Non-power metrics remain unaffected.
+
 Run the repair/backfill transform manually:
 
 ```sh
@@ -110,6 +114,9 @@ Power achievements consume `gold.activity_best_efforts`; activity-level
 achievements consume `silver.activities`. Gold records the fact and provenance,
 while notification queue and delivery state live in
 `admin.notification_outbox`.
+
+Any future lap-derived power achievement must inherit parent activity
+eligibility rather than relying on `silver.activity_laps.is_device_watts`.
 
 See `docs/activity_achievements.md` for comparison policy, backfill safety and
 notification lifecycle.

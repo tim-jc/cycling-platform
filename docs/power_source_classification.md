@@ -25,6 +25,22 @@ Silver owns the canonical activity-level interpretation:
 - `power_classification_version`
 - `power_meter_cutover_at`
 
+This activity-grain decision governs activity summaries, activity streams,
+source-reported laps, stream-derived efforts and downstream analytical objects:
+
+> Power provenance is classified at activity grain and inherited by every
+> source-reported lap, stream-derived effort, and downstream analytical object
+> from that activity unless genuinely more specific provenance becomes
+> available.
+
+`silver.activity_laps.average_power_watts` is a nullable source-reported summary
+and may be displayed when present. `silver.activity_laps.is_device_watts` is a
+Strava source assertion only; it is not canonical measured-power provenance and
+is known to be `TRUE` for some historical TrainerRoad virtual-power laps.
+Consumers join laps to `silver.activities` by `activity_id` and use the parent's
+canonical classification and eligibility fields. Value availability, measured
+provenance and record eligibility are separate decisions.
+
 Gold owns record eligibility for calculated efforts:
 
 - `gold.activity_best_efforts.is_record_eligible`
@@ -183,3 +199,8 @@ weakening the general rule.
 
 Raw data is preserved unchanged. Classification changes analytical eligibility;
 it does not rewrite source history.
+
+The current platform assumes one canonical power provenance classification per
+activity. It does not model a source changing partway through an activity.
+Lap-specific provenance would require stronger source evidence and a separate
+canonical design.

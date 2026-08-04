@@ -6,6 +6,7 @@ lap_project_path <- function(...) {
 
 source(lap_project_path("R", "transforms", "rebuild_silver_activity_streams.R"))
 source(lap_project_path("R", "transforms", "rebuild_silver_activity_laps.R"))
+source(lap_project_path("R", "quality", "classify_lap_power_provenance.R"))
 
 lap_payload_fixture <- function(overrides = list()) {
   base <- list(
@@ -170,6 +171,7 @@ testthat::test_that("publication and deep lap validations are registered", {
     "silver_activity_laps_adjacent_boundary_differences",
     "silver_activity_laps_time_boundaries_outside_stream_range",
     "silver_activity_laps_telemetry_boundary_reconciliation",
+    "silver_activity_laps_power_provenance_reconciliation",
     "silver_activity_laps_parent_summary_reconciliation",
     "silver_activity_laps_raw_reconciliation"
   )
@@ -183,4 +185,57 @@ testthat::test_that("publication and deep lap validations are registered", {
     )
   )
   testthat::expect_match(continuity_check, 'severity = "INFO"', fixed = TRUE)
+  power_check <- regmatches(
+    validation,
+    regexpr(
+      'check_name = "silver_activity_laps_power_provenance_reconciliation"[\\s\\S]{0,160}severity = "[A-Z]+"',
+      validation,
+      perl = TRUE
+    )
+  )
+  testthat::expect_match(power_check, 'severity = "INFO"', fixed = TRUE)
+})
+
+testthat::test_that("lap power provenance inherits the parent activity decision", {
+  categories <- classify_lap_power_provenance(
+    average_power_watts = c(250, 220, 240, 180, NA, 190),
+    lap_is_device_watts = c(TRUE, TRUE, FALSE, TRUE, TRUE, NA),
+    parent_power_source_type = c("measured", "virtual", "measured", NA, "measured", "estimated"),
+    parent_power_source_status = c("inferred_measured", "inferred_virtual", "inferred_measured", NA, "inferred_measured", "ambiguous"),
+    parent_is_measured_power = c(TRUE, FALSE, TRUE, NA, TRUE, FALSE),
+    parent_is_power_record_eligible = c(TRUE, FALSE, TRUE, NA, TRUE, FALSE)
+  )
+
+  testthat::expect_identical(categories, c(
+    "expected_agreement",
+    "governed_override",
+    "potential_inconsistency",
+    "missing_canonical_context",
+    "no_lap_power",
+    "source_assertion_missing"
+  ))
+})
+
+testthat::test_that("consumer eligibility is governed by the parent, not the source flag", {
+  fixture <- data.frame(
+    average_power_watts = c(220, 250),
+    is_device_watts = c(TRUE, FALSE),
+    parent_is_power_record_eligible = c(FALSE, TRUE),
+    cadence_rpm = c(90, 95),
+    heartrate_bpm = c(150, 155),
+    distance_metres = c(1000, 1200),
+    duration_seconds = c(120, 130),
+    elevation_metres = c(8, 10)
+  )
+  unaffected <- fixture[c(
+    "cadence_rpm", "heartrate_bpm", "distance_metres",
+    "duration_seconds", "elevation_metres"
+  )]
+
+  eligible <- fixture$parent_is_power_record_eligible
+  testthat::expect_identical(eligible, c(FALSE, TRUE))
+  testthat::expect_identical(
+    fixture[c("cadence_rpm", "heartrate_bpm", "distance_metres", "duration_seconds", "elevation_metres")],
+    unaffected
+  )
 })

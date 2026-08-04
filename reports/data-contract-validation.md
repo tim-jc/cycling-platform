@@ -1,6 +1,6 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-03 19:48:03 BST
+- Validation timestamp: 2026-08-04 20:06:38 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 4
 - Managed Gold objects: 2
@@ -9,7 +9,7 @@
 - Schema mismatches: 0
 - Broken references: 0
 - Open blocking TODOs: 8
-- Open non-blocking TODOs: 5
+- Open non-blocking TODOs: 4
 - Accepted limitations: 2
 
 ## Objects by lifecycle status
@@ -34,7 +34,6 @@
 - `SILVER-ACTIVITY_STREAMS-002` (non_blocking): Document missing-stream, missing-sample and source-null distinctions.
 - `SILVER-GEAR-002` (non_blocking): Confirm consumer semantics for historical-only gear and source disappearance.
 - `GOLD-ACTIVITY_ACHIEVEMENTS-002` (non_blocking): Document equal-value and historical-recalculation treatment.
-- `GOLD-ACTIVITY_BEST_EFFORTS-002` (non_blocking): Confirm the policy for record eligibility and excluded power sources.
 
 ## Accepted limitations
 

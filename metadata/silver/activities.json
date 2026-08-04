@@ -15,7 +15,7 @@
     "semantic_status": "agreed",
     "implementation_status": "review_required",
     "alignment_status": "review_required",
-    "last_verified_date": "2026-08-01"
+    "last_verified_date": "2026-08-04"
   },
   "physical_schema": {
     "authority": "repository_ddl",
@@ -479,7 +479,7 @@
       "rebuild_silver_activities",
       "run_silver_transformations"
     ],
-    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations, maps source manual/trainer booleans from historical array or object payloads, and classifies power eligibility.",
+    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations, maps source manual/trainer booleans from historical array or object payloads, and classifies power eligibility. The activity-grain power decision governs associated summaries, streams, laps, efforts and downstream analytical objects.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "high",
     "review_required": true
@@ -493,7 +493,8 @@
     ],
     "referential_integrity_expectations": [
       "Non-null gear_id values resolve to Silver gear or remain visible in the unresolved audit.",
-      "has_streams is true only when at least one usable Silver stream exists; implementation alignment is pending."
+      "has_streams is true only when at least one usable Silver stream exists; implementation alignment is pending.",
+      "Child power observations inherit this activity's canonical power classification and record eligibility unless stronger lap-specific provenance is separately designed."
     ],
     "accepted_values": [
       "NULL means unknown; FALSE means positively false; zero means positively zero.",

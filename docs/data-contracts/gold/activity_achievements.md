@@ -34,6 +34,12 @@ Comparison periods and previous-best dates are calendar dates; processing timest
 
 Eligible values are compared within configured scopes, ranked, described, versioned and marked for notification eligibility.
 
+Power achievements require eligible measured power according to the parent
+activity's canonical classification. Any future lap-derived achievement must
+inherit the same decision and must not use a lap source flag as an eligibility
+shortcut. Cadence, heart-rate, distance, duration and elevation achievements
+are unaffected by power provenance.
+
 ## Data quality expectations
 
 Both declared keys are unique, required comparison fields are populated, and current activity references resolve upstream.

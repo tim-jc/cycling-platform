@@ -34,6 +34,12 @@ Sample start/end fields are elapsed offsets and positions. `computed_at` is a pr
 
 Configured rolling-duration calculations select a peak and capture sample/location boundaries, eligibility, source classification and calculation version.
 
+Watt efforts inherit canonical power provenance and record eligibility from the
+parent Silver activity. Eligibility must not be inferred independently from a
+stream or lap source flag. Virtual or estimated watt efforts may remain stored
+for audit and alternative analysis, but are excluded from measured-power records
+when governed parent eligibility is false. Non-power efforts are unaffected.
+
 ## Data quality expectations
 
 The business key is unique; peak, boundary and version lineage fields are complete; activity identity resolves upstream.
@@ -49,7 +55,8 @@ Gold achievements and downstream performance analytics.
 ## Human review TODOs
 
 - `GOLD-ACTIVITY_BEST_EFFORTS-001` (blocking): confirm irregular/gapped sample semantics.
-- `GOLD-ACTIVITY_BEST_EFFORTS-002` (non-blocking): confirm record eligibility policy.
+- `GOLD-ACTIVITY_BEST_EFFORTS-002` (resolved): watt record eligibility inherits
+  the parent activity's governed canonical power classification.
 
 The JSON entries are authoritative for TODO status and resolution.
 

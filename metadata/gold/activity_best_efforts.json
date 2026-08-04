@@ -245,7 +245,7 @@
       "rebuild_gold_activity_best_efforts",
       "run_gold_transformations"
     ],
-    "transformation_description": "Computes configured duration-based peak efforts from canonical streams.",
+    "transformation_description": "Computes configured duration-based peak efforts from canonical streams. Watt efforts inherit canonical power provenance and record eligibility from the parent Silver activity; source stream or lap flags do not determine eligibility.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "medium",
     "review_required": true
@@ -258,7 +258,8 @@
       "Effort identity, peak value, boundaries and lineage are populated."
     ],
     "referential_integrity_expectations": [
-      "activity_id should resolve to Silver activities."
+      "activity_id should resolve to Silver activities.",
+      "Watt record eligibility is governed by the parent Silver activity classification; virtual or estimated efforts may remain stored while excluded from measured-power records."
     ],
     "accepted_values": [],
     "implemented_validations": [
@@ -279,9 +280,9 @@
       "id": "GOLD-ACTIVITY_BEST_EFFORTS-002",
       "field": "eligibility",
       "severity": "non_blocking",
-      "status": "open",
+      "status": "resolved",
       "text": "Confirm the policy for record eligibility and excluded power sources.",
-      "resolution": null
+      "resolution": "Watt efforts inherit the parent activity's canonical classification and record eligibility. Non-power efforts are unaffected."
     }
   ]
 }

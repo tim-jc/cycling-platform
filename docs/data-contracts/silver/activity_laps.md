@@ -35,6 +35,11 @@ It does not claim exact reconciliation to parent activity summaries, reinterpret
 source boundaries, equate missing sensor values with zero, or provide lap
 observation history.
 
+Power provenance is classified at activity grain and inherited by all laps and
+derived efforts from that activity. This table preserves Strava's lap-level
+power summary and source assertion, but does not independently classify their
+provenance or record eligibility.
+
 ## Primary key and uniqueness
 
 - Primary key: `lap_id`, the promoted Strava payload `id`.
@@ -97,11 +102,11 @@ Implementation:
 | `end_sample_index` | `end_index` | Zero-based, inclusive Strava source position, unchanged. |
 | `average_speed_metres_per_second` | `average_speed` | Nullable source summary. |
 | `average_cadence_rpm` | `average_cadence` | Nullable source summary. |
-| `average_power_watts` | `average_watts` | Nullable source summary. |
+| `average_power_watts` | `average_watts` | Nullable source-reported summary. It may be measured, virtual, estimated or otherwise record-ineligible; preserving it makes no measured-power claim. |
 | `average_heartrate_bpm` | `average_heartrate` | Nullable source summary. |
 | `maximum_heartrate_bpm` | `max_heartrate` | Nullable source summary. |
 | `elevation_gain_metres` | `total_elevation_gain` | Nullable source summary. |
-| `is_device_watts` | `device_watts` | Nullable source boolean; absence remains `NULL`. |
+| `is_device_watts` | `device_watts` | Nullable Strava source assertion; absence remains `NULL`. It is not canonical provenance or an eligibility decision. Historical TrainerRoad virtual power may be reported as `TRUE`. |
 
 Lineage fields retain source/run identity, retrieval time, payload hash,
 transform version (`strava_activity_laps_v3`) and transformation time.
@@ -127,6 +132,20 @@ replaces retained Raw laps for affected activities. Repair mode finds missing,
 changed or stale-version rows. Failed parsing or writing leaves the previous
 publication intact.
 
+### Power provenance
+
+The parent `silver.activities` row owns the canonical power classification. All
+laps inherit its `power_source_type`, `power_source_status`,
+`is_measured_power`, `is_power_record_eligible`,
+`power_record_exclusion_reason`, `power_classification_rule` and
+`power_classification_version` interpretation. A lap cannot be more trustworthy
+than its parent activity in the current model.
+
+Consumers may display `average_power_watts` when present, but must join the
+parent activity before making measured-power or record-eligibility claims.
+`is_device_watts = TRUE` is not a safe eligibility filter. The historical
+TrainerRoad rule is deliberately not duplicated in the lap transform.
+
 ## Data quality expectations
 
 Publication checks block invalid or duplicate keys, orphan activity references,
@@ -138,6 +157,9 @@ source-boundary gaps and overlaps, time boundaries outside available stream
 ranges, timestamp-window telemetry reconciliation, parent-summary differences,
 sensor coverage, laps without streams, and Raw-to-Silver reconciliation. These
 reconciliation differences remain informational until tolerances are agreed.
+Lap source assertions are also compared with parent canonical classification.
+Governed overrides, potential inconsistencies and missing canonical context are
+observational findings and do not fail publication.
 
 Useful rollout reconciliation:
 
@@ -175,6 +197,10 @@ WHERE silver.lap_id IS NULL;
 - Conditional sensor summaries may be absent because of sport, equipment,
   permissions or source behaviour.
 - Exact reconciliation with parent activity summaries is not assumed.
+- The platform assumes one canonical power provenance classification per
+  activity. It does not model a power source changing partway through an
+  activity. Lap-specific provenance would require stronger source evidence and
+  a separate canonical design.
 
 Fields deliberately retained only in Raw include athlete nesting, rankings,
 pace zones, resource-state metadata and other payload fields without an agreed
@@ -191,6 +217,11 @@ Consumers should:
 - slice telemetry using inclusive `start_time_seconds` and exclusive
   `end_time_seconds` against `activity_streams.time_seconds`;
 - treat summary metrics as source-provided and nullable;
+- obtain power provenance and record eligibility from the parent activity;
+- distinguish a displayed lap power value from measured-power provenance and
+  record eligibility;
+- never use `is_device_watts` alone to include a lap in a power ranking or
+  significant-effort product;
 - not require stream boundaries for every lap;
 - never join source positions directly to `activity_streams.sample_index`;
 - not assume exact reconciliation to activity totals;
@@ -212,6 +243,10 @@ JSON metadata is authoritative for TODO status and rationale.
 This remains a source-aligned canonical entity. Derived segmentation belongs in
 later analytical products. The transform runs after Silver activities and
 streams, but stream availability is not a publication dependency.
+
+A convenience view exposing inherited activity classification may be considered
+if a concrete consumer need emerges. It is not justified merely to duplicate
+governed activity fields onto every lap.
 
 Daily, hygiene and activity-backfill automation use affected activity IDs.
 Manual `run_silver.R full` performs an explicit complete rebuild, while

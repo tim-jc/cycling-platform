@@ -310,6 +310,11 @@ than a simple offset. Consumer-safe boundaries are `start_time_seconds`
 (inclusive) and `end_time_seconds` (exclusive), joined to stream
 `time_seconds`. Streams remain optional for a valid lap.
 
+Lap `average_power_watts` and `is_device_watts` remain source-reported fields.
+They do not independently establish measured-power provenance or record
+eligibility. Power consumers join to the parent activity and use its canonical
+classification; the lap source flag must not be used as an eligibility shortcut.
+
 The transform supports full, repair and affected-activity incremental modes.
 Each replacement is transactional, so parsing or write failure retains the
 previous publication. Raw ingestion does not yet record complete lap snapshot

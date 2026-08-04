@@ -270,7 +270,7 @@
       "rebuild_gold_activity_achievements",
       "run_gold_transformations"
     ],
-    "transformation_description": "Derives versioned achievements by comparing eligible metrics within configured scopes.",
+    "transformation_description": "Derives versioned achievements by comparing eligible metrics within configured scopes. Power achievements require the parent activity's governed measured-power eligibility; future lap-derived power achievements inherit the same decision.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "medium",
     "review_required": true
@@ -283,7 +283,8 @@
       "Identity, scope, period, metric and calculation fields are populated."
     ],
     "referential_integrity_expectations": [
-      "activity_id resolves to Silver activities; previous_best_activity_id may be null."
+      "activity_id resolves to Silver activities; previous_best_activity_id may be null.",
+      "Power achievements inherit canonical eligibility from the parent Silver activity; non-power achievements are unaffected by power provenance."
     ],
     "accepted_values": [],
     "implemented_validations": [

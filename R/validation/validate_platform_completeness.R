@@ -553,7 +553,7 @@ count_platform_completeness_checks <- function(
     return(13L)
   }
 
-  check_count <- 49L
+  check_count <- 50L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -1501,6 +1501,67 @@ validate_platform_completeness <- function(
                    laps.average_power_watts
           ORDER BY ABS(COALESCE(laps.average_power_watts, 0) -
                        COALESCE(AVG(streams.watts), 0)) DESC
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "silver_activity_laps_power_provenance_reconciliation",
+        check_scope = "deep",
+        severity = "INFO",
+        query = "
+          SELECT
+            laps.lap_id,
+            laps.activity_id,
+            laps.lap_index,
+            laps.average_power_watts,
+            laps.is_device_watts AS source_is_device_watts,
+            activities.power_source_type,
+            activities.power_source_status,
+            activities.is_measured_power,
+            activities.is_power_record_eligible,
+            activities.power_record_exclusion_reason,
+            activities.power_classification_rule,
+            activities.power_classification_version,
+            CASE
+              WHEN activities.power_source_type IS NULL
+                OR activities.power_source_status IS NULL
+                OR activities.is_measured_power IS NULL
+                OR activities.is_power_record_eligible IS NULL
+                THEN 'missing_canonical_context'
+              WHEN laps.is_device_watts = 1
+                AND (activities.is_measured_power = 0
+                  OR activities.is_power_record_eligible = 0)
+                THEN 'governed_override'
+              WHEN laps.is_device_watts = 0
+                AND activities.is_measured_power = 1
+                THEN 'potential_inconsistency'
+              WHEN laps.is_device_watts IS NULL
+                THEN 'source_assertion_missing'
+            END AS finding_category
+          FROM cycling_platform_silver.activity_laps laps
+          INNER JOIN cycling_platform_silver.activities activities
+            ON activities.activity_id = laps.activity_id
+          WHERE laps.average_power_watts IS NOT NULL
+            AND (
+              activities.power_source_type IS NULL
+              OR activities.power_source_status IS NULL
+              OR activities.is_measured_power IS NULL
+              OR activities.is_power_record_eligible IS NULL
+              OR (laps.is_device_watts = 1 AND
+                  (activities.is_measured_power = 0 OR
+                   activities.is_power_record_eligible = 0))
+              OR (laps.is_device_watts = 0 AND
+                  activities.is_measured_power = 1)
+              OR laps.is_device_watts IS NULL
+            )
+          ORDER BY laps.activity_id, laps.lap_index
           LIMIT 1000
         ",
         per_check_timeout_seconds = per_check_timeout_seconds,

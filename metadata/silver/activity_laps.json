@@ -15,7 +15,7 @@
     "semantic_status": "in_review",
     "implementation_status": "aligned",
     "alignment_status": "aligned",
-    "last_verified_date": "2026-08-03"
+    "last_verified_date": "2026-08-04"
   },
   "physical_schema": {
     "authority": "repository_ddl",
@@ -311,7 +311,16 @@
       "cycling_platform_raw.activity_laps.run_id",
       "cycling_platform_raw.activity_laps.source_id",
       "cycling_platform_raw.activity_laps.retrieved_at",
-      "cycling_platform_raw.activity_laps.lap_payload"
+      "cycling_platform_raw.activity_laps.lap_payload",
+      "cycling_platform_raw.activity_laps.lap_payload.$.average_watts",
+      "cycling_platform_raw.activity_laps.lap_payload.$.device_watts",
+      "cycling_platform_silver.activities.power_source_type",
+      "cycling_platform_silver.activities.power_source_status",
+      "cycling_platform_silver.activities.is_measured_power",
+      "cycling_platform_silver.activities.is_power_record_eligible",
+      "cycling_platform_silver.activities.power_record_exclusion_reason",
+      "cycling_platform_silver.activities.power_classification_rule",
+      "cycling_platform_silver.activities.power_classification_version"
     ],
     "transformation_files": [
       "R/transforms/rebuild_silver_activity_laps.R",
@@ -323,7 +332,7 @@
       "rebuild_silver_activity_laps",
       "run_silver_transformations"
     ],
-    "transformation_description": "Parses retained Raw Strava lap payloads and atomically publishes typed current rows for the full object or selected activities.",
+    "transformation_description": "Parses retained Raw Strava lap payloads and atomically publishes typed current rows for the full object or selected activities. Power fields remain source-aligned; canonical provenance and eligibility are inherited from the parent Silver activity and are not copied or reclassified here.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "high",
     "review_required": true
@@ -339,14 +348,17 @@
     "referential_integrity_expectations": [
       "activity_id resolves to cycling_platform_silver.activities.activity_id.",
       "Elapsed-time boundaries are contextual and do not require activity streams to exist.",
-      "Source start/end sample positions must not be joined to Silver sample_index."
+      "Source start/end sample positions must not be joined to Silver sample_index.",
+      "Power consumers join activity_id to Silver activities and use the parent canonical classification and record-eligibility fields; lap is_device_watts is not an eligibility filter."
     ],
     "accepted_values": [
       "Times, distances and source sample indices are non-negative when present.",
       "start_sample_index does not exceed end_sample_index when both are present.",
       "lap_index is unique within an activity but is not required to be contiguous.",
       "start_time_seconds is inclusive and end_time_seconds is exclusive.",
-      "Source start_sample_index and end_sample_index are zero-based and inclusive."
+      "Source start_sample_index and end_sample_index are zero-based and inclusive.",
+      "average_power_watts is a nullable source-reported summary and makes no measured-power claim.",
+      "is_device_watts is a nullable Strava source assertion, is known to be unreliable for some historical TrainerRoad virtual power, and is not canonical provenance."
     ],
     "implemented_validations": [
       "silver_activity_laps_table_exists",
@@ -360,6 +372,7 @@
       "silver_activity_laps_adjacent_boundary_differences",
       "silver_activity_laps_time_boundaries_outside_stream_range",
       "silver_activity_laps_telemetry_boundary_reconciliation",
+      "silver_activity_laps_power_provenance_reconciliation",
       "silver_activity_laps_parent_summary_reconciliation",
       "silver_activity_laps_coverage_and_reconciliation",
       "silver_activity_laps_raw_reconciliation",

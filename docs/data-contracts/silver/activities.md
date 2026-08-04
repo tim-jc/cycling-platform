@@ -65,6 +65,12 @@ For example, Strava-published activity distance remains the published activity-l
 
 Published activity-level power values remain preserved even where they are not analytically eligible. Eligibility governs analytical use, not whether the source value is retained. The current physical fields and classification rules require implementation-alignment review before this semantic concept can be certified.
 
+The activity classification is the canonical provenance decision for all power
+observations associated with the activity: activity summaries, activity
+streams, source-reported laps, stream-derived best efforts and future lap-level
+analytical products. Child objects inherit this interpretation unless genuinely
+more specific provenance is designed from stronger source evidence.
+
 ## Activity classifications
 
 Silver owns the source-independent reusable classification `is_cycling_activity`. Gold owns contextual classifications including `is_training_activity`, `is_significant_activity`, and similar consumer-purpose decisions.
@@ -107,7 +113,7 @@ Activity identity is unique. Required lineage is populated. Non-null gear refere
 
 ## Consumers
 
-Gold transformations and independent analytics consumers. Consumers may filter or denormalise for their own context, but must not reinterpret Silver admission, source measurements, missing values, or the published-versus-derived boundary silently.
+Gold transformations and independent analytics consumers. Consumers may filter or denormalise for their own context, but must not reinterpret Silver admission, source measurements, missing values, or the published-versus-derived boundary silently. Power consumers must join child observations to the activity and use its canonical classification and record-eligibility fields rather than child source flags.
 
 ## Out of scope
 
