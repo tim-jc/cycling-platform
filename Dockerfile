@@ -38,6 +38,10 @@ COPY . .
 
 RUN mkdir -p logs backups
 
+# Run through the normal project startup so .Rprofile activates the locked renv
+# library, matching production commands.
+RUN Rscript tests/smoke_check.R
+
 # docker compose run --rm cycling-platform uses this scheduled incremental
 # command. Bootstrap, backfill, repair, and deep validation override CMD.
 CMD ["Rscript", "run_daily_platform.R", "scheduled"]

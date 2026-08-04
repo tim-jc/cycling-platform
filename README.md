@@ -160,7 +160,7 @@ Rscript run_daily_platform.R activity_backfill
 Rscript run_platform_validation.R
 
 # Fast repository checks
-Rscript --vanilla tests/smoke_check.R
+Rscript tests/smoke_check.R
 
 # Focused regression suite
 Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'

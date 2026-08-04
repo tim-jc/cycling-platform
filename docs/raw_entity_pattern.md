@@ -97,5 +97,5 @@ Operational status values are documented in `docs/status_values.md`.
 Run the local smoke checks before committing structural changes:
 
 ```sh
-Rscript --vanilla tests/smoke_check.R
+Rscript tests/smoke_check.R
 ```

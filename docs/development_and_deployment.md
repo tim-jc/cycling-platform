@@ -43,7 +43,7 @@ image builds and can run the smoke check with the intended environment:
 ```sh
 docker build -t cycling-platform:local .
 docker run --rm cycling-platform:local \
-  Rscript --vanilla tests/smoke_check.R
+  Rscript tests/smoke_check.R
 ```
 
 Database/API integration checks require the same environment variables and
@@ -138,7 +138,7 @@ production write:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript --vanilla tests/smoke_check.R
+  Rscript tests/smoke_check.R
 ```
 
 If the new endpoint changed DDL, apply the additive idempotent bootstrap before

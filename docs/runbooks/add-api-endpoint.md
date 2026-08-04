@@ -145,7 +145,7 @@ Refresh-token exchange cannot add a scope.
    docker compose build cycling-platform
    docker compose images cycling-platform
    docker compose run --rm cycling-platform \
-     Rscript --vanilla tests/smoke_check.R
+     Rscript tests/smoke_check.R
    ```
 
 9. If DDL changed, apply the additive idempotent bootstrap:
@@ -226,7 +226,7 @@ Run from the application repository root unless Compose is shown:
 Rscript --vanilla -e 'testthat::test_file("tests/testthat/test-strava-oauth-bootstrap.R")'
 Rscript --vanilla -e 'testthat::test_file("tests/testthat/test-strava-gear.R")'
 Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
-Rscript --vanilla tests/smoke_check.R
+Rscript tests/smoke_check.R
 Rscript --vanilla -e 'renv::status()'
 git diff --check
 ```
