@@ -130,7 +130,7 @@ sleep.interval.endTime.civilTime.date
 
 ### Current Orchestration
 
-Google Health raw ingestion is called from `platform.R` after Strava child
+Google Health raw ingestion is called from `run_raw_ingestion.R` after Strava child
 entities when Google Health is enabled.
 
 Routine refresh windows:

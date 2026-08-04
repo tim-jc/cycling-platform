@@ -128,7 +128,7 @@ In the production ephemeral Compose container:
 cd ~/cycling-infrastructure/compose
 
 docker compose run --rm -i cycling-platform \
-  Rscript scripts/bootstrap_strava_oauth.R
+  Rscript scripts/strava/bootstrap_oauth.R
 ```
 
 `-i` keeps standard input attached to the one-off container so the R process
@@ -207,7 +207,7 @@ next scheduled run:
 ```bash
 # PRODUCTION WRITE: incremental Raw ingestion, including gear.
 docker compose run --rm cycling-platform \
-  Rscript platform.R manual --no-notification
+  Rscript run_raw_ingestion.R manual --no-notification
 
 # PRODUCTION WRITE: deterministic Silver repair; runs all Silver transforms.
 docker compose run --rm cycling-platform \
@@ -231,7 +231,7 @@ documented gear-resolution audit if any activity IDs remain unresolved.
 4. Rebuild the application image. The helper is copied into the image; pulling
    source alone does not update it.
 5. Run `docker compose run --rm -i cycling-platform Rscript
-   scripts/bootstrap_strava_oauth.R`.
+   scripts/strava/bootstrap_oauth.R`.
 6. Open the printed authorisation URL and approve every requested permission.
 7. Paste the complete redirect URL at the prompt. It may be visible in the
    terminal, but because it is input to the running process it is not written
@@ -308,7 +308,7 @@ When repository behaviour and production behaviour differ:
 ```bash
 # Confirm the packaged helper exists and inspect non-secret source text.
 docker compose run --rm --entrypoint sh cycling-platform -c \
-  'ls -l scripts/bootstrap_strava_oauth.R R/api/bootstrap_strava_oauth.R'
+  'ls -l scripts/strava/bootstrap_oauth.R R/api/bootstrap_strava_oauth.R'
 
 # Show the image attached to the service and its creation metadata.
 docker compose images cycling-platform

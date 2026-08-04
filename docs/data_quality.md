@@ -260,7 +260,7 @@ For Raw/Silver-only validation:
 Rscript run_platform_validation.R --silver-only
 ```
 
-For compatibility, `Rscript validate_platform.R` delegates to the same runner.
+For compatibility, `Rscript run_platform_validation.R` delegates to the same runner.
 
 Deep validation preserves the full completeness suite and checks that records do
 not disappear unexpectedly across layer boundaries:
@@ -326,7 +326,7 @@ Common failures:
 * Stale Gold publication checks usually mean the daily Gold transform failed or
   did not run after Silver streams were refreshed.
 * Missing Gold best-effort rows after a successful Gold publication usually
-  means `Rscript run_gold_activity_best_efforts.R repair` should be run and the
+  means `Rscript scripts/gold/run_activity_best_efforts.R repair` should be run and the
   failing activities inspected for sparse or missing metric samples.
 
 Potential checks:

@@ -9,7 +9,7 @@ interruptions, and bounded production execution windows.
 ## Run Command
 
 ```sh
-Rscript platform.R backfill
+Rscript run_raw_ingestion.R backfill
 ```
 
 On `cycling-prod`, run it as an explicit ephemeral job rather than changing the
@@ -17,7 +17,7 @@ scheduled image default:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript platform.R backfill
+  Rscript run_raw_ingestion.R backfill
 ```
 
 Backfill is an initial-load/recovery workload and is never implied by
@@ -80,7 +80,7 @@ so fresh Strava headers can be read.
 For stream-only recovery runs:
 
 ```sh
-Rscript platform.R streams_only
+Rscript run_raw_ingestion.R streams_only
 ```
 
 This mode creates an ETL run as usual, skips activity, detail, and lap
@@ -132,7 +132,7 @@ FROM cycling_platform_raw.activity_laps;
 After a rate limit or interruption, rerun:
 
 ```sh
-Rscript platform.R backfill
+Rscript run_raw_ingestion.R backfill
 ```
 
 The run will select `PENDING` and `FAILED` activity IDs for child-entity

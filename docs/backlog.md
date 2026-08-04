@@ -120,7 +120,7 @@ Exit criteria:
 * Downstream projects never interact directly with ingestion.
 
 Gold processing is orchestrated by `run_daily_platform.R` after successful
-Silver publication checks. `platform.R` itself remains Raw-focused.
+Silver publication checks. `run_raw_ingestion.R` itself remains Raw-focused.
 
 ## Migration Strategy
 

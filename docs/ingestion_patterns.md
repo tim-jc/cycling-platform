@@ -77,7 +77,7 @@ Likely future entities:
 
 ## Recovery Modes
 
-Recovery modes should be narrow and explicit. `platform.R streams_only` is the
+Recovery modes should be narrow and explicit. `run_raw_ingestion.R streams_only` is the
 current example: it creates a normal ETL run, skips activity, detail, and lap
 ingestion, then processes only pending or failed stream work.
 

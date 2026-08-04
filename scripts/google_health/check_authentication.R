@@ -1,4 +1,4 @@
-# run_google_health_auth_check.R
+# scripts/google_health/check_authentication.R
 source("bootstrap.R")
 
 auth_error <- NULL

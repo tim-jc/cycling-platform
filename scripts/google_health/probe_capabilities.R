@@ -14,7 +14,7 @@ if (length(args) == 0) {
   stop(
     paste(
       "Usage:",
-      "Rscript run_google_health_capability_probe.R",
+      "Rscript scripts/google_health/probe_capabilities.R",
       "[start_date end_date]"
     ),
     call. = FALSE

@@ -790,7 +790,7 @@ tryCatch(
         )
 
         run_child_rscript(
-          script = "platform.R",
+          script = "run_raw_ingestion.R",
           args = c(
             raw_execution_mode,
             "--no-notification"

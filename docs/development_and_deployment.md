@@ -266,10 +266,10 @@ the initial-load workflow deliberately:
 
 ```sh
 Rscript bootstrap_platform.R
-Rscript platform.R backfill
+Rscript run_raw_ingestion.R backfill
 Rscript run_silver.R repair
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R backfill
 Rscript run_daily_platform.R scheduled
 ```
 
@@ -394,7 +394,7 @@ docker compose images cycling-platform
 docker image inspect cycling-platform:dev \
   --format 'id={{.Id}} created={{.Created}}'
 docker compose run --rm --entrypoint sh cycling-platform -c \
-  'test -f scripts/bootstrap_strava_oauth.R && echo helper-present'
+  'test -f scripts/strava/bootstrap_oauth.R && echo helper-present'
 docker compose build cycling-platform
 ```
 

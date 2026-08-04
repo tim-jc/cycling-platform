@@ -81,8 +81,8 @@ classification. See `docs/power_source_classification.md`.
 Run the repair/backfill transform manually:
 
 ```sh
-Rscript run_gold_activity_best_efforts.R repair
-Rscript run_gold_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R repair
+Rscript scripts/gold/run_activity_best_efforts.R backfill
 ```
 
 Daily platform automation runs `gold.activity_best_efforts` in incremental

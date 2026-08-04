@@ -14,7 +14,7 @@ Markdown is authoritative for semantics; corresponding JSON under `metadata/silv
 Run the complete governance check from the repository root:
 
 ```sh
-Rscript scripts/validate_data_contracts.R
+Rscript scripts/contracts/validate.R
 ```
 
 See [data contract governance](../../data_contract_governance.md) for lifecycle definitions, exclusions and the object-onboarding workflow.

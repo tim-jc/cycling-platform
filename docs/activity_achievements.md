@@ -103,16 +103,16 @@ Backfill and repair modes leave `notification_eligible = 0`.
 Manual commands:
 
 ```sh
-Rscript run_gold_activity_achievements.R repair
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_achievements.R repair
+Rscript scripts/gold/run_activity_achievements.R backfill
 ```
 
 Initial deployment order:
 
 ```sh
 Rscript bootstrap_platform.R
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R backfill
 Rscript run_daily_platform.R scheduled
 ```
 
@@ -154,9 +154,9 @@ Delivery failures increment `attempt_count`, preserve `error_message`, and set
 Manual notification runner:
 
 ```sh
-Rscript run_platform_notifications.R queue
-Rscript run_platform_notifications.R deliver
-Rscript run_platform_notifications.R queue_and_deliver
+Rscript scripts/operations/run_notifications.R queue
+Rscript scripts/operations/run_notifications.R deliver
+Rscript scripts/operations/run_notifications.R queue_and_deliver
 ```
 
 Daily automation runs queue and delivery after Gold publication checks. A

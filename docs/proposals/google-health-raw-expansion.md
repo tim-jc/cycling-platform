@@ -55,7 +55,7 @@ Current Google Health / Fitbit Raw implementation:
 | Daily respiratory-rate Raw table | `cycling_platform_raw.google_health_daily_respiratory_rate` |
 | Tests | `tests/testthat/test-google-health-data-points.R`, `tests/testthat/test-google-health-sleep-logs.R`, `tests/testthat/test-google-health-auth.R` |
 
-`platform.R` already runs Google Health HR and sleep ingestion when
+`run_raw_ingestion.R` already runs Google Health HR and sleep ingestion when
 `sources.google_health.enabled` is true and the execution mode is not
 `streams_only`.
 
@@ -772,7 +772,7 @@ Expected new or changed files:
 * optional later: `R/api/get_google_health_heart_rate_variability.R`
 * matching insert/update/upsert helpers under `R/database/`
 * matching ingestion orchestrators under `R/ingestion/`
-* `platform.R`, after manual validation of standalone runners
+* `run_raw_ingestion.R`, after manual validation of standalone runners
 * `docs/endpoint_inventory.md`
 * tests under `tests/testthat/`
 
@@ -810,7 +810,7 @@ Run these probes before implementing DDL.
 1. Confirm token scopes:
 
 ```sh
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 2. Probe daily RHR for a recent short window:

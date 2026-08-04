@@ -1,4 +1,4 @@
-# run_platform_notifications.R
+# scripts/operations/run_notifications.R
 source("bootstrap.R")
 
 config <- load_config()

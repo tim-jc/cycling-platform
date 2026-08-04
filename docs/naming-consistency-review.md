@@ -424,8 +424,8 @@ Before any rename, check:
 
 * SQL DDL and transforms under `sql/`;
 * R ingestion, database, validation, and transform modules under `R/`;
-* runner scripts such as `platform.R`, `run_daily_platform.R`,
-  `run_silver.R`, and `run_gold_activity_best_efforts.R`;
+* runner scripts such as `run_raw_ingestion.R`, `run_daily_platform.R`,
+  `run_silver.R`, and `scripts/gold/run_activity_best_efforts.R`;
 * tests under `tests/testthat/` and `tests/smoke_check.R`;
 * shell scripts under `scripts/`;
 * documentation under `docs/` and `README.md`;

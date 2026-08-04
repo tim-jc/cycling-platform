@@ -112,7 +112,7 @@ GOOGLE_HEALTH_REFRESH_TOKEN=1//...
 Then validate:
 
 ```sh
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 Expected successful output includes:
@@ -133,7 +133,7 @@ response did not include a new refresh token
 Run:
 
 ```sh
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 The check reports:
@@ -146,7 +146,7 @@ The check reports:
 
 It never prints the full refresh token.
 
-During unattended automation, `platform.R` performs a Google Health token
+During unattended automation, `run_raw_ingestion.R` performs a Google Health token
 preflight before any ingestion work when Google Health is enabled. A bad token
 therefore fails fast before Strava ingestion and derived transforms run.
 
@@ -161,7 +161,7 @@ Action:
 
 1. Regenerate the refresh token with both required scopes.
 2. Replace `GOOGLE_HEALTH_REFRESH_TOKEN` in `.Renviron`.
-3. Run `Rscript run_google_health_auth_check.R`.
+3. Run `Rscript scripts/google_health/check_authentication.R`.
 
 ### `DISALLOWED_OAUTH_SCOPES`
 

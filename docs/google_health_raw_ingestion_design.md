@@ -52,18 +52,18 @@ payloads.
 Current standalone runners:
 
 ```sh
-Rscript run_google_health_heart_rate.R manual
-Rscript run_google_health_sleep.R manual
-Rscript run_google_health_daily_resting_heart_rate.R refresh
-Rscript run_google_health_daily_resting_heart_rate.R backfill
-Rscript run_google_health_daily_resting_heart_rate.R 2026-07-01 2026-07-08
-Rscript run_google_health_daily_heart_rate_variability.R refresh
-Rscript run_google_health_daily_heart_rate_variability.R backfill
-Rscript run_google_health_daily_heart_rate_variability.R 2026-07-01 2026-07-08
-Rscript run_google_health_daily_respiratory_rate.R refresh
-Rscript run_google_health_daily_respiratory_rate.R backfill
-Rscript run_google_health_daily_respiratory_rate.R repair
-Rscript run_google_health_daily_respiratory_rate.R 2026-07-01 2026-07-08
+Rscript scripts/google_health/run_heart_rate.R manual
+Rscript scripts/google_health/run_sleep.R manual
+Rscript scripts/google_health/run_daily_resting_heart_rate.R refresh
+Rscript scripts/google_health/run_daily_resting_heart_rate.R backfill
+Rscript scripts/google_health/run_daily_resting_heart_rate.R 2026-07-01 2026-07-08
+Rscript scripts/google_health/run_daily_heart_rate_variability.R refresh
+Rscript scripts/google_health/run_daily_heart_rate_variability.R backfill
+Rscript scripts/google_health/run_daily_heart_rate_variability.R 2026-07-01 2026-07-08
+Rscript scripts/google_health/run_daily_respiratory_rate.R refresh
+Rscript scripts/google_health/run_daily_respiratory_rate.R backfill
+Rscript scripts/google_health/run_daily_respiratory_rate.R repair
+Rscript scripts/google_health/run_daily_respiratory_rate.R 2026-07-01 2026-07-08
 ```
 
 The normal platform run ingests daily RHR, daily HRV, and daily respiratory
@@ -140,8 +140,8 @@ Existing rows can be backfilled from retained payloads without refetching the
 API:
 
 ```sh
-Rscript run_google_health_daily_source_provenance_backfill.R --dry-run
-Rscript run_google_health_daily_source_provenance_backfill.R
+Rscript scripts/google_health/backfill_source_provenance.R --dry-run
+Rscript scripts/google_health/backfill_source_provenance.R
 ```
 
 The backfill reports examined, updated, already-populated, unknown-source, and
@@ -367,7 +367,7 @@ Compose wiring is outside this repository.
 Manual auth diagnostics:
 
 ```sh
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 This command prints the token file path, modified timestamp, whether the
@@ -405,7 +405,7 @@ GOOGLE_HEALTH_REFRESH_TOKEN=1//...
 Then validate the token with:
 
 ```sh
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 Expected successful output includes:
@@ -665,12 +665,12 @@ source-specific behaviour.
 
 ## Platform Integration
 
-Initial implementation should not refactor `platform.R` heavily.
+Initial implementation should not refactor `run_raw_ingestion.R` heavily.
 
 Recommended first step:
 
 ```text
-Rscript run_google_health_heart_rate.R
+Rscript scripts/google_health/run_heart_rate.R
 ```
 
 Once proven, integrate into the main platform orchestration as an optional
@@ -723,7 +723,7 @@ Payload reconciliation checks should compare promoted fields back to
   heart-rate-specific promoted fields?
 * Should date-level ingestion status be implemented immediately or deferred?
 * Should Google Health run as a separate script until stable, or be added to
-  `platform.R` behind a config flag from the start?
+  `run_raw_ingestion.R` behind a config flag from the start?
 * What historical range is actually available after Fitbit migration/sync?
 
 ## Historical Recommendation

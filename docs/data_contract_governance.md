@@ -6,7 +6,7 @@ Cycling-platform separates three authorities:
 - JSON under `metadata/silver/` and `metadata/gold/` is authoritative for machine-readable lineage, quality and governance state;
 - Markdown under `docs/data-contracts/` is authoritative for purpose, meaning, grain, canonical claims, assumptions and rationale.
 
-The Markdown template is [`docs/data-contracts/contract-template.md`](data-contracts/contract-template.md). JSON follows `metadata/schema/data-contract.schema.json`. Refresh physical sections from DDL with `Rscript scripts/generate_data_contract_metadata.R` and review the resulting diff.
+The Markdown template is [`docs/data-contracts/contract-template.md`](data-contracts/contract-template.md). JSON follows `metadata/schema/data-contract.schema.json`. Refresh physical sections from DDL with `Rscript scripts/contracts/generate_metadata.R` and review the resulting diff.
 
 ## Definition of done
 
@@ -31,7 +31,7 @@ Certification fails for any unresolved blocking item, including semantic and imp
 Restore the `renv` environment, then run:
 
 ```sh
-Rscript scripts/validate_data_contracts.R
+Rscript scripts/contracts/validate.R
 ```
 
 Validation collects failures, exits non-zero on failure and writes `reports/data-contract-validation.md`. The normal path uses repository DDL and never contacts production. Live-database comparison is deliberately deferred until it can remain an explicit optional mode.

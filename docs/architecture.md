@@ -165,8 +165,8 @@ names, duplicate versions, renamed applied files, and checksum changes before
 continuing. An interrupted migration is not recorded as successful; its SQL
 must be idempotent so bootstrap can safely retry it.
 
-`platform.R` is currently a raw-ingestion orchestrator. The unattended wrapper
-runs Silver transforms only after successful raw ingestion; `platform.R` itself
+`run_raw_ingestion.R` is currently a raw-ingestion orchestrator. The unattended wrapper
+runs Silver transforms only after successful raw ingestion; `run_raw_ingestion.R` itself
 does not own derived-layer orchestration.
 
 The R entry point is:
@@ -181,7 +181,7 @@ In production it is normally invoked by the image default command:
 docker compose run --rm cycling-platform
 ```
 
-It runs raw ingestion through `platform.R`, then runs Silver transforms only if
+It runs raw ingestion through `run_raw_ingestion.R`, then runs Silver transforms only if
 raw ingestion succeeds. Silver streams use repair mode for normal automation, so
 the large stream table is not truncated and historical staging repair tooling is
 not invoked.
@@ -205,7 +205,7 @@ Rscript run_silver.R repair
 ```
 
 Gold processing is orchestrated by `run_daily_platform.R` after successful
-Silver publication checks. `platform.R` remains focused on Raw ingestion; the
+Silver publication checks. `run_raw_ingestion.R` remains focused on Raw ingestion; the
 daily wrapper owns Raw-to-Silver-to-Gold publication sequencing.
 
 ## Runtime and Deployment Boundary
@@ -349,9 +349,9 @@ number of attempted activities using `ingestion.streams_only_activity_limit`
 when configured, otherwise it defaults to 900 pending stream activities.
 
 ```sh
-Rscript platform.R
-Rscript platform.R backfill
-Rscript platform.R streams_only
+Rscript run_raw_ingestion.R
+Rscript run_raw_ingestion.R backfill
+Rscript run_raw_ingestion.R streams_only
 ```
 
 ---

@@ -1,4 +1,4 @@
-# run_gold_activity_achievements.R
+# scripts/gold/run_activity_best_efforts.R
 source("bootstrap.R")
 
 config <- load_config()
@@ -13,9 +13,9 @@ if (length(args) > 0) {
   mode <- tolower(args[[1]])
 }
 
-if (!mode %in% c("daily", "repair", "backfill")) {
+if (!mode %in% c("repair", "backfill")) {
   stop(
-    "Unknown gold activity achievements mode. Use 'daily', 'repair' or 'backfill'.",
+    "Unknown gold activity best efforts mode. Use 'repair' or 'backfill'.",
     call. = FALSE
   )
 }
@@ -24,13 +24,13 @@ connection <- get_connection("cycling_platform_admin")
 
 tryCatch(
   {
-    validation_results <- rebuild_gold_activity_achievements(
+    validation_results <- rebuild_gold_activity_best_efforts(
       connection = connection,
       config = config,
       mode = mode
     )
 
-    message("Gold activity achievements validation results:")
+    message("Gold activity best efforts validation results:")
     print(validation_results)
   },
   finally = {

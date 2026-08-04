@@ -16,25 +16,26 @@ r_files <- c(
   "bootstrap.R",
   "bootstrap_platform.R",
   "platform.R",
-  "run_google_health_auth_check.R",
-  "run_google_health_capability_probe.R",
-  "run_google_health_daily_resting_heart_rate.R",
-  "run_google_health_daily_heart_rate_variability.R",
-  "run_google_health_daily_respiratory_rate.R",
-  "run_google_health_heart_rate.R",
-  "run_google_health_sleep.R",
+  "run_raw_ingestion.R",
+  "scripts/google_health/check_authentication.R",
+  "scripts/google_health/probe_capabilities.R",
+  "scripts/google_health/run_daily_resting_heart_rate.R",
+  "scripts/google_health/run_daily_heart_rate_variability.R",
+  "scripts/google_health/run_daily_respiratory_rate.R",
+  "scripts/google_health/run_heart_rate.R",
+  "scripts/google_health/run_sleep.R",
   "run_daily_platform.R",
-  "run_gold_activity_achievements.R",
-  "run_gold_activity_best_efforts.R",
-  "run_power_source_classification_audit.R",
-  "run_platform_notifications.R",
-  file.path("scripts", "bootstrap_strava_oauth.R"),
-  file.path("scripts", "audit_silver_activity_population.R"),
-  file.path("scripts", "generate_data_contract_metadata.R"),
-  file.path("scripts", "show_job_status.R"),
-  file.path("scripts", "validate_data_contracts.R"),
+  "scripts/gold/run_activity_achievements.R",
+  "scripts/gold/run_activity_best_efforts.R",
+  "scripts/audits/audit_power_source_classification.R",
+  "scripts/operations/run_notifications.R",
+  file.path("scripts", "strava", "bootstrap_oauth.R"),
+  file.path("scripts", "audits", "audit_silver_activity_population.R"),
+  file.path("scripts", "contracts", "generate_metadata.R"),
+  file.path("scripts", "operations", "show_job_status.R"),
+  file.path("scripts", "contracts", "validate.R"),
   "run_silver.R",
-  "validate_platform.R"
+  "run_platform_validation.R"
 )
 
 parse_failures <- lapply(
@@ -63,7 +64,51 @@ if (length(parse_failures) > 0) {
   )
 }
 
+root_r_files <- sort(basename(list.files(
+  ".",
+  pattern = "[.][Rr]$",
+  recursive = FALSE,
+  full.names = TRUE
+)))
+expected_root_r_files <- sort(c(
+  "bootstrap.R",
+  "bootstrap_platform.R",
+  "platform.R",
+  "run_daily_platform.R",
+  "run_platform_validation.R",
+  "run_raw_ingestion.R",
+  "run_silver.R"
+))
+
+if (!identical(root_r_files, expected_root_r_files)) {
+  fail(paste(
+    "Unexpected root-level R entry points:",
+    paste(setdiff(root_r_files, expected_root_r_files), collapse = ", ")
+  ))
+}
+
 message("Checking MariaDB connection entry schemas...")
+
+compatibility_wrapper <- paste(
+  readLines("platform.R", warn = FALSE),
+  collapse = "\n"
+)
+
+if (!grepl(
+  "platform.R is deprecated; use run_raw_ingestion.R instead.",
+  compatibility_wrapper,
+  fixed = TRUE
+)) {
+  fail("platform.R must warn that run_raw_ingestion.R is canonical")
+}
+
+if (!grepl(
+  'source("run_raw_ingestion.R")',
+  compatibility_wrapper,
+  fixed = TRUE
+)) {
+  fail("platform.R must delegate without duplicating Raw ingestion logic")
+}
 
 source(
   file.path("R", "database", "get_connection.R")

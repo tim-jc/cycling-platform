@@ -143,9 +143,9 @@ Use this order after changing rules or overrides:
 
 ```sh
 Rscript run_silver.R repair
-Rscript run_gold_activity_best_efforts.R repair
-Rscript run_gold_activity_achievements.R repair
-Rscript run_power_source_classification_audit.R
+Rscript scripts/gold/run_activity_best_efforts.R repair
+Rscript scripts/gold/run_activity_achievements.R repair
+Rscript scripts/audits/audit_power_source_classification.R
 Rscript run_platform_validation.R
 ```
 
@@ -157,7 +157,7 @@ rebuilds should not queue achievement notifications by default.
 Generate a CSV audit file:
 
 ```sh
-Rscript run_power_source_classification_audit.R power_source_audit.csv
+Rscript scripts/audits/audit_power_source_classification.R power_source_audit.csv
 ```
 
 The report highlights:

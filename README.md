@@ -41,6 +41,27 @@ Authentication](docs/strava_authentication.md). For a new or changed API
 source, follow [Add an API Endpoint](docs/runbooks/add-api-endpoint.md) from
 design through scheduled production acceptance.
 
+## Primary Entry Points
+
+The repository root is the platform control panel:
+
+| Command | Responsibility |
+| --- | --- |
+| `Rscript bootstrap_platform.R` | Create platform objects and apply versioned database migrations |
+| `Rscript run_raw_ingestion.R <mode>` | Run the complete Raw ingestion layer |
+| `Rscript run_silver.R <full\|repair>` | Rebuild or repair the Silver layer |
+| `Rscript run_platform_validation.R` | Run standalone deep or publication validation |
+| `Rscript run_daily_platform.R scheduled` | Run the complete scheduled Raw-to-Silver-to-Gold platform |
+
+`bootstrap.R` is the shared R-process loader used by these entry points; it is
+not an operator command. Specialist source, Gold, audit, contract, and
+operational utilities live under `scripts/` and are indexed in
+[`scripts/README.md`](scripts/README.md).
+
+`platform.R` is a temporary compatibility wrapper for `run_raw_ingestion.R`.
+It emits a deprecation warning and can be removed after one successful
+deployment cycle once external command references have been checked.
+
 ## Data Architecture
 
 The platform uses five MariaDB databases:
@@ -95,7 +116,7 @@ the latest full rebuild from another session with:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript scripts/show_job_status.R silver-full
+  Rscript scripts/operations/show_job_status.R silver-full
 ```
 
 See the [manual job status runbook](docs/runbooks/manual-job-status.md) for
@@ -124,7 +145,7 @@ Run these from the repository root on the Mac when native R is appropriate:
 
 ```sh
 # Routine Raw ingestion only
-Rscript platform.R manual
+Rscript run_raw_ingestion.R manual
 
 # Full Raw-to-Silver-to-Gold scheduled pipeline
 Rscript run_daily_platform.R scheduled
@@ -157,10 +178,10 @@ Canonical initial-load sequence:
 
 ```sh
 Rscript bootstrap_platform.R
-Rscript platform.R backfill
+Rscript run_raw_ingestion.R backfill
 Rscript run_silver.R repair
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R backfill
 Rscript run_daily_platform.R scheduled
 ```
 
@@ -171,23 +192,23 @@ Other recovery and maintenance commands:
 
 ```sh
 # Pending stream recovery only
-Rscript platform.R streams_only
+Rscript run_raw_ingestion.R streams_only
 
 # Silver repair or full rebuild
 Rscript run_silver.R repair
 Rscript run_silver.R full
 
 # Gold repair/backfill
-Rscript run_gold_activity_best_efforts.R repair
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R repair
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R repair
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R repair
+Rscript scripts/gold/run_activity_achievements.R backfill
 
 # Notifications
-Rscript run_platform_notifications.R queue_and_deliver
+Rscript scripts/operations/run_notifications.R queue_and_deliver
 
 # Google Health credential check
-Rscript run_google_health_auth_check.R
+Rscript scripts/google_health/check_authentication.R
 ```
 
 Detailed behaviour is documented in [Platform

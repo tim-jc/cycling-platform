@@ -21,7 +21,7 @@ with a safe activity cap.
 ## Happy Path
 
 ```text id="9wsu6g"
-platform.R
+run_raw_ingestion.R
     ↓
 load_config()
     ↓
@@ -152,7 +152,7 @@ send_notification()
 ## Streams-Only Recovery Path
 
 ```text id="streams-only"
-platform.R streams_only
+run_raw_ingestion.R streams_only
     ↓
 load_config()
     ↓

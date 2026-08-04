@@ -178,7 +178,7 @@ For gear, the manual sequence is:
 ```sh
 # PRODUCTION WRITE: incremental Raw ingestion for all configured sources.
 docker compose run --rm cycling-platform \
-  Rscript platform.R manual --no-notification
+  Rscript run_raw_ingestion.R manual --no-notification
 
 # PRODUCTION WRITE: repair mode runs every Silver transform, including gear.
 docker compose run --rm cycling-platform Rscript run_silver.R repair

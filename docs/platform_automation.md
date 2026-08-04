@@ -81,8 +81,8 @@ Silver stream and Gold repair planners continue to select missing, incomplete,
 stale-version, or upstream-changed activities. Large summary windows therefore
 do not imply full downstream rebuilds.
 
-Raw-only operator commands are `Rscript platform.R hygiene` and
-`Rscript platform.R activity_backfill`. `platform.R backfill` remains the
+Raw-only operator commands are `Rscript run_raw_ingestion.R hygiene` and
+`Rscript run_raw_ingestion.R activity_backfill`. `run_raw_ingestion.R backfill` remains the
 broader recovery mode, including configured Google Health history.
 
 Native execution is not the production portability check. Before deployment,
@@ -90,7 +90,7 @@ build and test the Docker image where practical.
 
 ## What It Does
 
-1. Runs raw ingestion through `platform.R`.
+1. Runs raw ingestion through `run_raw_ingestion.R`.
 2. Suppresses the raw-only notification so the wrapper can send one platform
    notification.
 3. Runs Silver transforms after raw ingestion succeeds.
@@ -196,10 +196,10 @@ candidate discovery query.
 Manual repair/backfill remains available:
 
 ```sh
-Rscript run_gold_activity_best_efforts.R repair
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R repair
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R repair
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R repair
+Rscript scripts/gold/run_activity_achievements.R backfill
 ```
 
 Backfill is not part of the daily schedule.
@@ -240,9 +240,9 @@ cycling_platform_admin.notification_outbox
 Manual runner:
 
 ```sh
-Rscript run_platform_notifications.R queue
-Rscript run_platform_notifications.R deliver
-Rscript run_platform_notifications.R queue_and_deliver
+Rscript scripts/operations/run_notifications.R queue
+Rscript scripts/operations/run_notifications.R deliver
+Rscript scripts/operations/run_notifications.R queue_and_deliver
 ```
 
 Delivery failure does not alter Gold facts. It records retry state in Admin and
@@ -278,7 +278,7 @@ docker compose run --rm cycling-platform \
 For compatibility, this still works:
 
 ```sh
-Rscript validate_platform.R
+Rscript run_platform_validation.R
 ```
 
 Deep validation preserves the full rule set:
@@ -369,10 +369,10 @@ Canonical initial-load sequence:
 
 ```sh
 Rscript bootstrap_platform.R
-Rscript platform.R backfill
+Rscript run_raw_ingestion.R backfill
 Rscript run_silver.R repair
-Rscript run_gold_activity_best_efforts.R backfill
-Rscript run_gold_activity_achievements.R backfill
+Rscript scripts/gold/run_activity_best_efforts.R backfill
+Rscript scripts/gold/run_activity_achievements.R backfill
 Rscript run_daily_platform.R scheduled
 ```
 

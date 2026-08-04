@@ -24,7 +24,7 @@ Tests cover true, false, null, absent, manual without streams, non-manual withou
 Before deployment, the owner reported that all Silver rows were NULL while representative Raw payloads contained true/false values. Exact production counts and post-rebuild affected rows could not be collected from the Mac because `cycling-prod.local` was not resolvable during this work. After deployment and rebuild, run:
 
 ```sh
-Rscript scripts/audit_silver_activity_population.R
+Rscript scripts/audits/audit_silver_activity_population.R
 ```
 
 and retain the `is_manual` row as rollout evidence. Every Raw row with a definitive manual boolean should then have an equal non-null Silver value.

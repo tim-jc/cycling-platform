@@ -110,14 +110,14 @@ The status reader defaults to stale after 120 seconds:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript scripts/show_job_status.R silver-full
+  Rscript scripts/operations/show_job_status.R silver-full
 ```
 
 An optional second argument overrides the stale threshold in seconds:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript scripts/show_job_status.R silver-full 180
+  Rscript scripts/operations/show_job_status.R silver-full 180
 ```
 
 `Stale: yes` means a `RUNNING` heartbeat is too old. For native execution on
@@ -175,7 +175,7 @@ From a second session:
 
 ```sh
 docker compose run --rm cycling-platform \
-  Rscript scripts/show_job_status.R silver-full
+  Rscript scripts/operations/show_job_status.R silver-full
 
 sudo ls -l /srv/cycling/logs/platform/status/
 sudo python3 -m json.tool \
