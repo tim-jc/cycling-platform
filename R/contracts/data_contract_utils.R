@@ -18,6 +18,13 @@ contract_todo_categories <- c(
 )
 contract_alignment_statuses <- c("not_reviewed", "aligned", "review_required")
 
+contract_managed_domains <- function(root = ".") {
+  inventory_path <- file.path(root, "config", "platform_databases.tsv")
+  if (!file.exists(inventory_path)) return(c("silver", "gold", "reference"))
+  inventory <- utils::read.delim(inventory_path, colClasses = "character")
+  inventory$domain[inventory$contract_governed == "TRUE"]
+}
+
 normalise_contract_type <- function(value) {
   value <- tolower(trimws(value))
   value <- sub("\\s+unsigned$", "", value)
@@ -143,12 +150,13 @@ parse_contract_ddl <- function(path) {
 
 discover_managed_objects <- function(root) {
   result <- list()
-  for (layer in c("silver", "gold")) {
+  domains <- contract_managed_domains(root)
+  for (layer in domains) {
     files <- list.files(file.path(root, "sql", layer), "\\.sql$", full.names = TRUE)
     for (path in files) {
       sql <- paste(readLines(path, warn = FALSE), collapse = "\n")
       match <- regexec(
-        "CREATE[[:space:]]+(TABLE|VIEW)[[:space:]]+(?:IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(cycling_platform_(silver|gold))[.]`?([a-zA-Z0-9_]+)`?",
+        paste0("CREATE[[:space:]]+(TABLE|VIEW)[[:space:]]+(?:IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?(cycling_platform_(", paste(domains, collapse = "|"), "))[.]`?([a-zA-Z0-9_]+)`?"),
         sql, perl = TRUE, ignore.case = TRUE
       )
       parts <- regmatches(sql, match)[[1]]
@@ -181,6 +189,7 @@ validate_metadata_structure <- function(metadata, path) {
   if (length(errors)) return(errors)
   if (!grepl("^[0-9]+\\.[0-9]+\\.[0-9]+$", metadata$metadata_version)) add("invalid_metadata", "metadata_version must be semantic-version shaped")
   for (field in c("schema", "database_schema", "name", "type", "ddl_path")) if (is.null(metadata$object[[field]])) add("invalid_metadata", paste("object missing", field))
+  if (!is.null(metadata$object$schema) && !metadata$object$schema %in% c("silver", "gold", "reference")) add("invalid_enum", "invalid contract domain")
   if (!metadata$object$type %in% c("table", "view")) add("invalid_enum", "invalid object type")
   for (field in c("owner", "lifecycle", "contract_path", "semantic_review_status", "last_verified_date")) if (is.null(metadata$governance[[field]])) add("invalid_metadata", paste("governance missing", field))
   if (!metadata$governance$lifecycle %in% contract_lifecycle_values) add("invalid_enum", "invalid lifecycle")
@@ -200,7 +209,7 @@ validate_metadata_structure <- function(metadata, path) {
   if (!all(required_quality %in% names(metadata$data_quality))) add("invalid_metadata", "data_quality missing required fields")
   for (todo in metadata$human_todos) {
     if (!all(c("id", "field", "severity", "status", "text", "resolution") %in% names(todo))) add("invalid_todo", "TODO missing required fields")
-    if (!is.null(todo$id) && !grepl("^(SILVER|GOLD)-[A-Z0-9_]+-[0-9]{3}$", todo$id)) add("invalid_todo", paste("invalid TODO ID", todo$id))
+    if (!is.null(todo$id) && !grepl("^(SILVER|GOLD|REFERENCE)-[A-Z0-9_]+-[0-9]{3}$", todo$id)) add("invalid_todo", paste("invalid TODO ID", todo$id))
     if (!is.null(todo$category) && !todo$category %in% contract_todo_categories) add("invalid_enum", paste("invalid TODO category", todo$category))
     if (!is.null(todo$severity) && !todo$severity %in% contract_todo_severities) add("invalid_enum", paste("invalid TODO severity", todo$severity))
     if (!is.null(todo$status) && !todo$status %in% contract_todo_statuses) add("invalid_enum", paste("invalid TODO status", todo$status))
@@ -224,7 +233,8 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
   supporting_docs <- unlist(exclusions$supporting_contract_documents, use.names = FALSE)
   metadata_by_object <- list(); metadata_paths <- character(); contract_paths <- character()
 
-  for (layer in c("silver", "gold")) {
+  domains <- contract_managed_domains(root)
+  for (layer in domains) {
     metadata_paths <- c(metadata_paths, list.files(file.path(root, "metadata", layer), "\\.json$", full.names = TRUE))
     contract_paths <- c(contract_paths, list.files(file.path(root, "docs", "data-contracts", layer), "\\.md$", full.names = TRUE))
   }
@@ -280,7 +290,7 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
     if (metadata$governance$lifecycle %in% c("semantically_reviewed", "certified") && metadata$governance$semantic_review_status != "reviewed") add_error("lifecycle_review", paste(key, "lifecycle requires semantic_review_status=reviewed"), key)
     for (source in metadata$lineage$source_objects) {
       source_key <- sub("^cycling_platform_", "", source)
-      if (grepl("^(silver|gold)[.]", source_key) && !source_key %in% names(managed)) add_error("broken_source_reference", paste(key, "references unmanaged Silver/Gold source", source), key)
+      if (grepl(paste0("^(", paste(domains, collapse = "|"), ")[.]"), source_key) && !source_key %in% names(managed)) add_error("broken_source_reference", paste(key, "references unmanaged governed source", source), key)
     }
   }
   duplicates <- unique(todo_ids[duplicated(todo_ids)])
@@ -307,6 +317,7 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
     counts = list(
       silver = sum(vapply(managed, function(x) x$schema == "silver", logical(1))),
       gold = sum(vapply(managed, function(x) x$schema == "gold", logical(1))),
+      reference = sum(vapply(managed, function(x) x$schema == "reference", logical(1))),
       open_blocking = count_todos("blocking", "open"),
       open_non_blocking = count_todos("non_blocking", "open"),
       accepted = count_todos(status = "accepted")
@@ -333,6 +344,7 @@ write_contract_report <- function(result, path) {
     paste0("- Overall result: **", if (result$passed) "PASSED" else "FAILED", "**"),
     paste0("- Managed Silver objects: ", result$counts$silver),
     paste0("- Managed Gold objects: ", result$counts$gold),
+    paste0("- Managed Reference objects: ", result$counts$reference),
     paste0("- Missing contracts: ", count_codes("missing_contract")),
     paste0("- Missing metadata: ", count_codes("missing_metadata")),
     paste0("- Schema mismatches: ", count_codes("schema_mismatch")),
@@ -345,7 +357,7 @@ write_contract_report <- function(result, path) {
     "## Open non-blocking TODOs", "", todo_lines("non_blocking", "open"), "",
     "## Accepted limitations", "", todo_lines(status = "accepted"), "",
     "## Failures", "", issue_lines(result$errors), "",
-    "## Warnings", "", issue_lines(result$warnings), ""
+    "## Warnings", "", issue_lines(result$warnings)
   )
   writeLines(lines, path)
 }

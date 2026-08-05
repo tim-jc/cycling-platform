@@ -179,7 +179,8 @@ load_script_config() {
   )"
 
   configured_databases="$(
-    read_config_list "backups" "databases"
+    awk -F '\t' 'NR > 1 && $4 == "TRUE" { print $1 }' \
+      "$PROJECT_DIR/config/platform_databases.tsv"
   )"
 
   if [[ -n "$configured_databases" ]]; then
@@ -187,12 +188,8 @@ load_script_config() {
       DATABASES+=("$database")
     done <<< "$configured_databases"
   else
-    DATABASES=(
-      "cycling_platform_admin"
-      "cycling_platform_raw"
-      "cycling_platform_silver"
-      "cycling_platform_gold"
-    )
+    log "No durable backup databases found in config/platform_databases.tsv."
+    exit 1
   fi
 
   configured_dump_candidates="$(

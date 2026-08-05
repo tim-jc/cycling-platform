@@ -1,4 +1,5 @@
 source_backup_observability <- function() {
+  inventory_file <- file.path("R", "config", "platform_database_inventory.R")
   file <- file.path(
     "R",
     "utils",
@@ -6,9 +7,11 @@ source_backup_observability <- function() {
   )
 
   if (!file.exists(file)) {
+    inventory_file <- file.path("..", "..", inventory_file)
     file <- file.path("..", "..", file)
   }
 
+  source(inventory_file)
   source(file)
 }
 
@@ -16,6 +19,7 @@ backup_manifest_fixture <- function() {
   databases <- c(
     "cycling_platform_admin",
     "cycling_platform_raw",
+    "cycling_platform_reference",
     "cycling_platform_silver",
     "cycling_platform_gold"
   )
@@ -33,11 +37,11 @@ backup_manifest_fixture <- function() {
         databases,
         ".sql.gz"
       ),
-      compressed_bytes = c(101, 202, 303, 404),
-      uncompressed_bytes = c(1001, 2002, 3003, 4004),
+      compressed_bytes = c(101, 202, 303, 404, 505),
+      uncompressed_bytes = c(1001, 2002, 3003, 4004, 5005),
       verified_at = rep(
         as.POSIXct("2026-07-26 04:06:00", tz = "UTC"),
-        4
+        5
       )
     )
   )
@@ -54,6 +58,7 @@ backup_inventory_fixture <- function(
       completed_at = completed_at,
       status = "SUCCESS",
       run_prefix = manifest$run_prefix,
+      expected_database_count = 5L,
       created_at = completed_at
     ),
     files = data.frame(
@@ -63,13 +68,13 @@ backup_inventory_fixture <- function(
     ),
     disk = data.frame(
       filename = manifest$files$filename,
-      modified_at = rep(completed_at, 4),
+      modified_at = rep(completed_at, 5),
       compressed_bytes = manifest$files$compressed_bytes
     )
   )
 }
 
-testthat::test_that("backup manifest requires exactly four production schemas", {
+testthat::test_that("backup manifest requires exactly five durable databases", {
   source_backup_observability()
 
   manifest <- backup_manifest_fixture()
@@ -79,7 +84,7 @@ testthat::test_that("backup manifest requires exactly four production schemas", 
   )
 
   incomplete <- manifest
-  incomplete$files <- incomplete$files[-4, ]
+  incomplete$files <- incomplete$files[-5, ]
 
   testthat::expect_error(
     validate_backup_manifest(incomplete),
@@ -87,7 +92,7 @@ testthat::test_that("backup manifest requires exactly four production schemas", 
   )
 
   stage <- manifest
-  stage$files$database_name[[4]] <- "cycling_platform_stage"
+  stage$files$database_name[[5]] <- "cycling_platform_stage"
 
   testthat::expect_error(
     validate_backup_manifest(stage),
@@ -133,10 +138,10 @@ testthat::test_that("success artefact contains host, run and per-file metadata",
     artifact$databases,
     backup_expected_databases()
   )
-  testthat::expect_equal(nrow(artifact$files), 4L)
+  testthat::expect_equal(nrow(artifact$files), 5L)
   testthat::expect_equal(
     artifact$files$compressed_bytes,
-    c(101, 202, 303, 404)
+    c(101, 202, 303, 404, 505)
   )
 })
 
@@ -146,10 +151,10 @@ testthat::test_that("successful manifest produces complete append-only metadata"
   metadata <- backup_run_metadata(backup_manifest_fixture())
 
   testthat::expect_equal(metadata$status, "SUCCESS")
-  testthat::expect_equal(metadata$expected_database_count, 4L)
-  testthat::expect_equal(metadata$successful_database_count, 4L)
+  testthat::expect_equal(metadata$expected_database_count, 5L)
+  testthat::expect_equal(metadata$successful_database_count, 5L)
   testthat::expect_equal(metadata$duration_seconds, 360L)
-  testthat::expect_equal(metadata$total_compressed_bytes, 1010)
+  testthat::expect_equal(metadata$total_compressed_bytes, 1515)
 })
 
 testthat::test_that("success artefact reader handles missing and malformed files", {
@@ -169,6 +174,17 @@ testthat::test_that("success artefact reader handles missing and malformed files
     read_backup_success_artifact(malformed)$status,
     "MALFORMED"
   )
+})
+
+testthat::test_that("historical four-database success artefacts remain readable", {
+  source_backup_observability()
+  path <- tempfile(fileext = ".json")
+  jsonlite::write_json(
+    list(status = "SUCCESS", databases = backup_legacy_databases()),
+    path,
+    auto_unbox = TRUE
+  )
+  testthat::expect_identical(read_backup_success_artifact(path)$status, "VALID")
 })
 
 testthat::test_that("backup freshness thresholds are inclusive at 30 and 48 hours", {
@@ -227,6 +243,55 @@ testthat::test_that("complete retained backup inventory reconciles cleanly", {
   testthat::expect_equal(result$missing_file_count, 0L)
   testthat::expect_equal(result$incomplete_run_count, 0L)
   testthat::expect_equal(result$orphan_file_count, 0L)
+})
+
+testthat::test_that("historical four-database backup sets remain recognised", {
+  source_backup_observability()
+  inventory <- backup_inventory_fixture()
+  reference_row <- inventory$files$database_name == "cycling_platform_reference"
+  reference_file <- inventory$files$filename[reference_row]
+  inventory$files <- inventory$files[!reference_row, , drop = FALSE]
+  inventory$runs$expected_database_count <- 4L
+  inventory$disk <- inventory$disk[
+    inventory$disk$filename != reference_file,
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_true(
+    backup_database_set_is_recognised(inventory$files$database_name)
+  )
+  result <- reconcile_backup_inventory(
+    inventory$runs,
+    inventory$files,
+    inventory$disk,
+    now = as.POSIXct("2026-07-27 04:00:00", tz = "UTC")
+  )
+  testthat::expect_equal(result$status, "HEALTHY")
+  testthat::expect_equal(result$incomplete_run_count, 0L)
+})
+
+testthat::test_that("a new-format run missing Reference is incomplete", {
+  source_backup_observability()
+  inventory <- backup_inventory_fixture()
+  reference_row <- inventory$files$database_name == "cycling_platform_reference"
+  reference_file <- inventory$files$filename[reference_row]
+  inventory$files <- inventory$files[!reference_row, , drop = FALSE]
+  inventory$disk <- inventory$disk[
+    inventory$disk$filename != reference_file,
+    ,
+    drop = FALSE
+  ]
+
+  result <- reconcile_backup_inventory(
+    inventory$runs,
+    inventory$files,
+    inventory$disk,
+    now = as.POSIXct("2026-07-27 04:00:00", tz = "UTC")
+  )
+  testthat::expect_equal(result$status, "WARNING")
+  testthat::expect_equal(result$missing_file_count, 1L)
+  testthat::expect_equal(result$incomplete_run_count, 1L)
 })
 
 testthat::test_that("reconciliation detects missing and incomplete retained runs", {
@@ -444,6 +509,30 @@ testthat::test_that("backup script does not introduce success notifications", {
 
   testthat::expect_false(grepl("ntfy", text, ignore.case = TRUE))
   testthat::expect_false(grepl("send_notification", text, fixed = TRUE))
+})
+
+testthat::test_that("backup script derives the durable set from the shared inventory", {
+  script <- file.path("scripts", "backup_mariadb.sh")
+  inventory <- file.path("config", "platform_databases.tsv")
+
+  if (!file.exists(script)) {
+    script <- file.path("..", "..", script)
+    inventory <- file.path("..", "..", inventory)
+  }
+
+  text <- paste(readLines(script, warn = FALSE), collapse = "\n")
+  configured <- utils::read.delim(inventory, stringsAsFactors = FALSE)
+  durable <- configured$database_name[configured$backup_included]
+
+  testthat::expect_match(text, "config/platform_databases.tsv", fixed = TRUE)
+  testthat::expect_identical(durable, c(
+    "cycling_platform_admin",
+    "cycling_platform_raw",
+    "cycling_platform_reference",
+    "cycling_platform_silver",
+    "cycling_platform_gold"
+  ))
+  testthat::expect_false("cycling_platform_stage" %in% durable)
 })
 
 testthat::test_that("backup observability R runs from an unprotected runtime", {

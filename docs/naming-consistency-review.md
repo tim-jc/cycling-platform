@@ -11,6 +11,7 @@ The platform schemas are:
 * `cycling_platform_admin`
 * `cycling_platform_stage`
 * `cycling_platform_raw`
+* `cycling_platform_reference`
 * `cycling_platform_silver`
 * `cycling_platform_gold`
 
@@ -38,9 +39,9 @@ The main naming risks are forward-looking rather than urgent defects:
 * documentation contains older example names such as `moving_time` in
   `docs/data_quality_sql.md` that do not match implemented columns.
 
-Decision: adopt the standard below now for all new Silver, Gold, Admin and
-Stage objects. Preserve stable existing objects unless a later versioned
-migration has a clear benefit.
+Decision: adopt the standard below now for all new Silver, Gold, Reference,
+Admin and Stage objects. Preserve stable existing objects unless a later
+versioned migration has a clear benefit.
 
 ## Proposed Naming Standard
 
@@ -81,6 +82,14 @@ Silver:
 * Should hide source-specific payload structure from consumers.
 * Should include explicit units for measures.
 * Should use positive boolean names.
+
+Reference:
+
+* Should contain reusable, deliberately curated platform knowledge.
+* Should use canonical, context-independent names rather than consumer-local
+  terminology.
+* Must document its curation provenance and change ownership in its data
+  contract.
 
 Gold:
 

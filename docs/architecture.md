@@ -32,11 +32,12 @@ scheduled job, and consumers must not trigger platform ingestion.
 
 ## Data Layers
 
-The platform is organised into five MariaDB databases:
+The platform is organised into six MariaDB databases:
 
 * `cycling_platform_admin`
 * `cycling_platform_raw`
 * `cycling_platform_stage`
+* `cycling_platform_reference`
 * `cycling_platform_silver`
 * `cycling_platform_gold`
 
@@ -65,13 +66,27 @@ Database responsibilities:
   notifications, transform metadata, and validation results.
 * `cycling_platform_raw`: retained, source-aligned ingestion.
 * `cycling_platform_stage`: temporary ETL artefacts owned by `run_id`.
+* `cycling_platform_reference`: reusable, deliberately curated canonical
+  knowledge that does not originate as an external observation.
 * `cycling_platform_silver`: integrated and canonical transformed data.
 * `cycling_platform_gold`: reusable, consumer-facing analytical assets.
 
 There is no single `cycling` database. The application user is scoped to these
-five databases and must not need the MariaDB `mysql` system database.
+six databases and must not need the MariaDB `mysql` system database.
 Control-plane and fully-qualified cross-database operations normally use
 `cycling_platform_admin` as their connection entry point.
+
+Admission rules are: external observations enter Raw and then Silver; reusable
+curated knowledge enters Reference; consumer-oriented derived outputs enter
+Gold; operational state enters Admin; temporary rebuild state enters Stage.
+Reference is not Raw replacement, miscellaneous configuration, hidden local
+application data, unrelated constants, or consumer-specific output.
+
+`cycling-infrastructure` owns physical database creation, database defaults,
+grants, production reconciliation, restore orchestration and recovery
+rehearsals. This repository owns objects inside Reference, their migrations,
+contracts, metadata, loaders, validation and Gold consumption. No Reference
+objects currently exist.
 
 ### Canonical character encoding
 

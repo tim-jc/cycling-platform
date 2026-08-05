@@ -1,10 +1,31 @@
 backup_expected_databases <- function() {
+  platform_backup_databases()
+}
+
+backup_legacy_databases <- function() {
   c(
     "cycling_platform_admin",
     "cycling_platform_raw",
     "cycling_platform_silver",
     "cycling_platform_gold"
   )
+}
+
+backup_database_set_is_recognised <- function(database_names) {
+  actual <- sort(unique(as.character(database_names)))
+  identical(actual, sort(backup_expected_databases())) ||
+    identical(actual, sort(backup_legacy_databases()))
+}
+
+backup_expected_databases_for_run <- function(run) {
+  if (
+    "expected_database_count" %in% names(run) &&
+      !is.na(run$expected_database_count[[1]]) &&
+      identical(as.integer(run$expected_database_count[[1]]), length(backup_legacy_databases()))
+  ) {
+    return(backup_legacy_databases())
+  }
+  backup_expected_databases()
 }
 
 backup_freshness_status <- function(
@@ -177,10 +198,7 @@ read_backup_success_artifact <- function(path) {
 
       if (
         !identical(artifact$status, "SUCCESS") ||
-          !identical(
-            sort(as.character(artifact$databases)),
-            sort(backup_expected_databases())
-          )
+          !backup_database_set_is_recognised(artifact$databases)
       ) {
         stop("Backup success artefact has invalid content.")
       }
@@ -340,14 +358,25 @@ reconcile_backup_inventory <- function(
   ]
 
   expected <- backup_expected_databases()
-
-  expected_inventory <- merge(
-    retained_runs[c("backup_run_id", "run_prefix")],
+  expected_inventory <- if (nrow(retained_runs) == 0L) {
     data.frame(
-      database_name = expected,
+      backup_run_id = integer(),
+      run_prefix = character(),
+      database_name = character(),
       stringsAsFactors = FALSE
     )
-  )
+  } else {
+    dplyr::bind_rows(lapply(seq_len(nrow(retained_runs)), function(index) {
+      run <- retained_runs[index, , drop = FALSE]
+      expected_for_run <- backup_expected_databases_for_run(run)
+      data.frame(
+        backup_run_id = run$backup_run_id[[1]],
+        run_prefix = run$run_prefix[[1]],
+        database_name = expected_for_run,
+        stringsAsFactors = FALSE
+      )
+    }))
+  }
   expected_inventory$filename <- if (nrow(expected_inventory) == 0) {
     character()
   } else {
@@ -372,7 +401,15 @@ reconcile_backup_inventory <- function(
           schemas <- backup_run_files$database_name[
             backup_run_files$backup_run_id == run_id
           ]
-          !identical(sort(schemas), sort(expected))
+          run <- retained_runs[
+            retained_runs$backup_run_id == run_id,
+            ,
+            drop = FALSE
+          ]
+          !identical(
+            sort(unique(schemas)),
+            sort(backup_expected_databases_for_run(run))
+          )
         },
         logical(1)
       )
@@ -402,7 +439,7 @@ reconcile_backup_inventory <- function(
   ]
 
   expected_pattern <- paste(
-    backup_expected_databases(),
+    unique(c(backup_expected_databases(), backup_legacy_databases())),
     collapse = "|"
   )
   valid_pattern <- paste0(
@@ -455,6 +492,7 @@ record_backup_reconciliation <- function(
         completed_at,
         status,
         run_prefix,
+        expected_database_count,
         created_at
       FROM cycling_platform_admin.backup_run
     "

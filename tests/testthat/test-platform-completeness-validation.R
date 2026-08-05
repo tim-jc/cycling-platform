@@ -1,3 +1,7 @@
+inventory_file <- file.path("R", "config", "platform_database_inventory.R")
+if (!file.exists(inventory_file)) inventory_file <- file.path("..", "..", inventory_file)
+source(inventory_file)
+
 testthat::test_that("duration table SQL contains configured durations", {
   validation_file <- file.path(
     "R",
@@ -176,7 +180,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    13L
+    14L
   )
 
   testthat::expect_equal(
@@ -190,7 +194,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    72L
+    73L
   )
 })
 

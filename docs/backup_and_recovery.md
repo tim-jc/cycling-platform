@@ -13,7 +13,9 @@ problem.
 
 ## Current Position
 
-Backup configuration exists in `config/platform.yml`.
+Backup timing, retention and client configuration exists in
+`config/platform.yml`. The durable database set comes from
+`config/platform_databases.tsv`, the shared platform database inventory.
 
 The backup implementation is `scripts/backup_mariadb.sh`. It creates
 timestamped compressed `mysqldump` backups for the configured platform
@@ -38,11 +40,17 @@ Configured databases:
 
 * `cycling_platform_admin`
 * `cycling_platform_raw`
+* `cycling_platform_reference`
 * `cycling_platform_silver`
 * `cycling_platform_gold`
 
 `cycling_platform_stage` is deliberately excluded because stage objects are
 temporary ETL workspace and safe to delete.
+
+Reference is durable and included even while it contains no objects. New backup
+runs require all five durable dumps. Retention reconciliation continues to
+recognise historical four-file sets—Admin, Raw, Silver and Gold—that predate
+Reference. Restore orchestration remains owned by `cycling-infrastructure`.
 
 ## Manual Backup
 
@@ -99,13 +107,14 @@ backups/
   latest_success.json
   2026-06-23_230000_cycling_platform_admin.sql.gz
   2026-06-23_230000_cycling_platform_raw.sql.gz
+  2026-06-23_230000_cycling_platform_reference.sql.gz
   2026-06-23_230000_cycling_platform_silver.sql.gz
   2026-06-23_230000_cycling_platform_gold.sql.gz
 ```
 
 Backup files are ignored by git.
 
-`latest_success.json` is updated atomically only after all four expected dumps
+`latest_success.json` is updated atomically only after all five expected dumps
 have passed verification. A failed or incomplete backup therefore leaves the
 previous successful artefact intact. It contains the UTC start/completion
 timestamps, Mac backup host, MariaDB source host, filename prefix, database
@@ -146,7 +155,9 @@ backup metadata and appends a result to
 `cycling_platform_admin.backup_reconciliation_run`. Reconciliation detects:
 
 * missing files for successful runs still inside the retention window
-* successful retained runs without exactly Admin, Raw, Silver, and Gold
+* successful retained runs that do not match their recognised format: the
+  historical four-database set or the current five-database set including
+  Reference
 * retained files without managed backup metadata
 * files older than the configured retention threshold
 * malformed filenames and unexpected schemas, including Stage
@@ -232,8 +243,9 @@ avoid known maintenance/restart windows and verify that MariaDB is reachable.
 
 Restore should be tested on a non-production database before being trusted.
 
-Restore in dependency order: Admin, Raw, Silver, then Gold. Stage is not
-restored.
+Restore in dependency order: Admin, Raw, Reference, Silver, then Gold. Stage is
+not restored. Historical backup sets created before Reference was introduced
+legitimately omit the Reference dump.
 
 Example restore from compressed dumps:
 
@@ -245,6 +257,10 @@ gunzip -c backups/2026-06-23_230000_cycling_platform_admin.sql.gz \
 gunzip -c backups/2026-06-23_230000_cycling_platform_raw.sql.gz \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_raw
+
+gunzip -c backups/2026-06-23_230000_cycling_platform_reference.sql.gz \
+  | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
+      --user="$MARIADB_USER" --password cycling_platform_reference
 
 gunzip -c backups/2026-06-23_230000_cycling_platform_silver.sql.gz \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
@@ -278,10 +294,11 @@ docker compose run --rm cycling-platform \
   Rscript run_platform_validation.R --publication
 ```
 
-Bootstrap applies the versioned collation migration, converting all five
-database defaults and existing tables to `utf8mb4` /
-`utf8mb4_general_ci`. This prevents joins from depending on either the restored
-server's or the target server's defaults.
+Historical versioned migrations reconcile the five pre-Reference databases and
+their existing tables. Infrastructure creates Reference with `utf8mb4` /
+`utf8mb4_general_ci`; publication validation checks all six database defaults
+and every managed table/column. This prevents joins from depending on either
+the restored server's or the target server's defaults.
 
 The conversion may rebuild large InnoDB tables and needs a maintenance window,
 free disk space, and a verified pre-migration backup. MariaDB DDL auto-commits;

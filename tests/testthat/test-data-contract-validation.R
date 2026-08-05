@@ -5,7 +5,7 @@ fixture_contract <- function() paste(c("# Contract", "", paste0("## ", contract_
 
 make_contract_fixture <- function() {
   root <- tempfile("contract-fixture-")
-  paths <- c("sql/silver", "sql/gold", "metadata/silver", "metadata/gold", "metadata/schema", "metadata/standards", "docs/data-contracts/silver", "docs/data-contracts/gold", "reports", "R/transforms")
+  paths <- c("sql/silver", "sql/gold", "sql/reference", "metadata/silver", "metadata/gold", "metadata/reference", "metadata/schema", "metadata/standards", "docs/data-contracts/silver", "docs/data-contracts/gold", "docs/data-contracts/reference", "reports", "R/transforms")
   invisible(vapply(file.path(root, paths), dir.create, logical(1), recursive = TRUE))
   ddl_path <- file.path(root, "sql/silver/010_create_widget.sql")
   writeLines(c("CREATE TABLE IF NOT EXISTS cycling_platform_silver.widget (", "  widget_id BIGINT NOT NULL,", "  label VARCHAR(50) NULL,", "  PRIMARY KEY (widget_id)", ") ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;"), ddl_path)
@@ -23,6 +23,28 @@ make_contract_fixture <- function() {
   metadata_path <- file.path(root,"metadata/silver/widget.json")
   jsonlite::write_json(metadata,metadata_path,pretty=TRUE,auto_unbox=TRUE,null="null")
   list(root=root,metadata_path=metadata_path,contract_path=file.path(root,"docs/data-contracts/silver/widget.md"),ddl_path=ddl_path)
+}
+
+make_reference_contract_fixture <- function() {
+  f <- make_contract_fixture()
+  unlink(f$metadata_path)
+  unlink(f$contract_path)
+  unlink(f$ddl_path)
+  ddl_path <- file.path(f$root, "sql/reference/010_create_widget.sql")
+  contract_path <- file.path(f$root, "docs/data-contracts/reference/widget.md")
+  metadata_path <- file.path(f$root, "metadata/reference/widget.json")
+  writeLines(c("CREATE TABLE IF NOT EXISTS cycling_platform_reference.widget (", "  widget_id BIGINT NOT NULL,", "  PRIMARY KEY (widget_id)", ") ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;"), ddl_path)
+  writeLines(fixture_contract(), contract_path)
+  metadata <- list(
+    metadata_version="1.0.0", object=list(schema="reference",database_schema="cycling_platform_reference",name="widget",type="table",ddl_path="sql/reference/010_create_widget.sql"),
+    governance=list(owner="fixture",lifecycle="implemented",contract_path="docs/data-contracts/reference/widget.md",semantic_review_status="in_review",last_verified_date="2026-08-05"),
+    physical_schema=c(list(authority="repository_ddl"),parse_contract_ddl(ddl_path)),
+    lineage=list(source_objects=list(),source_columns=list(),transformation_files=list("R/transforms/widget.R"),transformation_functions=list("fixture"),transformation_description="Curated fixture",authorship="human_authored",confidence="high",review_required=FALSE),
+    data_quality=list(uniqueness_expectations=list("widget_id"),not_null_expectations=list("widget_id"),referential_integrity_expectations=list(),accepted_values=list(),implemented_validations=list()),
+    human_todos=list(list(id="REFERENCE-WIDGET-001",field="curation",severity="future",status="open",text="Review curation process.",resolution=NULL))
+  )
+  jsonlite::write_json(metadata,metadata_path,pretty=TRUE,auto_unbox=TRUE,null="null")
+  list(root=f$root,metadata_path=metadata_path,contract_path=contract_path,ddl_path=ddl_path)
 }
 error_codes <- function(result) vapply(result$errors, `[[`, character(1), "code")
 
@@ -56,6 +78,29 @@ testthat::test_that("orphan metadata and contract fail", {
   testthat::expect_true("orphan_contract" %in% error_codes(validate_data_contract_project(f$root,FALSE)))
 })
 testthat::test_that("repository contracts pass", { testthat::expect_true(validate_data_contract_project(contract_project_root,FALSE)$passed) })
+
+testthat::test_that("Reference objects require contracts and metadata", {
+  f <- make_reference_contract_fixture()
+  result <- validate_data_contract_project(f$root, FALSE)
+  testthat::expect_true(result$passed)
+  testthat::expect_equal(result$counts$reference, 1L)
+
+  unlink(f$metadata_path)
+  testthat::expect_true("missing_metadata" %in% error_codes(validate_data_contract_project(f$root, FALSE)))
+  f <- make_reference_contract_fixture()
+  unlink(f$contract_path)
+  testthat::expect_true("missing_contract" %in% error_codes(validate_data_contract_project(f$root, FALSE)))
+})
+
+testthat::test_that("orphan Reference governance files are detected", {
+  f <- make_reference_contract_fixture()
+  metadata <- read_contract_json(f$metadata_path)
+  metadata$object$name <- "orphan"
+  jsonlite::write_json(metadata,file.path(f$root,"metadata/reference/orphan.json"),auto_unbox=TRUE,null="null")
+  testthat::expect_true("orphan_metadata" %in% error_codes(validate_data_contract_project(f$root,FALSE)))
+  writeLines(fixture_contract(),file.path(f$root,"docs/data-contracts/reference/orphan.md"))
+  testthat::expect_true("orphan_contract" %in% error_codes(validate_data_contract_project(f$root,FALSE)))
+})
 
 testthat::test_that("TODO categories and implementation alignment are governed", {
   f <- make_contract_fixture(); m <- read_contract_json(f$metadata_path)

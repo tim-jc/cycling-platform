@@ -224,12 +224,6 @@ backups:
     - /usr/bin/mysqldump
     - /usr/bin/mariadb-dump
 
-  databases:
-    - cycling_platform_admin
-    - cycling_platform_raw
-    - cycling_platform_silver
-    - cycling_platform_gold
-
 validation:
 
   # Fast checks that block daily publication after Silver transforms

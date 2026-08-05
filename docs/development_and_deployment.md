@@ -248,12 +248,13 @@ is mounted and selected by `CYCLING_PLATFORM_RENVIRON_PATH` / `R_ENVIRON_USER`.
 Do not respond to a missing-variable error by rotating credentials; restore the
 runtime configuration path first.
 
-The application uses five databases and the production user needs only the
+The application uses six databases and the production user needs only the
 required privileges on those databases:
 
 * `cycling_platform_admin`
 * `cycling_platform_raw`
 * `cycling_platform_stage`
+* `cycling_platform_reference`
 * `cycling_platform_silver`
 * `cycling_platform_gold`
 
@@ -279,16 +280,22 @@ In production, execute each command as an ephemeral Compose job:
 docker compose run --rm cycling-platform Rscript bootstrap_platform.R
 ```
 
-Repeat with each subsequent command. Bootstrap creates the five databases,
-tables, and seed metadata; it does not perform historical ingestion or derived
+Repeat with each subsequent command. Infrastructure must first create all six
+databases and grant the application user access. Bootstrap validates that
+readiness, creates platform-owned tables and seed metadata, and applies
+versioned migrations; it does not perform historical ingestion or derived
 layer population. Backfill modes are deliberately excluded from unattended
 daily automation.
 
 The bootstrap connection enters through `cycling_platform_admin`. Therefore a
-brand-new server requires that the deployment/provisioning process create that
-database and grant the application user access before application bootstrap can
-connect. The repository does not currently define that infrastructure-level
-provisioning step.
+brand-new server requires `cycling-infrastructure` to create every required
+database, including `cycling_platform_reference`, with canonical defaults and
+grant application access before application bootstrap can connect. Platform
+bootstrap never silently corrects missing infrastructure.
+
+Production ordering is: deploy infrastructure changes; reconcile the existing
+MariaDB instance; verify Reference and grants; deploy platform; run platform
+validation; produce the first five-database backup; then rehearse recovery.
 
 ## Portability and Compatibility
 

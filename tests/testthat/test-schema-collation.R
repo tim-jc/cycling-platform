@@ -7,9 +7,11 @@ find_project_root <- function() {
   normalizePath(candidate, mustWork = TRUE)
 }
 
+project_root <- find_project_root()
+source(file.path(project_root, "R", "config", "platform_database_inventory.R"))
 source(
   file.path(
-    find_project_root(),
+    project_root,
     "R",
     "validation",
     "validate_platform_completeness.R"
@@ -124,7 +126,13 @@ testthat::test_that("canonical migration covers databases and created tables", {
     collapse = "\n"
   )
 
-  for (schema in platform_database_schemas()) {
+  # Historical migrations remain immutable. Infrastructure owns the new
+  # Reference database default; publication validation governs it thereafter.
+  migration_owned_schemas <- setdiff(
+    platform_database_schemas(),
+    "cycling_platform_reference"
+  )
+  for (schema in migration_owned_schemas) {
     testthat::expect_match(
       migration,
       paste("ALTER DATABASE", schema),

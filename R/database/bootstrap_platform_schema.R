@@ -25,10 +25,10 @@ list_platform_bootstrap_sql_files <- function(project_root = ".") {
 
   unlist(
     list(
-      list_sql_files("install"),
       list_sql_files("admin"),
       list_sql_files("stage"),
       list_sql_files("raw"),
+      list_sql_files("reference", "^[0-9]+_create_.*[.]sql$"),
       list_sql_files("silver", "^[0-9]+_create_.*[.]sql$"),
       list_sql_files("gold", "^[0-9]+_create_.*[.]sql$")
     ),
@@ -45,14 +45,33 @@ list_platform_bootstrap_sql_files <- function(project_root = ".") {
 #' @param project_root Repository root.
 #' @param execute_sql SQL-file executor, injectable for tests.
 #' @param migrate Migration runner, injectable for tests.
+#' @param database_access_findings Required-database access checker.
 #'
 #' @return Invisibly returns created-file and applied-migration details.
 bootstrap_platform_schema <- function(
   connection,
   project_root = ".",
   execute_sql = execute_sql_file,
-  migrate = run_schema_migrations
+  migrate = run_schema_migrations,
+  database_access_findings = platform_database_access_findings
 ) {
+  database_findings <- database_access_findings(connection)
+  if (!is.null(connection)) {
+    try(DBI::dbExecute(connection, "USE `cycling_platform_admin`"), silent = TRUE)
+  }
+  if (nrow(database_findings) > 0L) {
+    stop(
+      "Platform database readiness failed. cycling-infrastructure must create ",
+      "all required databases and grant the application user access before ",
+      "platform bootstrap. Findings: ",
+      paste(
+        paste(database_findings$database_name, database_findings$issue, sep = "="),
+        collapse = "; "
+      ),
+      call. = FALSE
+    )
+  }
+
   sql_files <- list_platform_bootstrap_sql_files(project_root)
 
   message(

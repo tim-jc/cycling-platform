@@ -376,11 +376,15 @@ message("Checking bootstrap excludes transformation SQL...")
 source(file.path("R", "database", "bootstrap_platform_schema.R"))
 bootstrap_sql_files <- list_platform_bootstrap_sql_files()
 derived_bootstrap_files <- bootstrap_sql_files[
-  grepl("/sql/(silver|gold)/", bootstrap_sql_files)
+  grepl("/sql/(reference|silver|gold)/", bootstrap_sql_files)
 ]
 
 if (!all(grepl("^[0-9]+_create_", basename(derived_bootstrap_files)))) {
   fail("bootstrap_platform.R should only run create SQL for derived layers")
+}
+
+if (any(grepl("/sql/install/", bootstrap_sql_files))) {
+  fail("Platform bootstrap must validate databases, not create them")
 }
 
 bootstrap_helper_text <- paste(

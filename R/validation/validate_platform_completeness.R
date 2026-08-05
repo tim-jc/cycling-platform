@@ -15,21 +15,7 @@ platform_validation_has_critical_failures <- function(validation_results) {
 }
 
 platform_database_schemas <- function() {
-  c(
-    "cycling_platform_admin",
-    "cycling_platform_raw",
-    "cycling_platform_stage",
-    "cycling_platform_silver",
-    "cycling_platform_gold"
-  )
-}
-
-platform_canonical_character_set <- function() {
-  "utf8mb4"
-}
-
-platform_canonical_collation <- function() {
-  "utf8mb4_general_ci"
+  platform_required_databases()
 }
 
 platform_silver_working_table_query <- function() {
@@ -550,10 +536,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(13L)
+    return(14L)
   }
 
-  check_count <- 50L
+  check_count <- 51L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -892,6 +878,25 @@ validate_platform_completeness <- function(
   )
 
   checks <- list()
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_check(
+      check_name = "platform_required_databases_accessible",
+      source = "config/platform_databases.tsv",
+      expr = {
+        findings <- platform_database_access_findings(connection)
+        try(DBI::dbExecute(connection, "USE `cycling_platform_admin`"), silent = TRUE)
+        validation_result(
+          check_name = "platform_required_databases_accessible",
+          check_scope = "publication",
+          severity = "CRITICAL",
+          details = findings,
+          query = "USE each database declared in config/platform_databases.tsv"
+        )
+      }
+    )
+  )
 
   checks <- append_validation_result(
     checks,

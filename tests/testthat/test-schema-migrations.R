@@ -262,9 +262,9 @@ testthat::test_that("bootstrap file ordering and reruns are deterministic", {
   second <- list_platform_bootstrap_sql_files(project_root)
 
   testthat::expect_identical(first, second)
-  testthat::expect_true(any(grepl("sql/install/", first, fixed = TRUE)))
+  testthat::expect_false(any(grepl("sql/install/", first, fixed = TRUE)))
   derived_files <- first[
-    grepl("/sql/(silver|gold)/", first)
+    grepl("/sql/(reference|silver|gold)/", first)
   ]
   testthat::expect_true(
     all(grepl("^[0-9]+_create_", basename(derived_files)))
@@ -285,7 +285,8 @@ testthat::test_that("bootstrap file ordering and reruns are deterministic", {
     connection = NULL,
     project_root = project_root,
     execute_sql = execute_sql,
-    migrate = migrate
+    migrate = migrate,
+    database_access_findings = function(...) data.frame()
   )
   first_run <- unlist(executed_runs, use.names = FALSE)
   executed_runs <- list()
@@ -293,10 +294,39 @@ testthat::test_that("bootstrap file ordering and reruns are deterministic", {
     connection = NULL,
     project_root = project_root,
     execute_sql = execute_sql,
-    migrate = migrate
+    migrate = migrate,
+    database_access_findings = function(...) data.frame()
   )
   second_run <- unlist(executed_runs, use.names = FALSE)
 
   testthat::expect_identical(first_run, second_run)
   testthat::expect_identical(migration_runs, 2L)
+})
+
+testthat::test_that("bootstrap stops before object DDL when infrastructure is not ready", {
+  executed <- character()
+  migrations_run <- 0L
+  findings <- data.frame(
+    database_name = "cycling_platform_reference",
+    issue = "missing_database",
+    error = "Unknown database 'cycling_platform_reference'"
+  )
+
+  testthat::expect_error(
+    bootstrap_platform_schema(
+      connection = NULL,
+      project_root = find_migration_project_root(),
+      execute_sql = function(sql_file, connection) {
+        executed <<- c(executed, sql_file)
+      },
+      migrate = function(...) {
+        migrations_run <<- migrations_run + 1L
+      },
+      database_access_findings = function(...) findings
+    ),
+    "cycling-infrastructure must create all required databases"
+  )
+
+  testthat::expect_length(executed, 0L)
+  testthat::expect_identical(migrations_run, 0L)
 })

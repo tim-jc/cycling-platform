@@ -1,0 +1,7 @@
+database_name	domain	durability	backup_included	contract_governed	character_set	collation
+cycling_platform_admin	admin	durable	TRUE	FALSE	utf8mb4	utf8mb4_general_ci
+cycling_platform_raw	raw	durable	TRUE	FALSE	utf8mb4	utf8mb4_general_ci
+cycling_platform_stage	stage	disposable	FALSE	FALSE	utf8mb4	utf8mb4_general_ci
+cycling_platform_reference	reference	durable	TRUE	TRUE	utf8mb4	utf8mb4_general_ci
+cycling_platform_silver	silver	durable	TRUE	TRUE	utf8mb4	utf8mb4_general_ci
+cycling_platform_gold	gold	durable	TRUE	TRUE	utf8mb4	utf8mb4_general_ci

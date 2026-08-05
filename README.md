@@ -47,7 +47,7 @@ The repository root is the platform control panel:
 
 | Command | Responsibility |
 | --- | --- |
-| `Rscript bootstrap_platform.R` | Create platform objects and apply versioned database migrations |
+| `Rscript bootstrap_platform.R` | Verify infrastructure databases, create platform objects, and apply versioned migrations |
 | `Rscript run_raw_ingestion.R <mode>` | Run the complete Raw ingestion layer |
 | `Rscript run_silver.R <full\|repair>` | Rebuild or repair the Silver layer |
 | `Rscript run_platform_validation.R` | Run standalone deep or publication validation |
@@ -60,13 +60,14 @@ operational utilities live under `scripts/` and are indexed in
 
 ## Data Architecture
 
-The platform uses five MariaDB databases:
+The platform uses six MariaDB databases:
 
 | Database | Responsibility |
 | --- | --- |
 | `cycling_platform_admin` | ETL, control, audit, transform, notification, and validation metadata |
 | `cycling_platform_raw` | Source-aligned persisted ingestion |
 | `cycling_platform_stage` | Disposable rebuild and working state |
+| `cycling_platform_reference` | Reusable, deliberately curated canonical platform knowledge |
 | `cycling_platform_silver` | Canonical transformed data |
 | `cycling_platform_gold` | Derived, consumer-facing data products |
 
@@ -79,7 +80,7 @@ The Stage database is intentionally excluded from backups and must not be used
 by consumers. Technical details are in [Platform
 Architecture](docs/architecture.md).
 
-All five databases use the explicit platform standard `utf8mb4` /
+All six databases use the explicit platform standard `utf8mb4` /
 `utf8mb4_general_ci` with InnoDB tables. Schema DDL never relies on a MariaDB
 server default; bootstrap also applies checksum-protected versioned migrations
 needed after upgrades or restores.
