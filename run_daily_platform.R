@@ -1128,6 +1128,10 @@ tryCatch(
       }
     )
 
+    if (identical(run_status, "FAILED") && isTRUE(notification_sent)) {
+      message("CYCLING_PLATFORM_FAILURE_NOTIFICATION_SENT")
+    }
+
     record_phase(
       phase_name = "notification",
       phase_status = if (isTRUE(notification_sent)) "SUCCESS" else "SKIPPED",

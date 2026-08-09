@@ -219,6 +219,24 @@ Production Compose must make the same variable names available to each
 ephemeral job container. The repository `.Renviron` is excluded by
 `.dockerignore`; it is not baked into the image.
 
+The production image contains a self-contained, non-cached renv library at
+`/opt/cycling-platform-library` and makes that library readable to a non-root
+runtime UID. Keeping it outside the application source tree prevents a later
+Docker source-copy layer from replacing the restored packages. This is
+intentional: infrastructure runs ephemeral jobs as the host operator's numeric
+UID/GID so atomic writes through host bind mounts retain the canonical host
+ownership. Do not re-enable a root-home renv cache in the image; cache symlinks
+can be inaccessible when the container runs as the host account and can cause
+runtime package bootstrap attempts against the read-only image library.
+The build installs the `renv.lock` version of `renv` into that project library
+explicitly and fails if it is absent or a different version. Runtime startup
+therefore activates an existing read-only library and never downloads or
+installs packages.
+The immutable application tree and baked R library require only read/execute
+access. Ephemeral home and R temporary state use `/tmp`; persistent job status
+and logs use the dedicated host log mount, while refresh-token rotation uses
+only the dedicated `/run/cycling-platform` credential mount.
+
 Strava can rotate its refresh token, and the application writes the new value
 to the path resolved by `CYCLING_PLATFORM_RENVIRON_PATH`,
 `R_ENVIRON_USER`, or the project `.Renviron`. Production must therefore provide

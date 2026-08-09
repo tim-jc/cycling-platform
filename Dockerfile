@@ -6,7 +6,11 @@ FROM rocker/r-ver:4.4.3
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/London \
     LANG=en_GB.UTF-8 \
-    LC_ALL=en_GB.UTF-8
+    LC_ALL=en_GB.UTF-8 \
+    HOME=/tmp \
+    TMPDIR=/tmp \
+    RENV_PATHS_LIBRARY=/opt/cycling-platform-library \
+    RENV_CONFIG_CACHE_ENABLED=FALSE
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -31,8 +35,10 @@ COPY renv.lock ./
 COPY .Rprofile ./
 COPY renv/ ./renv/
 
-RUN Rscript -e \
-    'install.packages("renv", repos = "https://cloud.r-project.org"); renv::restore(prompt = FALSE)'
+RUN Rscript --vanilla -e \
+    'install.packages("renv", repos = "https://cloud.r-project.org"); lock <- renv::lockfile_read("renv.lock"); project_library <- renv::paths$library(); dir.create(project_library, recursive = TRUE, showWarnings = FALSE); renv::install(paste0("renv@", lock$Packages$renv$Version), library = project_library); renv::restore(library = project_library, prompt = FALSE); description <- read.dcf(file.path(project_library, "renv", "DESCRIPTION")); stopifnot(identical(unname(description[1, "Version"]), lock$Packages$renv$Version))' \
+    && test -z "$(find /opt/cycling-platform-library -type l -print -quit)" \
+    && chmod -R a+rX /opt/cycling-platform-library
 
 COPY . .
 
