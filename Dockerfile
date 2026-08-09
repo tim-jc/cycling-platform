@@ -40,6 +40,13 @@ RUN Rscript --vanilla -e \
     && test -z "$(find /opt/cycling-platform-library -type l -print -quit)" \
     && chmod -R a+rX /opt/cycling-platform-library
 
+# renv's sandbox activation takes a filesystem lock in the R system library.
+# That library is intentionally read-only for the production UID, so disable
+# only the sandbox layer. Project activation and the immutable renv library
+# remain enabled. R_LIBS_USER also exposes the same library to --vanilla checks.
+ENV RENV_CONFIG_SANDBOX_ENABLED=FALSE \
+    R_LIBS_USER=/opt/cycling-platform-library/linux-ubuntu-noble/R-4.4/aarch64-unknown-linux-gnu
+
 COPY . .
 
 RUN mkdir -p logs backups

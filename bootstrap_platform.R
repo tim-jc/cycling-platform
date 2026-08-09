@@ -1,6 +1,8 @@
 # bootstrap_platform.R
 source("bootstrap.R")
 
+message("Platform bootstrap starting.")
+
 connection <- get_connection("cycling_platform_admin")
 
 tryCatch(

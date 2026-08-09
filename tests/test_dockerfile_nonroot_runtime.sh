@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERFILE="$ROOT/Dockerfile"
 
 grep -q 'RENV_CONFIG_CACHE_ENABLED=FALSE' "$DOCKERFILE"
+grep -q 'RENV_CONFIG_SANDBOX_ENABLED=FALSE' "$DOCKERFILE"
+grep -q 'R_LIBS_USER=/opt/cycling-platform-library/' "$DOCKERFILE"
 grep -q 'HOME=/tmp' "$DOCKERFILE"
 grep -q 'TMPDIR=/tmp' "$DOCKERFILE"
 grep -q 'dir.create(project_library, recursive = TRUE' "$DOCKERFILE"
@@ -18,27 +20,62 @@ grep -q 'CYCLING_PLATFORM_FAILURE_NOTIFICATION_SENT' "$ROOT/run_daily_platform.R
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   image="cycling-platform-nonroot-test:local"
   docker build --tag "$image" "$ROOT"
-  runtime_output="$(docker run --rm --network none --user 1000:1000 --entrypoint Rscript "$image" \
-    -e 'stopifnot(requireNamespace("renv", quietly = TRUE)); stopifnot(all(vapply(c("DBI", "dplyr", "httr2", "jsonlite"), requireNamespace, logical(1), quietly = TRUE))); lock <- jsonlite::read_json("renv.lock"); stopifnot(identical(as.character(packageVersion("renv")), lock$Packages$renv$Version)); stopifnot(startsWith(find.package("renv"), "/opt/cycling-platform-library/")); stopifnot(file.access("/opt/cycling-platform", 2L) != 0L); stopifnot(identical(Sys.getenv("HOME"), "/tmp"), startsWith(normalizePath(tempdir(check = TRUE)), "/tmp/")); temporary <- tempfile(); writeLines("ok", temporary); stopifnot(file.exists(temporary)); cat(as.character(packageVersion("renv")), "\n")' 2>&1)"
-  printf '%s\n' "$runtime_output"
-  if grep -q 'Bootstrapping renv' <<<"$runtime_output"; then
+
+  run_bounded() {
+    docker run --rm --network none --user 1000:1000 \
+      --entrypoint timeout "$image" 10s "$@"
+  }
+
+  # R expressions are intentionally single-quoted so shell does not expand `$`.
+  # shellcheck disable=SC2016
+  normal_output="$(run_bounded Rscript -e \
+    'stopifnot(requireNamespace("renv", quietly = TRUE)); stopifnot(all(vapply(c("DBI", "dplyr", "httr2", "jsonlite"), requireNamespace, logical(1), quietly = TRUE))); lock <- jsonlite::read_json("renv.lock"); stopifnot(identical(as.character(packageVersion("renv")), lock$Packages$renv$Version)); stopifnot(startsWith(find.package("renv"), "/opt/cycling-platform-library/")); stopifnot(file.access("/opt/cycling-platform", 2L) != 0L); stopifnot(identical(Sys.getenv("HOME"), "/tmp"), startsWith(normalizePath(tempdir(check = TRUE)), "/tmp/")); temporary <- tempfile(); writeLines("ok", temporary); stopifnot(file.exists(temporary)); cat("LIBRARY=", normalizePath(.libPaths()[[1]]), "\n", sep="")' 2>&1)"
+  vanilla_output="$(run_bounded Rscript --vanilla -e \
+    'stopifnot(requireNamespace("renv", quietly = TRUE)); cat("LIBRARY=", normalizePath(.libPaths()[[1]]), "\n", sep="")' 2>&1)"
+  printf '%s\n' "$normal_output" "$vanilla_output"
+
+  normal_library="$(grep '^LIBRARY=' <<<"$normal_output")"
+  vanilla_library="$(grep '^LIBRARY=' <<<"$vanilla_output")"
+  [[ "$normal_library" == "$vanilla_library" ]]
+
+  if grep -Eqi 'Bootstrapping renv|Downloading renv|Installing renv' \
+    <<<"$normal_output$vanilla_output"; then
     printf '%s\n' 'non-root runtime unexpectedly attempted to bootstrap renv' >&2
     exit 1
   fi
 
-  docker run --rm --network none --user 1000:1000 \
+  set +e
+  bootstrap_output="$(run_bounded Rscript bootstrap_platform.R 2>&1)"
+  bootstrap_status=$?
+  daily_output="$(run_bounded Rscript run_daily_platform.R invalid-startup-probe 2>&1)"
+  daily_status=$?
+  set -e
+  [[ "$bootstrap_status" != 124 ]]
+  [[ "$daily_status" != 124 ]]
+  grep -q '^Platform bootstrap starting\.$' <<<"$bootstrap_output"
+  grep -q '^Error: Unknown automation raw mode\.' <<<"$daily_output"
+  if grep -Eqi 'Bootstrapping renv|Downloading renv|Installing renv' \
+    <<<"$bootstrap_output$daily_output"; then
+    printf '%s\n' 'application startup unexpectedly attempted to bootstrap renv' >&2
+    exit 1
+  fi
+
+  if ! docker run --rm --network none --user 1000:1000 \
     --tmpfs /run/cycling-platform:rw,uid=1000,gid=1000,mode=0700 \
     --entrypoint sh "$image" -c '
       credential=/run/cycling-platform/runtime.Renviron
       printf "%s\n" "STRAVA_REFRESH_TOKEN=before" "GOOGLE_HEALTH_REFRESH_TOKEN=preserve" > "$credential"
       chmod 0600 "$credential"
       export R_ENVIRON_USER="$credential"
-      Rscript -e "source(\"bootstrap.R\"); update_renviron(STRAVA_REFRESH_TOKEN = \"after\")"
+      Rscript -e "source(\"bootstrap.R\"); update_renviron(\"STRAVA_REFRESH_TOKEN\", \"after\")"
       test "$(stat -c "%u:%g" "$credential")" = "1000:1000"
       test "$(stat -c "%a" "$credential")" = "600"
       grep -q "^STRAVA_REFRESH_TOKEN=after$" "$credential"
       grep -q "^GOOGLE_HEALTH_REFRESH_TOKEN=preserve$" "$credential"
-    '
+    '; then
+    printf '%s\n' 'runtime credential ownership test failed' >&2
+    exit 1
+  fi
 else
   printf '%s\n' 'non-root image integration test: skipped (Docker daemon unavailable)'
 fi

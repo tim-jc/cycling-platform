@@ -232,6 +232,13 @@ The build installs the `renv.lock` version of `renv` into that project library
 explicitly and fails if it is absent or a different version. Runtime startup
 therefore activates an existing read-only library and never downloads or
 installs packages.
+The container disables only renv's sandbox layer with
+`RENV_CONFIG_SANDBOX_ENABLED=FALSE`. The sandbox normally locks and manages the
+R system library, which is deliberately read-only under the production UID;
+renv 1.1.8 otherwise repeatedly retries that lock during `renv::load()`.
+Normal project activation remains enabled. `R_LIBS_USER` points at the same
+immutable library so `Rscript --vanilla` diagnostics resolve baked packages
+without relying on `.Rprofile`.
 The immutable application tree and baked R library require only read/execute
 access. Ephemeral home and R temporary state use `/tmp`; persistent job status
 and logs use the dedicated host log mount, while refresh-token rotation uses
