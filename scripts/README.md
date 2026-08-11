@@ -29,6 +29,14 @@ classification audits.
 `contracts/generate_metadata.R` refreshes generated physical metadata and
 `contracts/validate.R` validates managed data contracts.
 
+## Reference
+
+`reference/publish_planned_events.R` validates and atomically publishes all
+curated planned-event YAML, then reconciles the result.
+`reference/validate_planned_events.R` performs read-only YAML/database
+reconciliation. See `docs/reference_planned_events.md` for authoring and
+deployment.
+
 ## Operations
 
 `operations/run_notifications.R` manages achievement notification queueing and

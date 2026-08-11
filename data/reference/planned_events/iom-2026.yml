@@ -1,0 +1,27 @@
+event_key: iom-2026
+event_name: Isle of Man
+start_date: "2026-10-03"
+end_date: "2026-10-04"
+event_type: Two day trip
+coaching_intent: plan_around
+overall_objective: Cycle perimeter for coastal miles on day 1, perform well in TTT day 2
+location: Isle of Man
+context: Variable weather conditions likely
+notes: null
+is_cancelled: false
+stages:
+    - stage_key: coastal-route
+      stage_date: "2026-10-03"
+      stage_name: Coastal route
+      planned_distance_metres: 140000
+      planned_elevation_gain_metres: 2300
+      terrain_surface_context: Exposed paved coastal roads.
+      stage_objective: Complete comfortably and preserve energy for tomorrow.
+      
+    - stage_key: ttt
+      stage_date: "2026-10-04"
+      stage_name: Team Time Trial
+      planned_distance_metres: 60000
+      planned_elevation_gain_metres: 1200
+      terrain_surface_context: Exposed paved coastal roads.
+      stage_objective: Best performance in TTT

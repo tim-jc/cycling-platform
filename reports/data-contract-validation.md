@@ -1,10 +1,10 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-09 05:58:25 BST
+- Validation timestamp: 2026-08-11 11:54:15 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 4
 - Managed Gold objects: 2
-- Managed Reference objects: 0
+- Managed Reference objects: 2
 - Missing contracts: 0
 - Missing metadata: 0
 - Schema mismatches: 0
@@ -15,7 +15,7 @@
 
 ## Objects by lifecycle status
 
-- implemented: 5
+- implemented: 7
 - semantically_reviewed: 1
 
 ## Open blocking TODOs

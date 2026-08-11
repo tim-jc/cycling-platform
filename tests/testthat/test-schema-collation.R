@@ -160,8 +160,14 @@ testthat::test_that("canonical migration covers databases and created tables", {
     )
   )[[1]]
   created_tables <- sort(unique(matches))
+  # New Reference objects are authoritative idempotent create definitions.
+  # Immutable migrations are added only for later alterations to deployed
+  # objects, so initial Reference tables do not require duplicate migrations.
+  migration_owned_tables <- created_tables[
+    !startsWith(created_tables, "cycling_platform_reference.")
+  ]
 
-  for (table_name in created_tables) {
+  for (table_name in migration_owned_tables) {
     testthat::expect_match(
       migration,
       paste("ALTER TABLE", table_name),

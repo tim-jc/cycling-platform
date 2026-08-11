@@ -1,7 +1,19 @@
 # Reference data contracts
 
 Reference contains reusable, deliberately curated platform knowledge that does
-not originate as an external observation. No Reference objects currently exist.
+not originate as an external observation.
+
+Current managed contracts:
+
+- [`planned_events.md`](planned_events.md): curated planned-event domain and
+  event object.
+- [`planned_event_stages.md`](planned_event_stages.md): optional separately
+  useful planned riding units.
+
+Supporting design record:
+
+- [`planned_events-physical-design.md`](planned_events-physical-design.md):
+  reviewed v1 physical decisions that informed implementation.
 
 Every future object requires DDL under `sql/reference/`, JSON metadata under
 `metadata/reference/`, and a semantic contract in this directory. Its contract

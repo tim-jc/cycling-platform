@@ -33,6 +33,8 @@ r_files <- c(
   file.path("scripts", "contracts", "generate_metadata.R"),
   file.path("scripts", "operations", "show_job_status.R"),
   file.path("scripts", "contracts", "validate.R"),
+  file.path("scripts", "reference", "publish_planned_events.R"),
+  file.path("scripts", "reference", "validate_planned_events.R"),
   "run_silver.R",
   "run_platform_validation.R"
 )

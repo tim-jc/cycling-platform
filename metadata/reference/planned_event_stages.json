@@ -1,0 +1,190 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "reference",
+    "database_schema": "cycling_platform_reference",
+    "name": "planned_event_stages",
+    "type": "table",
+    "ddl_path": "sql/reference/020_create_planned_event_stages.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/reference/planned_event_stages.md",
+    "semantic_review_status": "reviewed",
+    "semantic_status": "agreed",
+    "implementation_status": "aligned",
+    "alignment_status": "aligned",
+    "last_verified_date": "2026-08-11"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "planned_event_stage_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "planned_event_id",
+        "ordinal_position": 2,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "stage_key",
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "stage_date",
+        "ordinal_position": 4,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "stage_name",
+        "ordinal_position": 5,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(200)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "planned_distance_metres",
+        "ordinal_position": 6,
+        "data_type": "decimal",
+        "raw_data_type": "DECIMAL(10,0)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "planned_elevation_gain_metres",
+        "ordinal_position": 7,
+        "data_type": "decimal",
+        "raw_data_type": "DECIMAL(10,0)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "terrain_surface_context",
+        "ordinal_position": 8,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "stage_objective",
+        "ordinal_position": 9,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "created_at",
+        "ordinal_position": 10,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "updated_at",
+        "ordinal_position": 11,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "planned_event_stage_id",
+    "unique_constraints": [
+      {
+        "name": "uq_reference_planned_event_stages_key",
+        "columns": ["planned_event_id", "stage_key"]
+      }
+    ]
+  },
+  "lineage": {
+    "source_objects": [
+      "reference.planned_events",
+      "repository_yaml.data/reference/planned_events.stages"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "R/reference/planned_events.R",
+      "scripts/reference/publish_planned_events.R",
+      "scripts/reference/validate_planned_events.R"
+    ],
+    "transformation_functions": [
+      "read_planned_events_dataset",
+      "publish_planned_events",
+      "validate_planned_events_publication"
+    ],
+    "transformation_description": "Validates optional nested YAML stages and atomically upserts or reconciles them within each successfully declared parent event.",
+    "authorship": "human_authored",
+    "confidence": "high",
+    "review_required": false
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "planned_event_stage_id is unique",
+      "planned_event_id and stage_key are unique together"
+    ],
+    "not_null_expectations": [
+      "planned_event_stage_id",
+      "planned_event_id",
+      "stage_key",
+      "created_at",
+      "updated_at"
+    ],
+    "referential_integrity_expectations": [
+      "planned_event_id resolves to reference.planned_events.planned_event_id"
+    ],
+    "accepted_values": [
+      "planned metrics are null or non-negative exact whole metres"
+    ],
+    "implemented_validations": [
+      "MariaDB primary, unique, foreign-key, CHECK and not-null constraints",
+      "duplicate stage keys rejected before transaction",
+      "post-publication YAML/database reconciliation",
+      "undeclared stage detection and removal",
+      "unchanged rows are not updated"
+    ]
+  },
+  "human_todos": []
+}

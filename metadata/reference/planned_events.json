@@ -1,0 +1,232 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {
+    "schema": "reference",
+    "database_schema": "cycling_platform_reference",
+    "name": "planned_events",
+    "type": "table",
+    "ddl_path": "sql/reference/010_create_planned_events.sql"
+  },
+  "governance": {
+    "owner": "cycling-platform",
+    "lifecycle": "implemented",
+    "contract_path": "docs/data-contracts/reference/planned_events.md",
+    "semantic_review_status": "reviewed",
+    "semantic_status": "agreed",
+    "implementation_status": "aligned",
+    "alignment_status": "aligned",
+    "last_verified_date": "2026-08-11"
+  },
+  "physical_schema": {
+    "authority": "repository_ddl",
+    "columns": [
+      {
+        "name": "planned_event_id",
+        "ordinal_position": 1,
+        "data_type": "bigint",
+        "raw_data_type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": true,
+        "unique": true
+      },
+      {
+        "name": "event_key",
+        "ordinal_position": 2,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": true
+      },
+      {
+        "name": "event_name",
+        "ordinal_position": 3,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(200)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "start_date",
+        "ordinal_position": 4,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "end_date",
+        "ordinal_position": 5,
+        "data_type": "date",
+        "raw_data_type": "DATE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "event_type",
+        "ordinal_position": 6,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(150)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "coaching_intent",
+        "ordinal_position": 7,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "overall_objective",
+        "ordinal_position": 8,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "location",
+        "ordinal_position": 9,
+        "data_type": "varchar",
+        "raw_data_type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "context",
+        "ordinal_position": 10,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "notes",
+        "ordinal_position": 11,
+        "data_type": "text",
+        "raw_data_type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "is_cancelled",
+        "ordinal_position": 12,
+        "data_type": "boolean",
+        "raw_data_type": "TINYINT(1)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "created_at",
+        "ordinal_position": 13,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      },
+      {
+        "name": "updated_at",
+        "ordinal_position": 14,
+        "data_type": "datetime",
+        "raw_data_type": "DATETIME",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP",
+        "primary_key": false,
+        "unique": false
+      }
+    ],
+    "primary_key": "planned_event_id",
+    "unique_constraints": [
+      {
+        "name": "uq_reference_planned_events_key",
+        "columns": "event_key"
+      }
+    ]
+  },
+  "lineage": {
+    "source_objects": [
+      "repository_yaml.data/reference/planned_events"
+    ],
+    "source_columns": [],
+    "transformation_files": [
+      "R/reference/planned_events.R",
+      "scripts/reference/publish_planned_events.R",
+      "scripts/reference/validate_planned_events.R"
+    ],
+    "transformation_functions": [
+      "read_planned_events_dataset",
+      "publish_planned_events",
+      "validate_planned_events_publication"
+    ],
+    "transformation_description": "Validates the complete curated YAML dataset and atomically publishes changed event rows without rewriting unchanged records.",
+    "authorship": "human_authored",
+    "confidence": "high",
+    "review_required": false
+  },
+  "data_quality": {
+    "uniqueness_expectations": [
+      "planned_event_id is unique",
+      "event_key is globally unique"
+    ],
+    "not_null_expectations": [
+      "planned_event_id",
+      "event_key",
+      "event_name",
+      "start_date",
+      "event_type",
+      "coaching_intent",
+      "is_cancelled",
+      "created_at",
+      "updated_at"
+    ],
+    "referential_integrity_expectations": [],
+    "accepted_values": [
+      "coaching_intent is prepare_for or plan_around",
+      "is_cancelled is 0 or 1",
+      "end_date is null or not before start_date"
+    ],
+    "implemented_validations": [
+      "MariaDB primary, unique, CHECK and not-null constraints",
+      "full-dataset YAML validation before transaction",
+      "post-publication YAML/database reconciliation",
+      "unchanged rows are not updated"
+    ]
+  },
+  "human_todos": [
+    {
+      "id": "REFERENCE-PLANNED_EVENTS-025",
+      "field": "physical_guarantees",
+      "category": "quality_rule",
+      "severity": "non_blocking",
+      "status": "resolved",
+      "text": "Classify candidate v1 guarantees between database, loader/validator and semantic-contract enforcement.",
+      "resolution": "Simple structural integrity is database-enforced; publication, null-preservation and idempotency rules are loader/validator-enforced; same-day and domain-boundary meaning remains semantic."
+    }
+  ]
+}

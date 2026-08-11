@@ -1,0 +1,13 @@
+# Event-only, multi-day example. Rename this file to <event_key>.yml.
+event_key: crete-2026
+event_name: Example cycling trip
+start_date: "2026-09-19"
+end_date: "2026-09-26"
+event_type: family holiday with some cycling. riding mist days but typically 1h30m. 
+coaching_intent: plan_around
+overall_objective: Enjoy some climbing opportunities, derive some training benefit if possible 
+location: Crete
+context: Warm conditions and sustained climbing may affect recovery.
+notes: null
+is_cancelled: false
+stages: []

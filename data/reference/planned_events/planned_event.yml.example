@@ -1,0 +1,27 @@
+# Event-only, multi-day example. Rename this file to <event_key>.yml.
+event_key: example-trip
+event_name: Example cycling trip
+start_date: "2027-05-10"
+end_date: "2027-05-17"
+event_type: mountain cycling holiday
+coaching_intent: plan_around
+overall_objective: Enjoy the riding while managing fatigue across the trip.
+location: Example Island
+context: Warm conditions and sustained climbing may affect recovery.
+notes: null
+is_cancelled: false
+stages: []
+
+# A stage-enabled event uses entries shaped as follows:
+# stages:
+#   - stage_key: coastal-route
+#     stage_date: "2027-05-12"
+#     stage_name: Coastal route
+#     planned_distance_metres: 85000
+#     planned_elevation_gain_metres: 1200
+#     terrain_surface_context: Exposed paved coastal roads.
+#     stage_objective: Complete comfortably and preserve energy for tomorrow.
+#
+# One-day event example:
+# start_date: "2027-07-24"
+# end_date: null
