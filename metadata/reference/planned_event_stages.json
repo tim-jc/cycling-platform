@@ -147,11 +147,15 @@
     "source_columns": [],
     "transformation_files": [
       "R/reference/planned_events.R",
+      "R/reference/publish_reference_data.R",
+      "scripts/reference/publish_reference_data.R",
       "scripts/reference/publish_planned_events.R",
       "scripts/reference/validate_planned_events.R"
     ],
     "transformation_functions": [
       "read_planned_events_dataset",
+      "publish_reference_data",
+      "run_planned_events_publication",
       "publish_planned_events",
       "validate_planned_events_publication"
     ],

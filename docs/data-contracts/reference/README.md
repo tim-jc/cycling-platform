@@ -15,6 +15,11 @@ Supporting design record:
 - [`planned_events-physical-design.md`](planned_events-physical-design.md):
   reviewed v1 physical decisions that informed implementation.
 
+Repository-owned Reference YAML is published at platform deployment through
+`Rscript scripts/reference/publish_reference_data.R`. It is deliberately not
+part of scheduled ingestion. The aggregate entry point is platform-owned and
+explicitly sequences each Reference dataset publisher.
+
 Every future object requires DDL under `sql/reference/`, JSON metadata under
 `metadata/reference/`, and a semantic contract in this directory. Its contract
 must explain:

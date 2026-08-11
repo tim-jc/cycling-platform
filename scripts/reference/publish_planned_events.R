@@ -1,11 +1,7 @@
 #!/usr/bin/env Rscript
 source("bootstrap.R")
 
-events <- read_planned_events_dataset()
-connection <- get_connection("cycling_platform_reference")
-on.exit(DBI::dbDisconnect(connection), add = TRUE)
-
-result <- publish_planned_events(connection, events)
+result <- run_planned_events_publication()
 
 message(
   "Reference planned-events publication complete: events inserted ",

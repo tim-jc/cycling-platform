@@ -31,8 +31,13 @@ classification audits.
 
 ## Reference
 
-`reference/publish_planned_events.R` validates and atomically publishes all
-curated planned-event YAML, then reconciles the result.
+`reference/publish_reference_data.R` is the canonical production entry point
+for all platform-owned, version-controlled Reference datasets. It currently
+orchestrates planned events.
+
+`reference/publish_planned_events.R` remains a focused development and testing
+entry point that atomically publishes planned-event YAML and reconciles the
+result.
 `reference/validate_planned_events.R` performs read-only YAML/database
 reconciliation. See `docs/reference_planned_events.md` for authoring and
 deployment.

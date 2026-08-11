@@ -30,14 +30,23 @@ route links, training prescriptions or plan-versus-actual state.
 
 6. Review the Git diff and deploy through the normal infrastructure workflow.
 7. Bootstrap the platform schema through deployment.
-8. Publish and validate inside the application container:
+8. Production deployment publishes and validates all platform-owned Reference
+   data through the canonical aggregate entry point:
 
-       Rscript scripts/reference/publish_planned_events.R
-       Rscript scripts/reference/validate_planned_events.R
+       Rscript scripts/reference/publish_reference_data.R
 
-The publisher parses and validates every top-level YAML file before opening one
-transaction. It then publishes the complete discovered dataset atomically and
-runs observational reconciliation after commit.
+The aggregate currently invokes planned events only. Its planned-event
+publisher parses and validates every top-level YAML file before opening one
+transaction, publishes the complete discovered dataset atomically, and runs
+observational reconciliation after commit. A validation failure propagates from
+the aggregate command as a non-zero process exit.
+
+The focused commands remain useful during development:
+
+    Rscript scripts/reference/publish_planned_events.R
+    Rscript scripts/reference/validate_planned_events.R
+
+Production operators should normally use the aggregate command.
 
 ## Normal edits
 
@@ -90,8 +99,11 @@ infer stage order from IDs, YAML order or response order.
 
        Rscript scripts/contracts/validate.R
 
-3. Add or review approved event YAML.
-4. Publish and validate using the commands above.
+3. Add or review approved event YAML before committing the deployed revision.
+4. Publish and validate all Reference data:
+
+       Rscript scripts/reference/publish_reference_data.R
+
 5. Query upcoming events and stages using a read-only consumer connection.
 6. Confirm Reference is included in the next logical off-host backup.
 
@@ -100,3 +112,16 @@ definitions, not a duplicate migration. Later alterations require an immutable
 forward migration. MariaDB DDL auto-commits; after real curation, rollback
 normally means rolling back application code while retaining the Reference
 tables and data.
+
+## Deployment publication boundary
+
+Repository-owned curated Reference data is published when a platform revision
+is deployed, not by routine source ingestion or scheduled daily automation.
+Reference changes with version-controlled repository content; Raw ingestion
+changes independently with source systems.
+
+Infrastructure owns when the aggregate command runs, while the platform owns
+the ordered list of Reference publishers. A future Reference dataset should add
+its focused publisher to `publish_reference_data()`. It should retain its own
+transaction and validation boundary; the aggregate does not create one
+cross-dataset transaction.

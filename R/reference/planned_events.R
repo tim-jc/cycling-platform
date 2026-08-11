@@ -626,3 +626,19 @@ get_planned_event_stages <- function(
     params = list(planned_event_id)
   )
 }
+
+run_planned_events_publication <- function(
+  events = read_planned_events_dataset(),
+  connection = NULL,
+  connect = get_connection,
+  disconnect = DBI::dbDisconnect,
+  publisher = publish_planned_events
+) {
+  owns_connection <- is.null(connection)
+  if (owns_connection) {
+    connection <- connect("cycling_platform_reference")
+    on.exit(disconnect(connection), add = TRUE)
+  }
+
+  publisher(connection, events)
+}
