@@ -25,3 +25,4 @@ stages:
       planned_elevation_gain_metres: 1200
       terrain_surface_context: Exposed paved coastal roads.
       stage_objective: Best performance in TTT
+      
