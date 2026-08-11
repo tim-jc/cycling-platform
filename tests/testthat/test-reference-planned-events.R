@@ -330,6 +330,28 @@ testthat::test_that("valid events, stages and missing values normalise", {
   testthat::expect_false(event$is_cancelled)
 })
 
+testthat::test_that("SQL parameters represent nulls as length-one typed NA", {
+  event <- normalise_planned_event(valid_planned_event(
+    stages = list(valid_planned_stage(
+      stage_date = NULL,
+      stage_name = NULL,
+      planned_distance_metres = NULL,
+      planned_elevation_gain_metres = NULL,
+      terrain_surface_context = NULL,
+      stage_objective = NULL
+    ))
+  ))
+  event_params <- planned_event_params(event)
+  stage_params <- planned_stage_params(event$stages[[1]], 42L)
+
+  testthat::expect_true(all(lengths(event_params) == 1L))
+  testthat::expect_true(all(lengths(stage_params) == 1L))
+  testthat::expect_identical(event_params[[10]], NA_character_)
+  testthat::expect_identical(stage_params[[3]], NA_character_)
+  testthat::expect_identical(stage_params[[5]], NA_real_)
+  testthat::expect_identical(stage_params[[6]], NA_real_)
+})
+
 testthat::test_that("invalid event and stage values are rejected", {
   testthat::expect_error(
     normalise_planned_event(valid_planned_event(start_date = "2027-02-30")),

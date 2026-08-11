@@ -291,18 +291,40 @@ planned_row_matches <- function(authored, database_row, fields) {
   }, logical(1)))
 }
 
-planned_event_params <- function(event) {
-  unname(c(
-    event[c("event_key", planned_event_fields()[1:9])],
-    list(as.integer(event$is_cancelled))
+planned_database_param <- function(value, field) {
+  if (!is.null(value)) return(value)
+  if (field %in% c(
+    "planned_distance_metres",
+    "planned_elevation_gain_metres"
+  )) {
+    return(NA_real_)
+  }
+  if (field == "is_cancelled") return(NA_integer_)
+  NA_character_
+}
+
+planned_database_params <- function(value, fields) {
+  unname(lapply(
+    fields,
+    function(field) planned_database_param(value[[field]], field)
   ))
 }
 
+planned_event_params <- function(event) {
+  c(
+    planned_database_params(
+      event,
+      c("event_key", planned_event_fields()[1:9])
+    ),
+    list(as.integer(event$is_cancelled))
+  )
+}
+
 planned_stage_params <- function(stage, planned_event_id) {
-  unname(c(
+  c(
     list(planned_event_id, stage$stage_key),
-    stage[planned_event_stage_fields()]
-  ))
+    planned_database_params(stage, planned_event_stage_fields())
+  )
 }
 
 publish_planned_events <- function(
@@ -371,10 +393,13 @@ publish_planned_events <- function(
             "coaching_intent = ?, overall_objective = ?, location = ?,",
             "context = ?, notes = ?, is_cancelled = ? WHERE event_key = ?"
           ),
-          params = unname(c(
-            event[planned_event_fields()[1:9]],
+          params = c(
+            planned_database_params(
+              event,
+              planned_event_fields()[1:9]
+            ),
             list(as.integer(event$is_cancelled), event$event_key)
-          ))
+          )
         )
         stats$updated_events <- stats$updated_events + 1L
       }
@@ -423,10 +448,13 @@ publish_planned_events <- function(
               "stage_objective = ?",
               "WHERE planned_event_id = ? AND stage_key = ?"
             ),
-            params = unname(c(
-              stage[planned_event_stage_fields()],
+            params = c(
+              planned_database_params(
+                stage,
+                planned_event_stage_fields()
+              ),
               list(planned_event_id, stage$stage_key)
-            ))
+            )
           )
           stats$updated_stages <- stats$updated_stages + 1L
         }
