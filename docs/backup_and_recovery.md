@@ -17,10 +17,12 @@ Backup timing, retention and client configuration exists in
 `config/platform.yml`. The durable database set comes from
 `config/platform_databases.tsv`, the shared platform database inventory.
 
-The backup implementation is `scripts/backup_mariadb.sh`. It creates
+The physical dump implementation is `scripts/backup_mariadb.sh`. Normal
+operations enter through `scripts/run_backup_workflow.sh backup`, which creates
 timestamped compressed `mysqldump` backups for the configured platform
 databases, applies local retention cleanup, and reconciles the retained files
-against durable operational metadata.
+against durable operational metadata. The wrapper adds proactive metadata-only
+failure/freshness alerting without changing the dump format.
 
 The intended job runs on the Mac, connects across the network to MariaDB on
 `cycling-prod`, and stores dumps under the Mac checkout (or another configured
@@ -54,10 +56,10 @@ Reference. Restore orchestration remains owned by `cycling-infrastructure`.
 
 ## Manual Backup
 
-Run from the project root:
+Run from the project root through the operational wrapper:
 
 ```sh
-scripts/backup_mariadb.sh
+scripts/run_backup_workflow.sh backup
 ```
 
 The script reads MariaDB connection settings from environment variables. If a
@@ -87,7 +89,8 @@ Optional values:
 
 The script resolves the dump client from `backups.dump_command_candidates`,
 then falls back to `mysqldump` or `mariadb-dump` on `PATH`. This is needed
-because cron often runs with a much smaller `PATH` than an interactive shell.
+because scheduled launch agents often run with a much smaller `PATH` than an
+interactive shell.
 
 Before dumping any database, the script performs a TCP connectivity preflight
 to `MARIADB_HOST:MARIADB_PORT` when `nc` is available. If the Raspberry Pi is
@@ -144,10 +147,17 @@ is promoted to the final `.sql.gz` name only after:
 This verifies that the compressed dump was written cleanly. It is not a full
 restore test; restore verification remains a separate operational task.
 
-Retention cleanup removes:
+Retention cleanup groups recognised filenames by exact run prefix. It removes
+expired complete or incomplete prefixes as sets rather than aging individual
+files independently. It:
 
-* completed `*.sql.gz` backups older than `backups.retention_days`
-* stale `*.sql.gz.tmp` files older than
+* never removes the newest valid complete four- or five-file recovery set,
+  even when it is older than `backups.retention_days`
+* recognises retained historical four-file and current five-file generations
+  (after the first retained five-file set, later four-file prefixes are
+  incomplete current runs, not historical sets)
+* never promotes an incomplete prefix into `latest_success.json`
+* removes stale `*.sql.gz.tmp` files older than
   `backups.temporary_file_retention_days`
 
 After cleanup, the Mac compares physical `*.sql.gz` files with successful
@@ -171,10 +181,24 @@ If metadata recording fails after dumps succeed, the verified files and local
 success artefact remain in place and the script exits with an error. It does
 not delete a valid new backup merely because observability failed.
 
-### macOS cron runtime
+## Recovery authority and restored Admin lag
+
+The verified Mac inventory and `backups/latest_success.json` are authoritative
+for identifying the newest verified physical recovery point available.
+Admin backup tables are platform observability/history, not the physical
+inventory. Admin is dumped before the current run records its own success, so a
+restored Admin dump necessarily cannot describe the complete set containing it.
+
+A recovered Pi can therefore report stale or missing Admin backup metadata
+while newer complete recovery sets exist on the Mac. Verify
+`latest_success.json` and the exact-prefix Mac files before concluding that the
+physical recovery asset is stale. A later successful backup reconciles Admin
+observability. The Pi remains deliberately uncoupled from the Mac filesystem.
+
+### macOS scheduled runtime
 
 The checkout is under the macOS-protected `Documents` folder. To avoid granting
-Full Disk Access to cron or R, the shell wrapper copies application code and
+Full Disk Access to scheduled R, the shell wrapper copies application code and
 configuration, including the small symlink-based renv project library, to
 `/tmp/cycling-platform-backup-runtime-$$` with `rsync`.
 Backup files themselves are not copied. The shell writes a small TSV inventory
@@ -185,7 +209,7 @@ standard input (`Rscript - < finalize_backup_observability.R`). It writes the
 JSON artefact in `/tmp`, records Admin metadata, and reconciles the supplied
 inventory. The shell then atomically copies the JSON artefact back to the Mac
 backup directory and removes the temporary project. This is the same
-protected-folder workaround used by the cycling-analytics cron workflow.
+protected-folder workaround used by the cycling-analytics scheduled workflow.
 
 ## Freshness and Notifications
 
@@ -203,6 +227,18 @@ Freshness is healthy through 30 hours, stale above 30 hours, and critical above
 are added to existing notifications—there is no separate success notification
 or notification channel.
 
+The Mac wrapper separately sends proactive ntfy attention notifications for
+physical dump/verification failure, observability/finalizer failure after dumps
+verify, and missing, malformed, incomplete, stale or critical
+`latest_success.json` state. The hourly check also confirms that every file
+named by the artefact still exists and is non-empty (five for current artefacts,
+or four for a retained historical artefact); it does not repeatedly decompress
+the large dumps.
+Messages contain only host, fixed failure class, freshness/age and prefix—not
+credentials, dumps or arbitrary errors. Fingerprints in
+`backups/.alert-state` suppress unchanged alerts. Notification failure never
+replaces the backup exit status, and no success notification is sent.
+
 Because the platform runs at 02:00, validation at 03:30, and the Mac backup at
 05:00, Pi notifications normally describe the previous day's 05:00 backup.
 That is intentional: the check asks whether the off-host backup regime is
@@ -218,23 +254,37 @@ docker compose run --rm cycling-platform Rscript bootstrap_platform.R
 The backup finalizer also uses idempotent table creation, but applying schema
 changes during deployment avoids a temporary “observability unavailable” line.
 
-## Mac Scheduling
+## Mac Scheduling with launchd
 
 Schedule backups on the Mac, not on `cycling-prod`. This is deliberately
 different from ingestion and validation, whose production schedules belong on
 `cycling-prod`.
 
-Example:
+Install or update the user LaunchAgents:
 
-```cron
-0 5 * * * /path/to/cycling-platform/scripts/backup_mariadb.sh >> /path/to/cycling-platform/logs/database_backup.log 2>&1
+```sh
+scripts/install_backup_launchd.sh render
+scripts/install_backup_launchd.sh install
+scripts/install_backup_launchd.sh status
 ```
 
-Cron should use absolute paths. The script sets a constrained `PATH`, loads the
-project `.Renviron`, resolves the dump client from configured locations, uses a
-lock directory to avoid overlapping backups, and removes stale locks after the
-configured maximum age. On macOS, the cron process also needs filesystem
-permission to read the checkout and write the backup directory.
+The 05:00 calendar job is coalesced by launchd after ordinary sleep/wake. An
+hourly, run-at-load health agent checks the authoritative Mac artefact, so a
+missed run can alert even though no backup process failed. Existing locks
+prevent overlap.
+
+The installer renders absolute paths, validates plists, updates both agents
+idempotently and removes only superseded Mac backup cron lines. It preserves Pi
+cron and unrelated Mac jobs. Plists contain no secrets; the wrapper loads the
+project `.Renviron`. Logs are `logs/backup-launchd.log` and
+`logs/backup-health-launchd.log`.
+
+Disable or re-enable with:
+
+```sh
+scripts/install_backup_launchd.sh uninstall
+scripts/install_backup_launchd.sh install
+```
 
 The backup time does not need to share the production application schedule, but
 avoid known maintenance/restart windows and verify that MariaDB is reachable.

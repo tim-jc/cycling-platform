@@ -48,6 +48,11 @@ deployment.
 delivery. `operations/show_job_status.R` reads durable status for long-running
 manual jobs.
 
-Backup tooling remains together at `backup_mariadb.sh` and
-`finalize_backup_observability.R`. The root-level shell wrappers in this
-directory are retained compatibility and host-orchestration tools.
+`run_backup_workflow.sh` is the normal Mac operator/scheduler entry point for
+the physical backup (`backup`) and freshness-only check (`check`). It wraps the
+established `backup_mariadb.sh` dump implementation, while
+`finalize_backup_observability.R` publishes the verified status artefact and
+Admin history. `install_backup_launchd.sh` renders, installs, inspects and
+removes the two user launch agents from the version-controlled templates in
+`config/launchd/`. See `docs/backup_and_recovery.md` before changing the live
+Mac schedule.

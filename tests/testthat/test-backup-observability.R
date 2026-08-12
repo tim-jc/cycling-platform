@@ -271,6 +271,138 @@ testthat::test_that("historical four-database backup sets remain recognised", {
   testthat::expect_equal(result$incomplete_run_count, 0L)
 })
 
+testthat::test_that("mixed historical and current generations reconcile", {
+  source_backup_observability()
+  current <- backup_inventory_fixture(
+    as.POSIXct("2026-08-11 05:06:00", tz = "UTC")
+  )
+  legacy_databases <- backup_legacy_databases()
+  legacy_prefix <- "2026-08-05_050000"
+  legacy_completed <- as.POSIXct("2026-08-05 05:06:00", tz = "UTC")
+  runs <- rbind(
+    data.frame(
+      backup_run_id = 2L,
+      completed_at = legacy_completed,
+      status = "SUCCESS",
+      run_prefix = legacy_prefix,
+      expected_database_count = 4L,
+      created_at = legacy_completed
+    ),
+    current$runs
+  )
+  files <- rbind(
+    data.frame(
+      backup_run_id = 2L,
+      database_name = legacy_databases,
+      filename = paste0(legacy_prefix, "_", legacy_databases, ".sql.gz")
+    ),
+    current$files
+  )
+  disk <- rbind(
+    data.frame(
+      filename = paste0(legacy_prefix, "_", legacy_databases, ".sql.gz"),
+      modified_at = rep(legacy_completed, 4L),
+      compressed_bytes = rep(100, 4L)
+    ),
+    current$disk
+  )
+
+  result <- reconcile_backup_inventory(
+    runs,
+    files,
+    disk,
+    now = as.POSIXct("2026-08-12 05:00:00", tz = "UTC")
+  )
+  testthat::expect_equal(result$status, "HEALTHY")
+  testthat::expect_equal(result$retained_file_count, 9L)
+  testthat::expect_equal(result$incomplete_run_count, 0L)
+  testthat::expect_silent(
+    jsonlite::toJSON(result$issues, auto_unbox = TRUE)
+  )
+})
+
+testthat::test_that("set-aware retention preserves newest complete set", {
+  source_backup_observability()
+  databases <- backup_expected_databases()
+  prefixes <- c("2026-05-01_050000", "2026-06-01_050000")
+  disk <- do.call(rbind, lapply(seq_along(prefixes), function(index) {
+    data.frame(
+      filename = paste0(prefixes[[index]], "_", databases, ".sql.gz"),
+      modified_at = rep(
+        as.POSIXct(paste0(substr(prefixes[[index]], 1, 10), " 05:00:00"), tz = "UTC"),
+        length(databases)
+      ),
+      compressed_bytes = 100
+    )
+  }))
+  plan <- backup_retention_plan(
+    disk,
+    now = as.POSIXct("2026-08-12 05:00:00", tz = "UTC"),
+    retention_days = 30
+  )
+  testthat::expect_identical(
+    plan$newest_complete_prefix,
+    "2026-06-01_050000"
+  )
+  testthat::expect_true(all(grepl(
+    "2026-05-01_050000",
+    plan$delete_files,
+    fixed = TRUE
+  )))
+  testthat::expect_false(any(grepl(
+    "2026-06-01_050000",
+    plan$delete_files,
+    fixed = TRUE
+  )))
+})
+
+testthat::test_that("set-aware retention handles partial prefixes as sets", {
+  source_backup_observability()
+  prefix <- "2026-05-01_050000"
+  databases <- backup_expected_databases()[1:2]
+  disk <- data.frame(
+    filename = paste0(prefix, "_", databases, ".sql.gz"),
+    modified_at = rep(as.POSIXct("2026-05-01 05:00:00", tz = "UTC"), 2L),
+    compressed_bytes = 100
+  )
+  sets <- classify_backup_sets(disk)
+  testthat::expect_identical(sets$format, "incomplete")
+  testthat::expect_false(sets$complete)
+  plan <- backup_retention_plan(
+    disk,
+    now = as.POSIXct("2026-08-12 05:00:00", tz = "UTC"),
+    retention_days = 30
+  )
+  testthat::expect_setequal(plan$delete_files, disk$filename)
+  testthat::expect_true(is.na(plan$newest_complete_prefix))
+})
+
+testthat::test_that("four-file prefixes after current format begins are incomplete", {
+  source_backup_observability()
+  current_prefix <- "2026-08-11_050000"
+  partial_prefix <- "2026-08-12_050000"
+  disk <- rbind(
+    data.frame(
+      filename = paste0(
+        current_prefix, "_", backup_expected_databases(), ".sql.gz"
+      ),
+      modified_at = as.POSIXct("2026-08-11 05:06:00", tz = "UTC"),
+      compressed_bytes = 100
+    ),
+    data.frame(
+      filename = paste0(
+        partial_prefix, "_", backup_legacy_databases(), ".sql.gz"
+      ),
+      modified_at = as.POSIXct("2026-08-12 05:06:00", tz = "UTC"),
+      compressed_bytes = 100
+    )
+  )
+  sets <- classify_backup_sets(disk)
+  partial <- sets[sets$run_prefix == partial_prefix, , drop = FALSE]
+  testthat::expect_identical(partial$format, "incomplete")
+  testthat::expect_false(partial$complete)
+})
+
 testthat::test_that("a new-format run missing Reference is incomplete", {
   source_backup_observability()
   inventory <- backup_inventory_fixture()

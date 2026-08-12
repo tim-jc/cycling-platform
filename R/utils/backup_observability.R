@@ -28,6 +28,128 @@ backup_expected_databases_for_run <- function(run) {
   backup_expected_databases()
 }
 
+backup_file_inventory <- function(disk_files) {
+  pattern <- paste0(
+    "^([0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6})_(",
+    paste(
+      unique(c(backup_expected_databases(), backup_legacy_databases())),
+      collapse = "|"
+    ),
+    ")\\.sql\\.gz$"
+  )
+  matches <- regexec(pattern, disk_files$filename, perl = TRUE)
+  parts <- regmatches(disk_files$filename, matches)
+  recognised <- lengths(parts) == 3L
+
+  result <- disk_files
+  result$run_prefix <- rep(NA_character_, nrow(result))
+  result$database_name <- rep(NA_character_, nrow(result))
+  result$run_prefix[recognised] <- vapply(
+    parts[recognised], `[[`, character(1), 2L
+  )
+  result$database_name[recognised] <- vapply(
+    parts[recognised], `[[`, character(1), 3L
+  )
+  result$recognised_filename <- recognised
+  result
+}
+
+classify_backup_sets <- function(disk_files) {
+  inventory <- backup_file_inventory(disk_files)
+  prefixes <- sort(unique(inventory$run_prefix[!is.na(inventory$run_prefix)]))
+
+  if (!length(prefixes)) {
+    return(data.frame(
+      run_prefix = character(),
+      database_count = integer(),
+      format = character(),
+      complete = logical(),
+      modified_at = as.POSIXct(character()),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  databases_by_prefix <- lapply(prefixes, function(prefix) {
+    rows <- inventory[inventory$run_prefix == prefix, , drop = FALSE]
+    unique(rows$database_name)
+  })
+  current_complete <- vapply(
+    databases_by_prefix,
+    function(databases) identical(
+      sort(databases),
+      sort(backup_expected_databases())
+    ),
+    logical(1)
+  )
+  first_current_prefix <- if (any(current_complete)) {
+    min(prefixes[current_complete])
+  } else {
+    NA_character_
+  }
+
+  do.call(rbind, lapply(seq_along(prefixes), function(index) {
+    prefix <- prefixes[[index]]
+    rows <- inventory[inventory$run_prefix == prefix, , drop = FALSE]
+    databases <- databases_by_prefix[[index]]
+    current <- identical(sort(databases), sort(backup_expected_databases()))
+    legacy_shape <- identical(
+      sort(databases),
+      sort(backup_legacy_databases())
+    )
+    legacy <- legacy_shape && (
+      is.na(first_current_prefix) || prefix < first_current_prefix
+    )
+    data.frame(
+      run_prefix = prefix,
+      database_count = length(databases),
+      format = if (current) {
+        "current-five-file"
+      } else if (legacy) {
+        "historical-four-file"
+      } else {
+        "incomplete"
+      },
+      complete = current || legacy,
+      modified_at = max(rows$modified_at),
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
+backup_retention_plan <- function(
+  disk_files,
+  now = Sys.time(),
+  retention_days = 30
+) {
+  inventory <- backup_file_inventory(disk_files)
+  sets <- classify_backup_sets(disk_files)
+  complete_sets <- sets[sets$complete, , drop = FALSE]
+  newest_complete <- if (nrow(complete_sets)) {
+    complete_sets$run_prefix[[which.max(complete_sets$modified_at)]]
+  } else {
+    NA_character_
+  }
+  cutoff <- now - as.difftime(retention_days, units = "days")
+  protect_newest <- if (is.na(newest_complete)) {
+    rep(FALSE, nrow(sets))
+  } else {
+    sets$run_prefix == newest_complete
+  }
+  expired_prefixes <- sets$run_prefix[
+    sets$modified_at < cutoff & !protect_newest
+  ]
+
+  list(
+    newest_complete_prefix = newest_complete,
+    delete_files = inventory$filename[
+      !is.na(inventory$run_prefix) &
+        inventory$run_prefix %in% expired_prefixes
+    ],
+    retained_sets = sets[!sets$run_prefix %in% expired_prefixes, , drop = FALSE],
+    expired_sets = sets[sets$run_prefix %in% expired_prefixes, , drop = FALSE]
+  )
+}
+
 backup_freshness_status <- function(
   completed_at,
   now = Sys.time(),
@@ -215,6 +337,32 @@ read_backup_success_artifact <- function(path) {
   )
 }
 
+backup_success_artifact_files_available <- function(artifact, status_path) {
+  files <- artifact$files
+  if (!is.data.frame(files) ||
+      !all(c("database_name", "filename") %in% names(files)) ||
+      nrow(files) != length(artifact$databases) ||
+      !backup_database_set_is_recognised(files$database_name)) {
+    return(FALSE)
+  }
+  filenames <- as.character(files$filename)
+  if (anyNA(filenames) || any(!nzchar(filenames)) ||
+      any(basename(filenames) != filenames)) {
+    return(FALSE)
+  }
+  expected_filenames <- paste0(
+    artifact$run_prefix,
+    "_",
+    as.character(files$database_name),
+    ".sql.gz"
+  )
+  if (!identical(filenames, expected_filenames)) return(FALSE)
+
+  paths <- file.path(dirname(status_path), filenames)
+  information <- file.info(paths)
+  all(!is.na(information$size) & information$size > 0 & !information$isdir)
+}
+
 ensure_backup_observability_tables <- function(
   connection,
   sql_dir = file.path("sql", "admin")
@@ -357,7 +505,6 @@ reconcile_backup_inventory <- function(
     drop = FALSE
   ]
 
-  expected <- backup_expected_databases()
   expected_inventory <- if (nrow(retained_runs) == 0L) {
     data.frame(
       backup_run_id = integer(),
@@ -366,16 +513,17 @@ reconcile_backup_inventory <- function(
       stringsAsFactors = FALSE
     )
   } else {
-    dplyr::bind_rows(lapply(seq_len(nrow(retained_runs)), function(index) {
+    rows <- lapply(seq_len(nrow(retained_runs)), function(index) {
       run <- retained_runs[index, , drop = FALSE]
       expected_for_run <- backup_expected_databases_for_run(run)
       data.frame(
-        backup_run_id = run$backup_run_id[[1]],
-        run_prefix = run$run_prefix[[1]],
+        backup_run_id = rep(run$backup_run_id[[1]], length(expected_for_run)),
+        run_prefix = rep(run$run_prefix[[1]], length(expected_for_run)),
         database_name = expected_for_run,
         stringsAsFactors = FALSE
       )
-    }))
+    })
+    do.call(rbind, rows)
   }
   expected_inventory$filename <- if (nrow(expected_inventory) == 0) {
     character()
@@ -438,17 +586,9 @@ reconcile_backup_inventory <- function(
     disk_files$modified_at < cutoff
   ]
 
-  expected_pattern <- paste(
-    unique(c(backup_expected_databases(), backup_legacy_databases())),
-    collapse = "|"
-  )
-  valid_pattern <- paste0(
-    "^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}_(",
-    expected_pattern,
-    ")\\.sql\\.gz$"
-  )
-  unexpected_files <- managed_disk_files$filename[
-    !grepl(valid_pattern, managed_disk_files$filename)
+  managed_inventory <- backup_file_inventory(managed_disk_files)
+  unexpected_files <- managed_inventory$filename[
+    !managed_inventory$recognised_filename
   ]
 
   issues <- list(
@@ -620,7 +760,10 @@ get_backup_health <- function(
 
 format_backup_health_lines <- function(health, now = Sys.time()) {
   if (nrow(health$latest_success) == 0) {
-    backup_line <- "Off-host backup: no successful backup recorded ⚠"
+    backup_line <- paste0(
+      "Off-host backup observability: no successful backup recorded ⚠",
+      " (Admin metadata may lag a restored physical backup set)"
+    )
   } else {
     completed_at <- health$latest_success$completed_at[[1]]
     age_text <- if (health$age_hours < 1) {

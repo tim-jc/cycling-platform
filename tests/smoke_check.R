@@ -36,6 +36,8 @@ r_files <- c(
   file.path("scripts", "reference", "publish_planned_events.R"),
   file.path("scripts", "reference", "publish_reference_data.R"),
   file.path("scripts", "reference", "validate_planned_events.R"),
+  file.path("scripts", "check_backup_physical_health.R"),
+  file.path("scripts", "plan_backup_retention.R"),
   "run_silver.R",
   "run_platform_validation.R"
 )

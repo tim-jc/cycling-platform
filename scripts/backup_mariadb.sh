@@ -13,7 +13,9 @@ LOCK_MAX_AGE_SECONDS="${BACKUP_LOCK_MAX_AGE_SECONDS:-}"
 BACKUP_DUMP_MAX_ATTEMPTS="${BACKUP_DUMP_MAX_ATTEMPTS:-}"
 BACKUP_DUMP_RETRY_SLEEP_SECONDS="${BACKUP_DUMP_RETRY_SLEEP_SECONDS:-}"
 BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-}"
+BACKUP_PHYSICAL_SUCCESS_MARKER="${BACKUP_PHYSICAL_SUCCESS_MARKER:-}"
 MYSQLDUMP="${MYSQLDUMP:-}"
+NC="${NC_BIN:-}"
 MYSQLDUMP_CANDIDATES=()
 MYSQLDUMP_EXTRA_ARGS=()
 MYSQLDUMP_CONNECT_ARGS=()
@@ -365,8 +367,11 @@ gzip_uncompressed_bytes() {
 check_mariadb_connectivity() {
   log "Checking MariaDB TCP connectivity: $MARIADB_HOST:$MARIADB_PORT"
 
-  if command -v nc >/dev/null 2>&1; then
-    if nc -z -G 5 "$MARIADB_HOST" "$MARIADB_PORT" >/dev/null 2>&1; then
+  if [[ -z "$NC" ]] && command -v nc >/dev/null 2>&1; then
+    NC="$(command -v nc)"
+  fi
+  if [[ -n "$NC" ]]; then
+    if "$NC" -z -G 5 "$MARIADB_HOST" "$MARIADB_PORT" >/dev/null 2>&1; then
       log "MariaDB TCP connectivity check succeeded."
       return
     fi
@@ -579,16 +584,35 @@ for database in "${DATABASES[@]}"; do
   log "Wrote and verified $output_file (${uncompressed_bytes} uncompressed bytes)"
 done
 
-log "Removing backups older than $RETENTION_DAYS days"
+if [[ -n "$BACKUP_PHYSICAL_SUCCESS_MARKER" ]]; then
+  printf '%s\n' "$RUN_TIMESTAMP" > "$BACKUP_PHYSICAL_SUCCESS_MARKER"
+fi
+
+log "Planning set-aware retention for backup sets older than $RETENTION_DAYS days"
 
 cleanup_failed=0
 
-if ! find "$BACKUP_DIR" \
-  -type f \
-  -name "*.sql.gz" \
-  -mtime "+$((RETENTION_DAYS - 1))" \
-  -print \
-  -delete; then
+prepare_observability_runtime
+retention_plan_file="$RUNTIME_PROJECT_DIR/retention_delete_files.txt"
+set +e
+(
+  cd "$RUNTIME_PROJECT_DIR" &&
+    RENV_PROJECT="$RUNTIME_PROJECT_DIR" \
+      Rscript - "$BACKUP_DIR" "$RETENTION_DAYS"
+) < "$RUNTIME_PROJECT_DIR/scripts/plan_backup_retention.R" > "$retention_plan_file"
+retention_plan_status=$?
+set -e
+
+if ((retention_plan_status == 0)); then
+  while IFS= read -r filename; do
+    [[ -n "$filename" ]] || continue
+    candidate="$BACKUP_DIR/$filename"
+    if [[ -f "$candidate" && ! -L "$candidate" ]]; then
+      log "Removing expired backup-set member: $filename"
+      rm -f -- "$candidate" || cleanup_failed=1
+    fi
+  done < "$retention_plan_file"
+else
   log "Backup retention cleanup failed; reconciliation will record retained expired files."
   cleanup_failed=1
 fi
