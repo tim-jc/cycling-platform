@@ -882,6 +882,25 @@ rebuild_gold_activity_best_efforts <- function(
   sql_dir = file.path("sql", "gold")
 ) {
   mode <- match.arg(mode)
+  transform_wall_started_at <- gold_timing_now()
+  setup_seconds <- 0
+  candidate_discovery_seconds <- NULL
+  processing_seconds <- 0
+  finalisation_seconds <- 0
+
+  finish_with_timing <- function(result) {
+    timing <- gold_transform_timing(
+      entity_name = "activity_best_efforts",
+      setup_seconds = setup_seconds,
+      candidate_discovery_seconds = candidate_discovery_seconds,
+      processing_seconds = processing_seconds,
+      finalisation_seconds = finalisation_seconds,
+      total_seconds = gold_elapsed_seconds(transform_wall_started_at)
+    )
+
+    log_gold_transform_timing(timing)
+    invisible(attach_gold_transform_timing(result, timing))
+  }
 
   if (is.null(metrics)) {
     metrics <- config$transforms$gold_best_effort_metrics
@@ -939,6 +958,8 @@ rebuild_gold_activity_best_efforts <- function(
     "calculation version: {calculation_version}."
   ))
 
+  setup_started_at <- transform_wall_started_at
+
   ensure_power_source_classification_schema(connection)
 
   execute_sql_file(
@@ -953,16 +974,22 @@ rebuild_gold_activity_best_efforts <- function(
     connection = connection
   )
 
-  if (
+  daily_can_skip <-
     identical(mode, "daily") &&
       is.null(activity_ids) &&
       is.null(max_activities) &&
       gold_activity_best_efforts_daily_can_skip(connection)
-  ) {
+
+  setup_seconds <- gold_elapsed_seconds(setup_started_at)
+
+  if (daily_can_skip) {
+    candidate_discovery_seconds <- 0
     message(
       "Skipping gold activity_best_efforts candidate scan: latest Gold ",
       "transform is current with latest successful Silver stream transform."
     )
+
+    processing_started_at <- gold_timing_now()
 
     transform_run_id <- create_transform_run(
       connection = connection,
@@ -985,12 +1012,12 @@ rebuild_gold_activity_best_efforts <- function(
       rows_inserted = 0L,
       rows_deleted = 0L
     )
+    processing_seconds <- gold_elapsed_seconds(processing_started_at)
 
-    return(
-      invisible(data.frame())
-    )
+    return(finish_with_timing(data.frame()))
   }
 
+  candidate_discovery_started_at <- gold_timing_now()
   activity_plan <- get_best_effort_activity_plan(
     connection = connection,
     mode = mode,
@@ -998,6 +1025,9 @@ rebuild_gold_activity_best_efforts <- function(
     metrics = metrics,
     durations = durations,
     calculation_version = calculation_version
+  )
+  candidate_discovery_seconds <- gold_elapsed_seconds(
+    candidate_discovery_started_at
   )
 
   if (!is.null(max_activities)) {
@@ -1024,6 +1054,8 @@ rebuild_gold_activity_best_efforts <- function(
     )
   }
 
+  processing_started_at <- gold_timing_now()
+
   transform_run_id <- create_transform_run(
     connection = connection,
     layer_name = "gold",
@@ -1044,6 +1076,9 @@ rebuild_gold_activity_best_efforts <- function(
   if (nrow(activity_plan) == 0) {
     message("No gold activity best efforts require processing.")
 
+    processing_seconds <- gold_elapsed_seconds(processing_started_at)
+    finalisation_started_at <- gold_timing_now()
+
     validation_results <- validate_gold_activity_best_efforts(
       connection = connection,
       calculation_version = calculation_version
@@ -1058,10 +1093,9 @@ rebuild_gold_activity_best_efforts <- function(
       rows_inserted = total_rows_inserted,
       rows_deleted = total_rows_deleted
     )
+    finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 
-    return(
-      invisible(validation_results)
-    )
+    return(finish_with_timing(validation_results))
   }
 
   run_error <- tryCatch(
@@ -1213,6 +1247,7 @@ rebuild_gold_activity_best_efforts <- function(
   )
 
   if (!is.null(run_error)) {
+    processing_seconds <- gold_elapsed_seconds(processing_started_at)
     update_transform_run(
       connection = connection,
       transform_run_id = transform_run_id,
@@ -1226,6 +1261,9 @@ rebuild_gold_activity_best_efforts <- function(
 
     stop(run_error)
   }
+
+  processing_seconds <- gold_elapsed_seconds(processing_started_at)
+  finalisation_started_at <- gold_timing_now()
 
   validation_results <- validate_gold_activity_best_efforts(
     connection = connection,
@@ -1241,6 +1279,7 @@ rebuild_gold_activity_best_efforts <- function(
     rows_inserted = total_rows_inserted,
     rows_deleted = total_rows_deleted
   )
+  finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 
   message(glue::glue(
     "Gold activity best efforts rebuild complete: ",
@@ -1251,5 +1290,5 @@ rebuild_gold_activity_best_efforts <- function(
     "calculation version {calculation_version}."
   ))
 
-  invisible(validation_results)
+  finish_with_timing(validation_results)
 }

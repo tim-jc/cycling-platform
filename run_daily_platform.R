@@ -638,7 +638,10 @@ get_latest_silver_transform_summary <- function() {
   )
 }
 
-get_latest_gold_transform_summary <- function() {
+get_latest_gold_transform_summary <- function(
+  transform_timings = NULL,
+  orchestration_timing = NULL
+) {
   connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
@@ -746,22 +749,34 @@ get_latest_gold_transform_summary <- function() {
               failed_batch_count <- 0L
             }
 
-            skipped_activities <- max(
-              0L,
-              as.integer(activities_planned) -
-                as.integer(activities_completed)
-            )
-
-            glue::glue(
-              "{entity_name}: {run_status} · {run_mode} · ",
-              "{activities_completed}/{activities_planned} activities · ",
-              "+{rows_inserted} / -{rows_deleted} rows · ",
-              "skipped {skipped_activities} · ",
-              "failed batches {failed_batch_count[[1]]} · ",
-              "{format_platform_duration(duration_seconds)}"
+            format_gold_transform_summary_line(
+              entity_name = entity_name,
+              run_status = run_status,
+              run_mode = run_mode,
+              activities_completed = activities_completed,
+              activities_planned = activities_planned,
+              rows_inserted = rows_inserted,
+              rows_deleted = rows_deleted,
+              failed_batch_count = failed_batch_count[[1]],
+              timing = transform_timings[[entity_name]],
+              recorded_duration_seconds = duration_seconds
             )
           }
-        )
+        ),
+        orchestration_lines = if (is.null(orchestration_timing)) {
+          character()
+        } else {
+          paste0(
+            "Gold orchestration: connection setup/teardown ",
+            format_platform_duration(
+              orchestration_timing$connection_seconds
+            ),
+            " · summary/finalisation ",
+            format_platform_duration(
+              orchestration_timing$summary_finalisation_seconds
+            )
+          )
+        }
       )
     },
     finally = {
@@ -885,11 +900,16 @@ tryCatch(
     run_phase(
       "gold_transforms",
       {
+        gold_connection_started_at <- gold_timing_now()
         connection <- get_connection("cycling_platform_admin")
+        gold_connection_seconds <- gold_elapsed_seconds(
+          gold_connection_started_at
+        )
+        gold_disconnect_seconds <- 0
 
         tryCatch(
           {
-            run_gold_transformations(
+            gold_transform_timings <- run_gold_transformations(
               connection = connection,
               config = config,
               mode = "daily"
@@ -897,13 +917,25 @@ tryCatch(
           },
           finally = {
             if (DBI::dbIsValid(connection)) {
+              gold_disconnect_started_at <- gold_timing_now()
               DBI::dbDisconnect(connection)
+              gold_disconnect_seconds <- gold_elapsed_seconds(
+                gold_disconnect_started_at
+              )
             }
           }
         )
 
+        gold_summary_started_at <- gold_timing_now()
         gold_transform_summary <<- tryCatch(
-          get_latest_gold_transform_summary(),
+          get_latest_gold_transform_summary(
+            transform_timings = gold_transform_timings,
+            orchestration_timing = list(
+              connection_seconds = gold_connection_seconds +
+                gold_disconnect_seconds,
+              summary_finalisation_seconds = 0
+            )
+          ),
           error = function(e) {
             message(
               "Unable to build Gold transform notification summary: ",
@@ -913,6 +945,21 @@ tryCatch(
             NULL
           }
         )
+
+        gold_summary_finalisation_seconds <- gold_elapsed_seconds(
+          gold_summary_started_at
+        )
+
+        if (!is.null(gold_transform_summary)) {
+          gold_transform_summary$orchestration_lines <- paste0(
+            "Gold orchestration: connection setup/teardown ",
+            format_platform_duration(
+              gold_connection_seconds + gold_disconnect_seconds
+            ),
+            " · summary/finalisation ",
+            format_platform_duration(gold_summary_finalisation_seconds)
+          )
+        }
       }
     )
 

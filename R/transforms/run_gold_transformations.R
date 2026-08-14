@@ -7,7 +7,7 @@
 #' @param config Platform configuration.
 #' @param mode Gold run mode. `daily` is the normal automation mode.
 #'
-#' @return Invisibly returns NULL.
+#' @return Invisibly returns a list containing per-transform wall-clock timings.
 run_gold_transformations <- function(
   connection,
   config = list(),
@@ -18,17 +18,26 @@ run_gold_transformations <- function(
 ) {
   mode <- match.arg(mode)
 
-  rebuild_gold_activity_best_efforts(
+  best_effort_result <- rebuild_gold_activity_best_efforts(
     connection = connection,
     config = config,
     mode = mode
   )
 
-  rebuild_gold_activity_achievements(
+  achievement_result <- rebuild_gold_activity_achievements(
     connection = connection,
     config = config,
     mode = mode
   )
 
-  invisible(NULL)
+  invisible(list(
+    activity_best_efforts = attr(
+      best_effort_result,
+      "gold_transform_timing"
+    ),
+    activity_achievements = attr(
+      achievement_result,
+      "gold_transform_timing"
+    )
+  ))
 }

@@ -117,7 +117,8 @@ send_platform_automation_notification <- function(
       body_lines,
       "",
       "Gold transforms:",
-      gold_transform_summary$lines
+      gold_transform_summary$lines,
+      gold_transform_summary$orchestration_lines
     )
   }
 

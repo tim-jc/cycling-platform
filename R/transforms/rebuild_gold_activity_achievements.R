@@ -821,6 +821,27 @@ rebuild_gold_activity_achievements <- function(
   sql_dir = file.path("sql", "gold")
 ) {
   mode <- match.arg(mode)
+  transform_wall_started_at <- gold_timing_now()
+  setup_seconds <- 0
+  candidate_discovery_seconds <- 0
+  source_preparation_seconds <- 0
+  processing_seconds <- 0
+  finalisation_seconds <- 0
+
+  finish_with_timing <- function(result) {
+    timing <- gold_transform_timing(
+      entity_name = "activity_achievements",
+      setup_seconds = setup_seconds,
+      candidate_discovery_seconds = candidate_discovery_seconds,
+      source_preparation_seconds = source_preparation_seconds,
+      processing_seconds = processing_seconds,
+      finalisation_seconds = finalisation_seconds,
+      total_seconds = gold_elapsed_seconds(transform_wall_started_at)
+    )
+
+    log_gold_transform_timing(timing)
+    invisible(attach_gold_transform_timing(result, timing))
+  }
 
   if (is.null(durations)) {
     durations <- config$transforms$gold_best_effort_durations
@@ -860,6 +881,8 @@ rebuild_gold_activity_achievements <- function(
     "calculation version: {calculation_version}."
   ))
 
+  setup_started_at <- transform_wall_started_at
+
   ensure_power_source_classification_schema(connection)
 
   execute_sql_file(
@@ -873,6 +896,10 @@ rebuild_gold_activity_achievements <- function(
   ensure_transform_logging_tables(
     connection = connection
   )
+
+  setup_seconds <- gold_elapsed_seconds(setup_started_at)
+
+  candidate_discovery_started_at <- gold_timing_now()
 
   existing_achievement_count <- gold_activity_achievements_existing_count(
     connection = connection
@@ -925,7 +952,11 @@ rebuild_gold_activity_achievements <- function(
   }
 
   candidate_activity_count <- length(candidate_activity_ids)
+  candidate_discovery_seconds <- gold_elapsed_seconds(
+    candidate_discovery_started_at
+  )
 
+  source_preparation_started_at <- gold_timing_now()
   source_rows <- fetch_activity_achievement_source_rows(
     connection = connection,
     durations = durations
@@ -939,7 +970,11 @@ rebuild_gold_activity_achievements <- function(
       ceiling(seq_along(candidate_activity_ids) / batch_size)
     )
   }
+  source_preparation_seconds <- gold_elapsed_seconds(
+    source_preparation_started_at
+  )
 
+  processing_started_at <- gold_timing_now()
   transform_run_id <- create_transform_run(
     connection = connection,
     layer_name = "gold",
@@ -961,6 +996,9 @@ rebuild_gold_activity_achievements <- function(
   if (candidate_activity_count == 0) {
     message("No gold activity achievements require processing.")
 
+    processing_seconds <- gold_elapsed_seconds(processing_started_at)
+    finalisation_started_at <- gold_timing_now()
+
     validation_results <- validate_gold_activity_achievements(
       connection = connection,
       calculation_version = calculation_version
@@ -975,8 +1013,9 @@ rebuild_gold_activity_achievements <- function(
       rows_inserted = total_rows_inserted,
       rows_deleted = total_rows_deleted
     )
+    finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 
-    return(invisible(validation_results))
+    return(finish_with_timing(validation_results))
   }
 
   notification_eligible_activity_ids <- if (
@@ -1127,6 +1166,7 @@ rebuild_gold_activity_achievements <- function(
   )
 
   if (!is.null(run_error)) {
+    processing_seconds <- gold_elapsed_seconds(processing_started_at)
     update_transform_run(
       connection = connection,
       transform_run_id = transform_run_id,
@@ -1140,6 +1180,9 @@ rebuild_gold_activity_achievements <- function(
 
     stop(run_error)
   }
+
+  processing_seconds <- gold_elapsed_seconds(processing_started_at)
+  finalisation_started_at <- gold_timing_now()
 
   validation_results <- validate_gold_activity_achievements(
     connection = connection,
@@ -1155,6 +1198,7 @@ rebuild_gold_activity_achievements <- function(
     rows_inserted = total_rows_inserted,
     rows_deleted = total_rows_deleted
   )
+  finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 
   message(glue::glue(
     "Gold activity achievements rebuild complete: ",
@@ -1165,5 +1209,5 @@ rebuild_gold_activity_achievements <- function(
     "calculation version {calculation_version}."
   ))
 
-  invisible(validation_results)
+  finish_with_timing(validation_results)
 }

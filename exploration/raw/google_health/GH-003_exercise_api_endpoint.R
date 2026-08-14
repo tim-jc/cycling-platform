@@ -4,3 +4,8 @@
 
 # Notes:
 # - Google Oauth Playground: https://developers.google.com/oauthplayground/
+# - Scopes required:
+#      googlehealth.sleep.readonly
+#      googlehealth.health_metrics_and_measurements.readonly
+#      googlehealth.activity_and_fitness.readonly   ← new
+

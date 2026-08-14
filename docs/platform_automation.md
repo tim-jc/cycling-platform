@@ -105,6 +105,37 @@ build and test the Docker image where practical.
    delivery fail.
 11. Reports deep validation as `NOT_RUN`; deep validation is run separately.
 
+## Gold Timing Observability
+
+Gold notifications and terminal logs separate transform wall-clock time into
+the work that previously sat outside the Admin transform timer:
+
+* `setup` covers configuration, prerequisite/schema checks, and transform-log
+  preparation;
+* `discovery` covers candidate selection, including historical stream scans;
+* `source preparation` covers loading and preparing achievement source history;
+* `processing` covers the transform-run creation, calculation, and database
+  writes;
+* `finalisation` covers post-transform validation and the final Admin update;
+* `total` is the complete transform wall-clock duration.
+
+The notification also reports Gold connection setup/teardown and
+summary/finalisation time. Together with the `gold_transforms` duration in
+`Phases`, these timings are the preferred evidence for performance analysis.
+Small differences can remain because individual elapsed timers are sampled
+separately and formatted to whole seconds.
+
+The existing `cycling_platform_admin.transform_run.duration_seconds` starts
+when the Admin transform-run row is created. It therefore continues to measure
+processing plus finalisation rather than the complete transform lifecycle.
+This definition is retained for compatibility; no Admin schema migration is
+introduced by the first timing pass.
+
+Achievement summaries describe `candidates evaluated`, which is the number of
+candidate activity IDs completed out of those planned. It is not the number of
+achievement rows written. Inserted and deleted rows are shown separately as
+`rows changed`.
+
 ## Notification Execution Context
 
 Every ntfy body begins with the same compact execution context:
