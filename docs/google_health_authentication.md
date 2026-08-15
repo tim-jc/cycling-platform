@@ -1,196 +1,301 @@
 # Google Health Authentication
 
-## Overview
+## Purpose
 
-The platform uses Google OAuth 2.0 refresh-token flow to obtain short-lived
-access tokens for Google Health API requests.
+This is the owner runbook for initial Google Health OAuth setup, scope changes,
+token replacement, and capability validation. The platform uses a long-lived
+refresh token to obtain short-lived access tokens for unattended jobs.
 
-Access tokens are ephemeral. The long-lived credential is
-`GOOGLE_HEALTH_REFRESH_TOKEN`, stored in the project `.Renviron`.
+The machine-readable scope authority is
+`google_health_required_scopes()` in
+`R/api/get_google_health_access_token.R`. This document lists the same scopes
+for operators but is not the runtime authority.
 
 ## Required Scopes
 
-The current platform requires both scopes:
+The platform currently requires all three Google Health scopes:
 
 ```text
 https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
 https://www.googleapis.com/auth/googlehealth.sleep.readonly
+https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly
 ```
 
-They are required because the platform ingests:
+They cover:
 
-* heart-rate samples;
-* daily resting heart rate;
-* daily heart-rate variability;
-* daily respiratory rate;
-* sleep logs, including sleep-stage metadata retained in the payload.
+| Scope family | Platform use |
+| --- | --- |
+| Health Metrics and Measurements | Heart rate, daily resting heart rate, daily HRV, and daily respiratory rate |
+| Sleep | Sleep logs and stages |
+| Activity and Fitness | Exercise capability and future activity/fitness ingestion |
 
-If a refresh token is generated with only one scope, token refresh may succeed
-but one or more endpoints can fail with a scope or permission error.
+Exercise Raw ingestion is not implemented. The third scope permits the
+capability probe and prepares for a separately designed future ingestion flow.
+Do not add broad scopes such as `cloud-platform`.
 
-## Secrets
+## Credentials and Storage
 
-The following values are stored in `.Renviron` and must never be committed:
+Three persistent credentials exist:
 
 ```text
-GOOGLE_HEALTH_CLIENT_ID=...
-GOOGLE_HEALTH_CLIENT_SECRET=...
-GOOGLE_HEALTH_REFRESH_TOKEN=1//...
+GOOGLE_HEALTH_CLIENT_ID
+GOOGLE_HEALTH_CLIENT_SECRET
+GOOGLE_HEALTH_REFRESH_TOKEN
 ```
+
+Never print, commit, or paste these into tickets, logs, or chat. Access tokens,
+authorization codes, refresh tokens, token prefixes, and the client secret are
+also sensitive.
+
+### Mac development
+
+The project `.Renviron` contains all three values. The access token is obtained
+at runtime and is not stored.
+
+### Production
+
+Development and production do not share a credential file:
+
+| Credential | Host location | Container location |
+| --- | --- | --- |
+| Static client ID and secret | `~/cycling-infrastructure/compose/.env` | Compose environment |
+| Rotating refresh token | `/srv/cycling/config/platform/runtime.Renviron` | `/run/cycling-platform/runtime.Renviron` |
+
+`CYCLING_PLATFORM_RENVIRON_PATH` and `R_ENVIRON_USER` both resolve to the
+mounted runtime file inside the container. The host file should be owned by
+`tim:tim` with mode `0600`. It may also contain the rotating Strava refresh
+token, so edit only `GOOGLE_HEALTH_REFRESH_TOKEN`.
+
+This separation is intentional: ephemeral `docker compose run --rm` jobs must
+not lose persistent rotating credentials when their containers are removed.
 
 ## Token Flow
 
 ```text
-GOOGLE_HEALTH_REFRESH_TOKEN
-        ↓
-POST https://oauth2.googleapis.com/token
-        ↓
-access_token
-        ↓
-GET https://health.googleapis.com/v4/users/me/dataTypes/{dataType}/dataPoints
+stored refresh token
+  -> POST https://oauth2.googleapis.com/token
+  -> short-lived access token
+  -> Google token metadata scope check
+  -> Google Health API request
 ```
 
-Google generally does not rotate refresh tokens on every access-token refresh.
-If Google does return a new refresh token, the platform writes it back to
-`.Renviron`.
+Refreshing an access token cannot add scopes. A missing or new scope requires a
+fresh browser consent flow and a new refresh token issued to the same OAuth
+client used by the platform.
 
-The native compatibility wrappers copy `.Renviron` into a temporary project
-directory and copy it back if a refresh-token update changes the runtime file.
+## Adding or Changing Scopes
 
-Production runs as an ephemeral Compose job on `cycling-prod`. Compose must
-make credentials available to the container and provide a persistent writable
-token file if token updates are to survive `docker compose run --rm`. The exact
-production mount/environment wiring is outside this repository and should be
-verified during deployment.
+Scope expansion is complete only after every step below succeeds:
 
-## Token Lifetime
+1. Identify the narrow Google Health scope required by the endpoint.
+2. Add it to `google_health_required_scopes()` and update tests/documentation.
+3. Confirm the Google OAuth app/client is configured to request that scope.
+4. Re-authorise, requesting **all required Google Health scopes**, not only the
+   new one.
+5. Exchange the authorization code and retain the new refresh token.
+6. Update the Mac project `.Renviron`.
+7. Run the authentication check to prove refresh and granted scopes.
+8. Run the capability probe against the new endpoint semantics.
+9. Update the production runtime credential file.
+10. Run the same authentication and scope check inside the production Compose
+    environment.
 
-Google refresh tokens can stop working. Common causes include:
+Do not update production until local refresh, scope validation, and endpoint
+capability have all succeeded.
 
-* user revocation;
-* the token not being used for six months;
-* too many refresh tokens for the same Google account and OAuth client;
-* time-based access expiry;
-* admin/session policies;
-* OAuth consent screen in `Testing` publishing status.
+## Generate a Refresh Token with OAuth Playground
 
-For an external Google Cloud OAuth app in `Testing`, Google issues refresh
-tokens that expire after seven days for non-basic scopes. The production OAuth
-app is no longer in Testing, but a token issued while it was in Testing can
-still exhibit the seven-day lifetime. Generate a fresh token after moving the
-app to Production.
+### 1. Confirm the OAuth client and redirect URI
 
-## Regenerating a Refresh Token
+Open the [Google APIs Console](https://console.cloud.google.com/apis/credentials),
+select the cycling-platform project, then follow the currently observed path:
 
-Regenerate the token when:
+1. **OAuth consent screen**.
+2. **Clients**.
+3. **cycling-platform**.
+4. Review **Authorised redirect URIs**.
 
-* auth check fails with `invalid_grant`;
-* the token was generated before all required scopes were requested;
-* Google reports missing or disallowed scopes;
-* the Google Cloud OAuth client or consent configuration changes.
-
-The consent request must include:
+Google may rename or move these controls. Locate the OAuth client details if
+the labels have changed. This redirect URI must be present:
 
 ```text
-access_type=offline
-prompt=consent
+https://developers.google.com/oauthplayground
 ```
 
-and both required scopes:
+OAuth authorization codes can only return to a redirect URI registered for the
+client. Playground cannot use the platform client without that entry.
+
+### 2. Configure OAuth Playground
+
+1. Open [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/).
+2. Select every scope listed under **Required Scopes** above.
+3. Open the Playground configuration using the settings/cog control.
+4. Enable **Use your own OAuth credentials**.
+5. Enter the existing cycling-platform OAuth Client ID and Client Secret.
+6. Do not copy those credentials anywhere else.
+7. Click **Authorize APIs**.
+
+Using the platform's own client matters: the resulting refresh token must
+belong to the same client ID and secret used by cycling-platform.
+
+### 3. Complete consent
+
+1. Choose the Google account used by cycling-platform.
+2. If Google displays **Google hasn't verified this app**, verify that the app
+   name and owning project are the cycling-platform app you control.
+3. Only in that known-owner situation, choose **Advanced**, then
+   **Go to cycling-platform (unsafe)**.
+4. Review the requested permissions and confirm that they match the required
+   scopes.
+5. Click **Continue** and wait for the browser to return to OAuth Playground.
+
+This is not general advice to bypass Google security warnings. Stop if the app,
+account, project, permissions, or redirect is unfamiliar.
+
+### 4. Exchange the code
+
+1. In Playground Step 2, confirm an authorization code is present.
+2. Click **Exchange authorization code for tokens**.
+3. Playground displays an access token and refresh token.
+4. Store only the refresh token in the appropriate credential file.
+5. Do not store the Playground access token; it is short-lived and the platform
+   obtains its own access token from the refresh token.
+
+The browser flow supplies offline consent. Repeating ordinary refresh-token
+exchange is not a substitute for re-authorisation and cannot expand scopes.
+
+## Update and Validate Development
+
+Edit the project `.Renviron` with an editor and replace only:
 
 ```text
-https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
-https://www.googleapis.com/auth/googlehealth.sleep.readonly
+GOOGLE_HEALTH_REFRESH_TOKEN=<new value>
 ```
 
-After completing consent, paste the returned refresh token into `.Renviron`:
-
-```text
-GOOGLE_HEALTH_REFRESH_TOKEN=1//...
-```
-
-Then validate:
+Do not place the token in a shell command, where it may enter shell history.
+Then run:
 
 ```sh
 Rscript scripts/google_health/check_authentication.R
 ```
 
-Expected successful output includes:
+Success proves that the refresh token works, an access token was obtained, and
+all platform-required scopes are granted. It reports the credential-file path,
+modification time, credential presence, refresh-token length, and scope names;
+it never prints token values or prefixes.
 
-```text
-Google Health refresh succeeded
-Google Health access token refresh succeeded
-```
-
-It is normal for the refresh response to say:
-
-```text
-response did not include a new refresh token
-```
-
-## Diagnostics
-
-Run:
+Probe endpoint capability over a bounded window:
 
 ```sh
-Rscript scripts/google_health/check_authentication.R
+Rscript scripts/google_health/probe_capabilities.R --help
+Rscript scripts/google_health/probe_capabilities.R 2026-08-01 2026-08-08
 ```
 
-The check reports:
+The end date is exclusive. Exercise uses interval/session filtering via
+`exercise.interval.start_time`; it is deliberately not sent through the generic
+sample-time ingestion helper. HTTP success with zero Exercise records proves
+access and is reported separately from a permission failure.
 
-* token file path;
-* token file modification time;
-* whether client id, client secret and refresh token are present;
-* refresh token presence and length, never its value or prefix;
-* whether refresh succeeds.
+## Update and Validate Production
 
-It never prints the full refresh token.
+1. Optionally make a protected backup copy of
+   `/srv/cycling/config/platform/runtime.Renviron`.
+2. Open that file in an editor on `cycling-prod`.
+3. Replace only `GOOGLE_HEALTH_REFRESH_TOKEN`; do not alter Strava or other
+   credentials.
+4. Save, then verify the key exists without displaying its value.
+5. Confirm ownership remains `tim:tim` and mode remains `0600`.
+6. Use the infrastructure wrapper—not bare `docker compose`—because it supplies
+   production UID/GID and runtime environment preparation:
 
-During unattended automation, `run_raw_ingestion.R` performs a Google Health token
-preflight before any ingestion work when Google Health is enabled. A bad token
-therefore fails fast before Strava ingestion and derived transforms run.
+```sh
+cd ~/cycling-infrastructure
+scripts/compose.sh run --rm cycling-platform \
+  Rscript scripts/google_health/check_authentication.R
+```
 
-## Common Failures
+That single command proves production refresh and required-scope validity. To
+probe production endpoint capability deliberately, use:
+
+```sh
+scripts/compose.sh run --rm cycling-platform \
+  Rscript scripts/google_health/probe_capabilities.R 2026-08-01 2026-08-08
+```
+
+Do not run the capability probe casually over a large interval.
+
+## What Each Check Proves
+
+| Check | Proves | Does not prove |
+| --- | --- | --- |
+| `check_authentication.R` | Credential file found; refresh succeeds; access token obtained; every required scope granted | Endpoint contains records; endpoint filter semantics are correct |
+| `probe_capabilities.R` | Selected endpoint surfaces accept an authorised request and their endpoint-specific filters; zero records remain distinguishable from access failure | Raw ingestion exists or is correct |
+| Raw ingestion | Source retrieval, persistence, lineage, idempotency, and reconciliation for implemented entities | Future Exercise ingestion; this remains separate work |
+
+## Diagnostics and Common Failures
 
 ### `invalid_grant`
 
-The refresh token is expired, revoked, superseded, or no longer valid for the
-OAuth client and scope set.
+The refresh token is expired, revoked, superseded, belongs to the wrong client,
+or is otherwise invalid. Repeat the complete Playground flow with the platform
+client and all required scopes, then replace and validate the token.
 
-Action:
+### Refresh succeeds but a required scope is missing
 
-1. Regenerate the refresh token with both required scopes.
-2. Replace `GOOGLE_HEALTH_REFRESH_TOKEN` in `.Renviron`.
-3. Run `Rscript scripts/google_health/check_authentication.R`.
+Refreshing preserved the token's old scope grant; it did not add the new scope.
+Repeat browser consent requesting all required scopes, exchange for a new
+refresh token, update the credential file, and rerun the auth check.
 
 ### `DISALLOWED_OAUTH_SCOPES`
 
-The access token includes a scope that Google Health does not allow for the
-current endpoint or app configuration.
+Review the requested set against the canonical three scopes. Remove broad or
+unrelated scopes such as `cloud-platform`, repeat consent, and validate again.
 
-Action:
+### Wrong OAuth client or redirect URI
 
-1. Regenerate the token using only the required Google Health scopes above.
-2. Do not include broad scopes such as `cloud-platform`.
-3. Rerun the auth check.
+If Playground reports a redirect mismatch, confirm the selected client is
+cycling-platform and that its authorised redirect URIs include exactly:
 
-### Scope/permission errors after refresh succeeds
+```text
+https://developers.google.com/oauthplayground
+```
 
-The token is valid but was not granted all endpoint scopes.
+A refresh token generated with different OAuth client credentials will not
+work with the platform client ID and secret.
 
-Action:
+### Scope validation succeeds but an endpoint fails
 
-1. Regenerate with both required scopes.
-2. Confirm the consent screen presented both scopes.
-3. Rerun a short Google Health capability probe if endpoint access is still
-   uncertain.
+Run the bounded capability probe. A failure here can indicate an incorrect
+data-type name, filter field, interval/sample semantic mismatch, account/API
+availability, or endpoint-specific permission—not a refresh problem.
+
+### Testing-mode expiry
+
+Google documents that an external OAuth consent screen in **Testing** normally
+issues seven-day refresh tokens when non-basic scopes are requested. Move the
+owned app to its intended production publishing status and generate a new token
+afterward. A token issued while the app was in Testing should not be assumed to
+become durable automatically.
+
+### Other refresh-token invalidation
+
+Google documents revocation, six months of non-use, time-limited access,
+administrator policy, and refresh-token issuance limits as possible causes.
+Avoid repeatedly generating tokens unnecessarily; store and use the current
+valid refresh token persistently.
 
 ## Operational Guidance
 
-To avoid unnecessary manual regeneration:
+- Keep the OAuth app out of Testing for normal production use.
+- Keep daily ingestion active so the refresh token is used regularly.
+- Treat any newly returned refresh token as a rotating persistent credential.
+- Never print tokens, prefixes, authorization codes, or the client secret.
+- Never commit `.Renviron`, Compose `.env`, or runtime credential files.
+- A future scope change must update the canonical R scope set and its tests.
 
-* keep the production OAuth consent screen out of `Testing`;
-* avoid repeatedly generating new refresh tokens for the same Google account
-  and OAuth client;
-* keep the daily platform run active so the token is used regularly;
-* keep the required scopes stable unless the Raw ingestion surface changes.
+Primary references:
+
+- [Google Health OAuth setup](https://developers.google.com/health/setup)
+- [Google OAuth 2.0 overview and refresh-token expiry](https://developers.google.com/identity/protocols/oauth2)
+- [Google OAuth offline access and token refresh](https://developers.google.com/identity/protocols/oauth2/web-server)
+- [Google OAuth security best practices](https://developers.google.com/identity/protocols/oauth2/resources/best-practices)

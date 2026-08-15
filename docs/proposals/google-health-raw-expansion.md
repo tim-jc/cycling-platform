@@ -14,6 +14,8 @@ that are worth adding to the Raw layer:
 3. richer sleep detail, especially sleep stages
 4. daily respiratory rate
 5. intraday heart-rate variability, only if it adds clear value
+6. Exercise sessions, as a separately designed future Raw object for off-bike
+   exercise and strength context
 
 The architectural rule is:
 
@@ -65,12 +67,21 @@ The current Google Health design and auth flow require:
 
 * `https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly`
 * `https://www.googleapis.com/auth/googlehealth.sleep.readonly`
+* `https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly`
 
 These scopes should be sufficient for the proposed Raw expansion:
 
 * health metrics scope: heart rate, daily resting heart rate, daily HRV and
   intraday HRV;
-* sleep scope: sleep sessions and sleep stages.
+* sleep scope: sleep sessions and sleep stages;
+* activity and fitness scope: validated Exercise endpoint capability and future
+  Exercise ingestion.
+
+Exercise capability was validated using data type `exercise`. It is a
+session/interval object and filters on fields such as
+`exercise.interval.start_time`; it must not be forced through the existing
+sample helper's `{data_type}.sample_time.physical_time` semantics. Raw Exercise
+grain, persistence, and orchestration remain a separate design task.
 
 Capability probe findings from 2026-07-11:
 
@@ -742,12 +753,15 @@ data have different operational profiles.
 
 ## Required OAuth Changes
 
-Before implementation, confirm the refresh token has both required scopes:
+Before implementation, confirm the refresh token has all required scopes listed
+in `docs/google_health_authentication.md`:
 
 * health metrics and measurements readonly;
-* sleep readonly.
+* sleep readonly;
+* activity and fitness readonly.
 
-If the token does not contain both, regenerate it and update `.Renviron`.
+If the token does not contain all required scopes, regenerate it and update
+`.Renviron`.
 
 The auth check should eventually report:
 

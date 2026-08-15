@@ -333,15 +333,19 @@ Required scopes:
 ```text
 https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
 https://www.googleapis.com/auth/googlehealth.sleep.readonly
+https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly
 ```
 
-Both scopes are required because the platform now ingests:
+All required scopes are requested together because the platform uses or has
+validated:
 
 * heart-rate data from Google/Fitbit health metrics;
-* sleep logs from Google/Fitbit sleep data.
+* sleep logs from Google/Fitbit sleep data;
+* Exercise endpoint capability for separately planned future ingestion.
 
-If a refresh token is generated with only one of these scopes, the other
-endpoint may fail even though token refresh itself succeeds.
+Exercise is interval/session based and is not implemented as Raw ingestion by
+this design. If a refresh token omits any required scope, token refresh can
+still succeed while the affected endpoint fails.
 
 Proposed helper files:
 
@@ -388,11 +392,14 @@ access_type=offline
 prompt=consent
 ```
 
-The consent request must include both platform scopes:
+The consent request must include all platform scopes listed in the authentication
+runbook. Refresh-token exchange cannot add scopes; browser re-authorisation is
+required when the set changes.
 
 ```text
 https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
 https://www.googleapis.com/auth/googlehealth.sleep.readonly
+https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly
 ```
 
 After completing the consent flow, paste the returned refresh token into the
@@ -429,7 +436,7 @@ longer valid for this OAuth client and scope set. Generate a new refresh token,
 replace `GOOGLE_HEALTH_REFRESH_TOKEN` in `.Renviron`, and rerun the auth check.
 
 If the auth check succeeds but platform ingestion fails with a scope error,
-regenerate the refresh token and confirm both required scopes were present in the
+regenerate the refresh token and confirm all required scopes were present in the
 OAuth consent request.
 
 ## Endpoint

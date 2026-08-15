@@ -206,6 +206,9 @@ Rscript scripts/operations/run_notifications.R queue_and_deliver
 
 # Google Health credential check
 Rscript scripts/google_health/check_authentication.R
+
+# Google Health endpoint capability probe (bounded, end date exclusive)
+Rscript scripts/google_health/probe_capabilities.R 2026-08-01 2026-08-08
 ```
 
 Detailed behaviour is documented in [Platform
@@ -238,8 +241,9 @@ with `CYCLING_PLATFORM_RENVIRON_PATH` and `R_ENVIRON_USER` at
 `/run/cycling-platform/runtime.Renviron`, backed by the host file
 `/srv/cycling/config/platform/runtime.Renviron`. `.Renviron` is excluded from
 the Docker build context and secrets must never be baked into the image or
-committed. See [Strava Authentication](docs/strava_authentication.md) for the
-interactive bootstrap and scope-expansion procedure.
+committed. See [Strava Authentication](docs/strava_authentication.md) and
+[Google Health Authentication](docs/google_health_authentication.md) for the
+respective bootstrap, validation, and scope-expansion procedures.
 
 Non-secret runtime behaviour is configured in `config/platform.yml`.
 

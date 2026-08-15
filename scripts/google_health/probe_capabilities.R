@@ -1,8 +1,25 @@
+args <- commandArgs(trailingOnly = TRUE)
+
+usage <- paste(
+  "Usage:",
+  "Rscript scripts/google_health/probe_capabilities.R",
+  "[start_date end_date]"
+)
+
+if (any(args %in% c("--help", "-h"))) {
+  cat(
+    usage,
+    "\n\n",
+    "Probes established Google Health surfaces plus Exercise capability.\n",
+    "Dates use YYYY-MM-DD and end_date is exclusive.\n",
+    sep = ""
+  )
+  quit(status = 0L)
+}
+
 source("bootstrap.R")
 
 config <- load_config()
-
-args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) == 0) {
   end_date <- Sys.Date()
@@ -11,14 +28,7 @@ if (length(args) == 0) {
   start_date <- as.Date(args[[1]])
   end_date <- as.Date(args[[2]])
 } else {
-  stop(
-    paste(
-      "Usage:",
-      "Rscript scripts/google_health/probe_capabilities.R",
-      "[start_date end_date]"
-    ),
-    call. = FALSE
-  )
+  stop(usage, call. = FALSE)
 }
 
 if (is.na(start_date) || is.na(end_date) || start_date >= end_date) {
@@ -58,6 +68,18 @@ token <- get_google_health_access_token(
   verbose = TRUE
 )
 
+scope_report <- assert_google_health_required_scopes(
+  get_google_health_granted_scopes(token)
+)
+
+message(
+  "Google Health authentication and required-scope validation: SUCCESS · ",
+  length(scope_report$granted_required),
+  "/",
+  length(scope_report$required),
+  " required scopes granted."
+)
+
 message(
   "Google Health capability probe window: ",
   start_date,
@@ -65,183 +87,6 @@ message(
   end_date,
   " (end exclusive)."
 )
-
-google_health_probe_path <- function(data_type) {
-  paste0(
-    "/users/",
-    utils::URLencode(
-      google_user_id,
-      reserved = TRUE
-    ),
-    "/dataTypes/",
-    utils::URLencode(
-      data_type,
-      reserved = TRUE
-    ),
-    "/dataPoints"
-  )
-}
-
-google_health_probe_data_points <- function(
-  data_type,
-  filter,
-  page_size
-) {
-  path <- google_health_probe_path(
-    data_type = data_type
-  )
-
-  next_page_token <- NULL
-  pages <- list()
-  data_points <- list()
-
-  repeat {
-    query <- list(
-      filter = filter,
-      pageSize = page_size
-    )
-
-    if (!is.null(next_page_token)) {
-      query$pageToken <- next_page_token
-    }
-
-    response <- perform_google_health_request(
-      path = path,
-      config = config,
-      query = query,
-      token = token
-    )
-
-    body <- httr2::resp_body_json(
-      response,
-      simplifyVector = FALSE
-    )
-
-    pages <- c(
-      pages,
-      list(body)
-    )
-
-    page_data_points <- body$dataPoints
-
-    if (is.null(page_data_points)) {
-      page_data_points <- body$data_points
-    }
-
-    if (is.null(page_data_points)) {
-      page_data_points <- list()
-    }
-
-    data_points <- c(
-      data_points,
-      page_data_points
-    )
-
-    next_page_token <- body$nextPageToken
-
-    if (is.null(next_page_token)) {
-      next_page_token <- body$next_page_token
-    }
-
-    if (is.null(next_page_token) || !nzchar(next_page_token)) {
-      break
-    }
-  }
-
-  list(
-    success = TRUE,
-    data_type = data_type,
-    filter = filter,
-    page_count = length(pages),
-    data_point_count = length(data_points),
-    data_points = data_points,
-    error_message = NA_character_
-  )
-}
-
-run_probe <- function(
-  probe_name,
-  data_type,
-  filter,
-  page_size
-) {
-  message("")
-  message("Probe: starting ", probe_name, ".")
-  start_time <- Sys.time()
-
-  result <- NULL
-
-  for (filter_candidate in filter) {
-    message(
-      "Probe filter: ",
-      filter_candidate
-    )
-
-    result <- tryCatch(
-      google_health_probe_data_points(
-        data_type = data_type,
-        filter = filter_candidate,
-        page_size = page_size
-      ),
-      error = function(e) {
-        list(
-          success = FALSE,
-          data_type = data_type,
-          filter = filter_candidate,
-          page_count = NA_integer_,
-          data_point_count = NA_integer_,
-          data_points = list(),
-          error_message = conditionMessage(e)
-        )
-      }
-    )
-
-    if (isTRUE(result$success)) {
-      break
-    }
-  }
-
-  elapsed_seconds <- round(
-    as.numeric(
-      difftime(
-        Sys.time(),
-        start_time,
-        units = "secs"
-      )
-    ),
-    1
-  )
-
-  if (isTRUE(result$success)) {
-    message(
-      "Probe: completed ",
-      probe_name,
-      " in ",
-      elapsed_seconds,
-      "s; pages=",
-      result$page_count,
-      "; data_points=",
-      result$data_point_count,
-      "."
-    )
-  } else {
-    message(
-      "Probe: failed ",
-      probe_name,
-      " in ",
-      elapsed_seconds,
-      "s."
-    )
-    message(
-      "Probe error: ",
-      result$error_message
-    )
-  }
-
-  result$probe_name <- probe_name
-  result$elapsed_seconds <- elapsed_seconds
-  result
-}
 
 extract_scalar <- function(x, paths) {
   value <- google_health_extract_first(
@@ -566,7 +411,7 @@ datetime_filter <- function(
   )
 }
 
-rhr_result <- run_probe(
+rhr_result <- run_google_health_capability_probe(
   probe_name = "daily resting heart rate",
   data_type = "daily-resting-heart-rate",
   filter = c(
@@ -581,7 +426,10 @@ rhr_result <- run_probe(
       end_date = end_date
     )
   ),
-  page_size = page_size
+  page_size = page_size,
+  google_user_id = google_user_id,
+  config = config,
+  token = token
 )
 
 rhr_rows <- shape_daily_rhr_probe(
@@ -598,7 +446,7 @@ print(
   width = Inf
 )
 
-hrv_result <- run_probe(
+hrv_result <- run_google_health_capability_probe(
   probe_name = "daily heart-rate variability",
   data_type = "daily-heart-rate-variability",
   filter = c(
@@ -613,7 +461,10 @@ hrv_result <- run_probe(
       end_date = end_date
     )
   ),
-  page_size = page_size
+  page_size = page_size,
+  google_user_id = google_user_id,
+  config = config,
+  token = token
 )
 
 hrv_rows <- shape_daily_hrv_probe(
@@ -630,7 +481,7 @@ print(
   width = Inf
 )
 
-sleep_result <- run_probe(
+sleep_result <- run_google_health_capability_probe(
   probe_name = "sleep payload richness",
   data_type = "sleep",
   filter = datetime_filter(
@@ -641,7 +492,10 @@ sleep_result <- run_probe(
   page_size = min(
     page_size,
     25L
-  )
+  ),
+  google_user_id = google_user_id,
+  config = config,
+  token = token
 )
 
 sleep_rows <- shape_sleep_probe(
@@ -658,36 +512,59 @@ print(
   width = Inf
 )
 
+exercise_result <- run_google_health_capability_probe(
+  probe_name = "Exercise / Activity & Fitness",
+  data_type = "exercise",
+  filter = google_health_interval_filter(
+    data_type = "exercise",
+    start_date = start_date,
+    end_date = end_date
+  ),
+  page_size = min(page_size, 100L),
+  google_user_id = google_user_id,
+  config = config,
+  token = token
+)
+
+message("")
+message(format_google_health_exercise_capability(exercise_result))
+
 summary <- tibble::tibble(
   probe_name = c(
     rhr_result$probe_name,
     hrv_result$probe_name,
-    sleep_result$probe_name
+    sleep_result$probe_name,
+    exercise_result$probe_name
   ),
   data_type = c(
     rhr_result$data_type,
     hrv_result$data_type,
-    sleep_result$data_type
+    sleep_result$data_type,
+    exercise_result$data_type
   ),
   success = c(
     rhr_result$success,
     hrv_result$success,
-    sleep_result$success
+    sleep_result$success,
+    exercise_result$success
   ),
   data_point_count = c(
     rhr_result$data_point_count,
     hrv_result$data_point_count,
-    sleep_result$data_point_count
+    sleep_result$data_point_count,
+    exercise_result$data_point_count
   ),
   page_count = c(
     rhr_result$page_count,
     hrv_result$page_count,
-    sleep_result$page_count
+    sleep_result$page_count,
+    exercise_result$page_count
   ),
   elapsed_seconds = c(
     rhr_result$elapsed_seconds,
     hrv_result$elapsed_seconds,
-    sleep_result$elapsed_seconds
+    sleep_result$elapsed_seconds,
+    exercise_result$elapsed_seconds
   ),
   evidence = c(
     paste0(
@@ -703,12 +580,22 @@ summary <- tibble::tibble(
       " sleep logs with stages; ",
       sum(sleep_rows$has_summary),
       " with summary"
-    )
+    ),
+    if (isTRUE(exercise_result$success)) {
+      if (isTRUE(exercise_result$data_point_count == 0L)) {
+        "endpoint accessible; zero records in window"
+      } else {
+        paste0(exercise_result$data_point_count, " exercise records returned")
+      }
+    } else {
+      "endpoint capability not confirmed"
+    }
   ),
   error_message = c(
     rhr_result$error_message,
     hrv_result$error_message,
-    sleep_result$error_message
+    sleep_result$error_message,
+    exercise_result$error_message
   )
 )
 
