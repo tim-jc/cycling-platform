@@ -209,6 +209,9 @@ Rscript scripts/google_health/check_authentication.R
 
 # Google Health endpoint capability probe (bounded, end date exclusive)
 Rscript scripts/google_health/probe_capabilities.R 2026-08-01 2026-08-08
+
+# Google Health Exercise Raw ingestion over explicit inclusive dates
+Rscript scripts/google_health/run_exercise.R 2026-08-01 2026-08-07
 ```
 
 Detailed behaviour is documented in [Platform

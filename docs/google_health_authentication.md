@@ -27,11 +27,12 @@ They cover:
 | --- | --- |
 | Health Metrics and Measurements | Heart rate, daily resting heart rate, daily HRV, and daily respiratory rate |
 | Sleep | Sleep logs and stages |
-| Activity and Fitness | Exercise capability and future activity/fitness ingestion |
+| Activity and Fitness | Exercise capability and Raw Exercise ingestion |
 
-Exercise Raw ingestion is not implemented. The third scope permits the
-capability probe and prepares for a separately designed future ingestion flow.
-Do not add broad scopes such as `cloud-platform`.
+Exercise Raw ingestion is implemented as a source-observation object. No Silver
+or coaching interpretation exists. The third scope permits both bounded Raw
+retrieval and the diagnostic capability probe. Do not add broad scopes such as
+`cloud-platform`.
 
 ## Credentials and Storage
 
@@ -199,7 +200,12 @@ access and is reported separately from a permission failure.
 ## Update and Validate Production
 
 1. Optionally make a protected backup copy of
-   `/srv/cycling/config/platform/runtime.Renviron`.
+   `/srv/cycling/config/platform/runtime.Renviron`, but place it outside
+   `/srv/cycling/config/platform`. That directory is reserved exclusively for
+   the live `runtime.Renviron` and deployment preflight rejects additional
+   files. A suitable operator-owned example is
+   `~/credential-backups/cycling-platform/` with directory mode `0700` and
+   backup-file mode `0600`.
 2. Open that file in an editor on `cycling-prod`.
 3. Replace only `GOOGLE_HEALTH_REFRESH_TOKEN`; do not alter Strava or other
    credentials.
@@ -230,7 +236,7 @@ Do not run the capability probe casually over a large interval.
 | --- | --- | --- |
 | `check_authentication.R` | Credential file found; refresh succeeds; access token obtained; every required scope granted | Endpoint contains records; endpoint filter semantics are correct |
 | `probe_capabilities.R` | Selected endpoint surfaces accept an authorised request and their endpoint-specific filters; zero records remain distinguishable from access failure | Raw ingestion exists or is correct |
-| Raw ingestion | Source retrieval, persistence, lineage, idempotency, and reconciliation for implemented entities | Future Exercise ingestion; this remains separate work |
+| Raw ingestion | Source retrieval, persistence, lineage, idempotency, and reconciliation for implemented entities, including Exercise source observations | Silver Exercise meaning or coaching use |
 
 ## Diagnostics and Common Failures
 

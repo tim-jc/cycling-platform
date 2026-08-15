@@ -20,6 +20,12 @@ source(file.path(
   google_health_test_root,
   "R",
   "api",
+  "get_google_health_exercise.R"
+))
+source(file.path(
+  google_health_test_root,
+  "R",
+  "api",
   "probe_google_health_capabilities.R"
 ))
 
@@ -230,6 +236,16 @@ testthat::test_that("production authentication runbook uses durable paths and wr
   )
   testthat::expect_match(runbook, "tim:tim", fixed = TRUE)
   testthat::expect_match(runbook, "0600", fixed = TRUE)
+  testthat::expect_match(
+    runbook,
+    "place it outside\n   `/srv/cycling/config/platform`",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    runbook,
+    "~/credential-backups/cycling-platform/",
+    fixed = TRUE
+  )
 })
 
 testthat::test_that("authentication entry point never formats token prefixes", {

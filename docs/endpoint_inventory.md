@@ -15,7 +15,7 @@ for idempotency and validation.
 | Google Health Daily Resting Heart Rate | `/users/me/dataTypes/daily-resting-heart-rate/dataPoints` | `raw.google_health_daily_resting_heart_rate` | `daily_resting_heart_rate_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily RHR; full data-point payload and source ecosystem provenance retained |
 | Google Health Daily HRV | `/users/me/dataTypes/daily-heart-rate-variability/dataPoints` | `raw.google_health_daily_heart_rate_variability` | `daily_heart_rate_variability_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily HRV; source ecosystem provenance retained; intraday HRV remains deferred |
 | Google Health Daily Respiratory Rate | `/users/me/dataTypes/daily-respiratory-rate/dataPoints` | `raw.google_health_daily_respiratory_rate` | `daily_respiratory_rate_key` | High | Date-window refresh + backfill | Implemented | Source-reported daily respiratory rate in breaths per minute; source ecosystem provenance retained |
-| Google Health Exercise | `/users/me/dataTypes/exercise/dataPoints` | not implemented | not designed | Medium | not designed | Capability validated; Raw planned | Activity & Fitness read-only scope; intended future off-bike exercise and strength context; interval/session semantics |
+| Google Health Exercise | `/users/me/dataTypes/exercise/dataPoints` | `raw.google_health_exercise` | `exercise_observation_key` | Medium | Date-window refresh + backfill | Raw implemented; Silver deferred | Distinct source payload observations; Activity & Fitness read-only scope; interval/session semantics |
 | Athlete gear collection | `/athlete` | discovery only | current `bikes` and `shoes` arrays | High | Daily snapshot discovery | Implemented | Requires `profile:read_all`; no Raw athlete entity is created by the gear flow |
 | Gear | `/gear/{id}` | `raw.gear_observations` | `gear_id`, `payload_hash` | High | Daily current collection + historical activity references | Implemented | Detailed current and historical gear; 403/404 attempts remain auditable |
 | Routes           | `/routes/{id}`             | `raw.routes`           | `route_id`                   | Low      | On demand                     | Planned    | Optional route enrichment          |
@@ -41,6 +41,7 @@ lineage, filtering, validation, and common operational queries.
 | `raw.google_health_daily_resting_heart_rate` | `daily-resting-heart-rate` | one retained source data point | `resting_heart_rate_bpm`, `calculation_method` | `dailyRestingHeartRate.date` | `daily_resting_heart_rate_payload` | implemented; observation active |
 | `raw.google_health_daily_heart_rate_variability` | `daily-heart-rate-variability` | one retained source data point | `average_hrv_milliseconds`, `deep_sleep_rmssd_milliseconds`, `non_rem_heart_rate_bpm`, `entropy` | `dailyHeartRateVariability.date` | `daily_heart_rate_variability_payload` | implemented; observation active |
 | `raw.google_health_daily_respiratory_rate` | `daily-respiratory-rate` | one retained source data point | `respiratory_rate_brpm` | `dailyRespiratoryRate.date` | `daily_respiratory_rate_payload` | implemented; observation active |
+| `raw.google_health_exercise` | `exercise` | one distinct source payload observation per user and source data-point ID | exercise type and display name; metrics remain in JSON | `exercise.interval.startTime`, `exercise.interval.endTime` | `exercise_payload` | implemented; Silver deferred |
 
 ### Daily Summary Keying
 
@@ -59,7 +60,6 @@ duplicates are evaluated against the full source grain.
 | Data type | Intended use | Status |
 | --- | --- | --- |
 | `heart-rate-variability` | intraday/sample HRV for possible sleep-window analysis | deferred pending clear value versus volume |
-| `exercise` | future off-bike exercise and strength context | API capability validated; Raw ingestion not implemented; requires interval/session filtering and Activity & Fitness read-only scope |
 | oxygen saturation / skin temperature / other recovery metrics | future recovery modelling candidates | not yet assessed |
 
 Baselines, trends, deviations, readiness, and recovery scores belong in Gold,

@@ -37,7 +37,7 @@ platform_json_columns <- function() {
     table_schema = c(
       "cycling_platform_admin",
       "cycling_platform_admin",
-      rep("cycling_platform_raw", 10L)
+      rep("cycling_platform_raw", 11L)
     ),
     table_name = c(
       "notification_outbox",
@@ -51,7 +51,8 @@ platform_json_columns <- function() {
       "google_health_sleep_logs",
       "google_health_daily_resting_heart_rate",
       "google_health_daily_heart_rate_variability",
-      "google_health_daily_respiratory_rate"
+      "google_health_daily_respiratory_rate",
+      "google_health_exercise"
     ),
     column_name = c(
       "payload_json",
@@ -65,7 +66,8 @@ platform_json_columns <- function() {
       "sleep_log_payload",
       "daily_resting_heart_rate_payload",
       "daily_heart_rate_variability_payload",
-      "daily_respiratory_rate_payload"
+      "daily_respiratory_rate_payload",
+      "exercise_payload"
     )
   )
 }
@@ -539,7 +541,7 @@ count_platform_completeness_checks <- function(
     return(14L)
   }
 
-  check_count <- 51L
+  check_count <- 56L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -1263,6 +1265,130 @@ validate_platform_completeness <- function(
   )
 
   if (identical(validation_scope, "deep")) {
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_exercise_table_exists",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            1 AS issue_count,
+            'cycling_platform_raw.google_health_exercise is missing' AS issue
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'cycling_platform_raw'
+              AND table_name = 'google_health_exercise'
+          )
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_exercise_recent_request_success",
+        check_scope = "deep",
+        severity = "WARNING",
+        query = "
+          SELECT
+            1 AS issue_count,
+            'No successful Google Health Exercise request in the last 2 days'
+              AS issue
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM cycling_platform_admin.etl_request_log
+            WHERE entity_name = 'google_health_exercise'
+              AND request_status = 'SUCCESS'
+              AND requested_start_date >= UTC_DATE() - INTERVAL 2 DAY
+          )
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_exercise_duplicate_keys",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            exercise_observation_key,
+            COUNT(*) AS issue_count
+          FROM cycling_platform_raw.google_health_exercise
+          GROUP BY exercise_observation_key
+          HAVING COUNT(*) > 1
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_exercise_required_fields_valid",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            exercise_observation_key,
+            google_health_user_id,
+            source_data_point_id,
+            run_id,
+            retrieved_at
+          FROM cycling_platform_raw.google_health_exercise
+          WHERE exercise_observation_key IS NULL
+             OR google_health_user_id IS NULL
+             OR google_health_user_id = ''
+             OR source_data_point_id IS NULL
+             OR source_data_point_id = ''
+             OR run_id IS NULL
+             OR retrieved_at IS NULL
+             OR exercise_payload IS NULL
+             OR JSON_LENGTH(exercise_payload) = 0
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_exercise_interval_valid",
+        check_scope = "deep",
+        severity = "CRITICAL",
+        query = "
+          SELECT
+            exercise_observation_key,
+            source_data_point_id,
+            interval_start_time,
+            interval_end_time
+          FROM cycling_platform_raw.google_health_exercise
+          WHERE interval_start_time IS NOT NULL
+            AND interval_end_time IS NOT NULL
+            AND interval_start_time > interval_end_time
+          LIMIT 1000
+        ",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
     checks <- append_validation_result(
       checks,
       run_validation_query(

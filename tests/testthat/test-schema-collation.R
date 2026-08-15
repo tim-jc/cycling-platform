@@ -215,8 +215,8 @@ testthat::test_that("collation validation covers platform metadata", {
   }
 
   json_columns <- platform_json_columns()
-  testthat::expect_equal(nrow(json_columns), 12L)
-  testthat::expect_equal(nrow(unique(json_columns)), 12L)
+  testthat::expect_equal(nrow(json_columns), 13L)
+  testthat::expect_equal(nrow(unique(json_columns)), 13L)
 
   for (column_name in json_columns$column_name) {
     testthat::expect_match(query, column_name, fixed = TRUE)
@@ -227,4 +227,5 @@ testthat::test_that("collation validation covers platform metadata", {
     "daily_respiratory_rate_payload",
     fixed = TRUE
   )
+  testthat::expect_match(query, "exercise_payload", fixed = TRUE)
 })

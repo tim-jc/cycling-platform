@@ -341,11 +341,13 @@ validated:
 
 * heart-rate data from Google/Fitbit health metrics;
 * sleep logs from Google/Fitbit sleep data;
-* Exercise endpoint capability for separately planned future ingestion.
+* Exercise endpoint capability and additive Raw source-observation ingestion;
+  Silver and coaching semantics remain deferred pending exploration.
 
-Exercise is interval/session based and is not implemented as Raw ingestion by
-this design. If a refresh token omits any required scope, token refresh can
-still succeed while the affected endpoint fails.
+Exercise is interval/session based and now has an additive Raw
+source-observation implementation. It does not have a Silver or coaching model.
+If a refresh token omits any required scope, token refresh can still succeed
+while the affected endpoint fails.
 
 Proposed helper files:
 
@@ -438,6 +440,50 @@ replace `GOOGLE_HEALTH_REFRESH_TOKEN` in `.Renviron`, and rerun the auth check.
 If the auth check succeeds but platform ingestion fails with a scope error,
 regenerate the refresh token and confirm all required scopes were present in the
 OAuth consent request.
+
+## Exercise Raw Source Observations
+
+`cycling_platform_raw.google_health_exercise` retains one row per distinct
+Exercise payload observation. `exercise_observation_key` hashes Google Health
+user ID, required source data-point `name`, and the complete payload. Identical
+re-fetches are unchanged; a changed payload creates a new observation, so
+source revision evidence is not overwritten. `exercise.updateTime` is promoted
+but is not assumed to be a complete revision key.
+
+Promoted fields are limited to source identity, exercise type/display name,
+interval boundaries and UTC offsets, update time, source provenance, and ETL
+lineage. `exerciseMetadata`, `metricsSummary`, and all other fields remain in
+`exercise_payload` for retained exploration.
+
+Routine and historical windows are controlled by:
+
+```text
+ingestion.google_health_exercise_refresh_days
+ingestion.google_health_exercise_backfill_days
+```
+
+The endpoint uses an inclusive lower and exclusive upper bound on
+`exercise.interval.start_time`. This differs from sample data types and must not
+use `sample_time.physical_time`.
+
+Manual commands are:
+
+```sh
+# Configured routine window
+Rscript scripts/google_health/run_exercise.R refresh
+
+# Explicit inclusive dates; each date becomes a bounded UTC interval request
+Rscript scripts/google_health/run_exercise.R 2026-08-01 2026-08-07
+
+# Configured historical window
+Rscript scripts/google_health/run_exercise.R backfill
+```
+
+Each requested date is recorded in `admin.etl_request_log`, including
+successful empty responses. The entity summary records insert/failure state;
+logs additionally report requests, pages, source records, inserted rows, and
+unchanged rows. See the dedicated Raw contract at
+`docs/data-contracts/raw/google_health_exercise.md`.
 
 ## Endpoint
 

@@ -6,8 +6,9 @@ utilities.
 
 ## Google Health
 
-`google_health/` contains manual endpoint runners, the authentication check,
-the capability probe, and the source-provenance backfill.
+`google_health/` contains manual endpoint runners, including
+`run_exercise.R` for bounded Raw Exercise refresh/backfill, plus the
+authentication check, capability probe, and source-provenance backfill.
 
 ## Strava
 

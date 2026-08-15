@@ -49,8 +49,8 @@ if (
     isTRUE(google_health_enabled)
 ) {
   message("Checking Google Health OAuth token before ingestion.")
-  get_google_health_access_token()
-  message("Google Health OAuth token refresh check succeeded.")
+  check_google_health_authentication(verbose = FALSE)
+  message("Google Health OAuth refresh and required-scope checks succeeded.")
 }
 
 connection <- get_connection(
@@ -207,6 +207,29 @@ tryCatch(
           start_date = Sys.Date() - as.integer(google_health_sleep_refresh_days),
           end_date = Sys.Date()
         )
+
+        if ("exercise" %in% google_health_data_types) {
+          if (execution_mode == "backfill") {
+            google_health_exercise_refresh_days <-
+              config$ingestion$google_health_exercise_backfill_days
+          } else {
+            google_health_exercise_refresh_days <-
+              config$ingestion$google_health_exercise_refresh_days
+          }
+
+          if (is.null(google_health_exercise_refresh_days)) {
+            google_health_exercise_refresh_days <- 14L
+          }
+
+          ingest_google_health_exercise(
+            connection = connection,
+            run_id = run_id,
+            source_id = 2L,
+            config = config,
+            start_date = Sys.Date() - as.integer(google_health_exercise_refresh_days),
+            end_date = Sys.Date()
+          )
+        }
 
         if ("daily-resting-heart-rate" %in% google_health_data_types) {
           if (execution_mode == "backfill") {

@@ -1,8 +1,9 @@
 # Google Health Raw Expansion Proposal
 
 Status: Raw expansion implemented for daily resting heart rate, daily HRV,
-daily respiratory rate, and sleep-stage metadata. Do not implement Silver for
-Google Health until these Raw objects have been exercised through routine runs.
+daily respiratory rate, sleep-stage metadata, and Exercise source
+observations. Do not implement Silver for Google Health Exercise until the Raw
+object has been explored through routine runs.
 
 ## Purpose
 
@@ -14,8 +15,8 @@ that are worth adding to the Raw layer:
 3. richer sleep detail, especially sleep stages
 4. daily respiratory rate
 5. intraday heart-rate variability, only if it adds clear value
-6. Exercise sessions, as a separately designed future Raw object for off-bike
-   exercise and strength context
+6. Exercise sessions, now implemented as a source-preserving Raw object for
+   later exploration of off-bike exercise and strength context
 
 The architectural rule is:
 
@@ -38,7 +39,7 @@ Current Google Health / Fitbit Raw implementation:
 | Area | Current implementation |
 | --- | --- |
 | Config | `config/platform.yml`, `sources.google_health` |
-| Enabled data types | `heart-rate`, `sleep`, `daily-resting-heart-rate`, `daily-heart-rate-variability`, `daily-respiratory-rate` |
+| Enabled data types | `heart-rate`, `sleep`, `daily-resting-heart-rate`, `daily-heart-rate-variability`, `daily-respiratory-rate`, `exercise` |
 | API base URL | `https://health.googleapis.com/v4` |
 | OAuth helper | `R/api/get_google_health_access_token.R` |
 | Request helper | `R/api/perform_google_health_request.R` |
@@ -50,16 +51,19 @@ Current Google Health / Fitbit Raw implementation:
 | Daily RHR ingestion | `R/ingestion/ingest_google_health_daily_resting_heart_rate.R` |
 | Daily HRV ingestion | `R/ingestion/ingest_google_health_daily_heart_rate_variability.R` |
 | Daily respiratory-rate ingestion | `R/ingestion/ingest_google_health_daily_respiratory_rate.R` |
+| Exercise API wrapper | `R/api/get_google_health_exercise.R` |
+| Exercise ingestion | `R/ingestion/ingest_google_health_exercise.R` |
 | HR Raw table | `cycling_platform_raw.google_health_heart_rate_responses` |
 | Sleep Raw table | `cycling_platform_raw.google_health_sleep_logs` |
 | Daily RHR Raw table | `cycling_platform_raw.google_health_daily_resting_heart_rate` |
 | Daily HRV Raw table | `cycling_platform_raw.google_health_daily_heart_rate_variability` |
 | Daily respiratory-rate Raw table | `cycling_platform_raw.google_health_daily_respiratory_rate` |
-| Tests | `tests/testthat/test-google-health-data-points.R`, `tests/testthat/test-google-health-sleep-logs.R`, `tests/testthat/test-google-health-auth.R` |
+| Exercise Raw table | `cycling_platform_raw.google_health_exercise` |
+| Tests | `tests/testthat/test-google-health-data-points.R`, `tests/testthat/test-google-health-sleep-logs.R`, `tests/testthat/test-google-health-exercise.R`, `tests/testthat/test-google-health-auth.R` |
 
-`run_raw_ingestion.R` already runs Google Health HR and sleep ingestion when
-`sources.google_health.enabled` is true and the execution mode is not
-`streams_only`.
+`run_raw_ingestion.R` runs the enabled Google Health objects, including
+Exercise, when `sources.google_health.enabled` is true and the execution mode
+is not `streams_only` or an activity-maintenance-only mode.
 
 ## Current OAuth Position
 
@@ -74,14 +78,15 @@ These scopes should be sufficient for the proposed Raw expansion:
 * health metrics scope: heart rate, daily resting heart rate, daily HRV and
   intraday HRV;
 * sleep scope: sleep sessions and sleep stages;
-* activity and fitness scope: validated Exercise endpoint capability and future
+* activity and fitness scope: validated Exercise endpoint capability and Raw
   Exercise ingestion.
 
-Exercise capability was validated using data type `exercise`. It is a
-session/interval object and filters on fields such as
-`exercise.interval.start_time`; it must not be forced through the existing
-sample helper's `{data_type}.sample_time.physical_time` semantics. Raw Exercise
-grain, persistence, and orchestration remain a separate design task.
+Exercise capability and Raw retrieval use data type `exercise`. It is a
+session/interval object filtered on `exercise.interval.start_time`; it is not
+forced through the existing sample helper's
+`{data_type}.sample_time.physical_time` semantics. Raw retains distinct source
+payload observations keyed by user, source data-point name, and payload. Silver
+grain and semantics remain deferred pending exploration.
 
 Capability probe findings from 2026-07-11:
 
@@ -94,8 +99,9 @@ Capability probe findings from 2026-07-11:
   `stagesStatus = SUCCEEDED`;
 * intraday HRV remained deferred.
 
-This is capability-level only. The actual account, device, Fitbit migration
-state and granted refresh token still need live probing. A token that was
+Capability and scope access have been validated locally and in production.
+Raw observation is still required to establish account-specific exercise
+types, source revision behaviour, and payload richness. A token that was
 created before adding sleep or health metrics scopes may refresh successfully
 but still not authorize the new data types.
 

@@ -8,33 +8,6 @@ google_health_capability_path <- function(data_type, google_user_id = "me") {
   )
 }
 
-google_health_interval_filter <- function(
-  data_type,
-  start_date,
-  end_date
-) {
-  start_time <- format(
-    as.POSIXct(as.Date(start_date), tz = "UTC"),
-    "%Y-%m-%dT%H:%M:%SZ"
-  )
-  end_time <- format(
-    as.POSIXct(as.Date(end_date), tz = "UTC"),
-    "%Y-%m-%dT%H:%M:%SZ"
-  )
-  field_name <- paste0(gsub("-", "_", data_type), ".interval.start_time")
-
-  paste0(
-    field_name,
-    ' >= "',
-    start_time,
-    '" AND ',
-    field_name,
-    ' < "',
-    end_time,
-    '"'
-  )
-}
-
 google_health_probe_data_points <- function(
   data_type,
   filter,
