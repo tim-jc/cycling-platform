@@ -1,17 +1,16 @@
-google_health_interval_filter <- function(
-  data_type,
+google_health_exercise_interval_filter <- function(
   start_datetime,
   end_datetime
 ) {
   start_time <- format(
     as.POSIXct(start_datetime, tz = "UTC"),
-    "%Y-%m-%dT%H:%M:%SZ"
+    "%Y-%m-%dT%H:%M:%S"
   )
   end_time <- format(
     as.POSIXct(end_datetime, tz = "UTC"),
-    "%Y-%m-%dT%H:%M:%SZ"
+    "%Y-%m-%dT%H:%M:%S"
   )
-  field_name <- paste0(gsub("-", "_", data_type), ".interval.start_time")
+  field_name <- "exercise.interval.civil_start_time"
 
   paste0(
     field_name,
@@ -184,14 +183,21 @@ get_google_health_exercise <- function(
   retrieved_at = Sys.time()
 ) {
   google_health_user_id <- config$sources$google_health$user_id %||% "me"
-  page_size <- config$ingestion$google_health_page_size %||% 1000L
+  configured_page_size <- config$ingestion$google_health_page_size %||% 25L
+  if (
+    length(configured_page_size) != 1L ||
+      is.na(configured_page_size) ||
+      as.integer(configured_page_size) < 1L
+  ) {
+    stop("Google Health Exercise page size must be a positive integer.", call. = FALSE)
+  }
+  page_size <- min(as.integer(configured_page_size), 25L)
   path <- paste0(
     "/users/",
     utils::URLencode(google_health_user_id, reserved = TRUE),
     "/dataTypes/exercise/dataPoints"
   )
-  filter <- google_health_interval_filter(
-    "exercise",
+  filter <- google_health_exercise_interval_filter(
     start_datetime,
     end_datetime
   )

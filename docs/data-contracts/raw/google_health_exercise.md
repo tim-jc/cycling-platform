@@ -30,9 +30,11 @@ analysis but is not assumed to be the complete revision identity.
 - Endpoint: `GET /v4/users/{user}/dataTypes/exercise/dataPoints`.
 - Required scope: `googlehealth.activity_and_fitness.readonly`.
 - Request grain: bounded UTC date window.
-- Filter: inclusive `exercise.interval.start_time` lower bound and exclusive
-  upper bound.
-- Pagination: follows `nextPageToken` until absent.
+- Filter: inclusive `exercise.interval.civil_start_time` lower bound and
+  exclusive upper bound. The API does not support the physical
+  `exercise.interval.start_time` member for this session type.
+- Pagination: page size is capped at the Exercise maximum of 25 and follows
+  `nextPageToken` until absent.
 - Full source of truth: `exercise_payload` JSON.
 
 Exercise is an interval/session data type. It must not use the sample-style

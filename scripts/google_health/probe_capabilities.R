@@ -515,10 +515,9 @@ print(
 exercise_result <- run_google_health_capability_probe(
   probe_name = "Exercise / Activity & Fitness",
   data_type = "exercise",
-  filter = google_health_interval_filter(
-    data_type = "exercise",
-    start_date = start_date,
-    end_date = end_date
+  filter = google_health_exercise_interval_filter(
+    start_datetime = start_date,
+    end_datetime = end_date
   ),
   page_size = min(page_size, 100L),
   google_user_id = google_user_id,

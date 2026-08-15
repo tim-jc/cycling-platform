@@ -82,8 +82,8 @@ These scopes should be sufficient for the proposed Raw expansion:
   Exercise ingestion.
 
 Exercise capability and Raw retrieval use data type `exercise`. It is a
-session/interval object filtered on `exercise.interval.start_time`; it is not
-forced through the existing sample helper's
+session/interval object filtered on the supported session member
+`exercise.interval.civil_start_time`; it is not forced through the existing sample helper's
 `{data_type}.sample_time.physical_time` semantics. Raw retains distinct source
 payload observations keyed by user, source data-point name, and payload. Silver
 grain and semantics remain deferred pending exploration.

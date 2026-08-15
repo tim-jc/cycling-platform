@@ -192,10 +192,11 @@ Rscript scripts/google_health/probe_capabilities.R --help
 Rscript scripts/google_health/probe_capabilities.R 2026-08-01 2026-08-08
 ```
 
-The end date is exclusive. Exercise uses interval/session filtering via
-`exercise.interval.start_time`; it is deliberately not sent through the generic
-sample-time ingestion helper. HTTP success with zero Exercise records proves
-access and is reported separately from a permission failure.
+The end date is exclusive. Exercise uses the API's session filter
+`exercise.interval.civil_start_time`; it is deliberately not sent through the
+generic sample-time ingestion helper. The API does not support filtering
+Exercise on `exercise.interval.start_time`. HTTP success with zero Exercise
+records proves access and is reported separately from a permission failure.
 
 ## Update and Validate Production
 

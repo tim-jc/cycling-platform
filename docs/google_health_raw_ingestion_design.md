@@ -462,9 +462,11 @@ ingestion.google_health_exercise_refresh_days
 ingestion.google_health_exercise_backfill_days
 ```
 
-The endpoint uses an inclusive lower and exclusive upper bound on
-`exercise.interval.start_time`. This differs from sample data types and must not
-use `sample_time.physical_time`.
+The endpoint uses an inclusive lower and exclusive upper bound on the supported
+session member `exercise.interval.civil_start_time`. It does not support the
+physical `exercise.interval.start_time` member and must not use sample-style
+`sample_time.physical_time`. Exercise requests are capped at the API's maximum
+page size of 25 and follow `nextPageToken` until complete.
 
 Manual commands are:
 

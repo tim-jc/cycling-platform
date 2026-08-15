@@ -173,8 +173,27 @@ testthat::test_that("Exercise request paginates and retains every source record"
   testthat::expect_equal(attr(result, "page_count"), 2L)
   testthat::expect_equal(attr(result, "request_count"), 2L)
   testthat::expect_equal(calls[[2]]$query$pageToken, "next")
-  testthat::expect_match(calls[[1]]$query$filter, "exercise.interval.start_time", fixed = TRUE)
+  testthat::expect_match(
+    calls[[1]]$query$filter,
+    "exercise.interval.civil_start_time",
+    fixed = TRUE
+  )
   testthat::expect_false(grepl("sample_time", calls[[1]]$query$filter, fixed = TRUE))
+  testthat::expect_equal(calls[[1]]$query$pageSize, 25L)
+})
+
+testthat::test_that("Exercise request rejects invalid configured page size", {
+  testthat::expect_error(
+    get_google_health_exercise(
+      bit64::as.integer64(2), 2L,
+      as.POSIXct("2026-08-01", tz = "UTC"),
+      as.POSIXct("2026-08-02", tz = "UTC"),
+      exercise_config(page_size = 0L),
+      token = "opaque",
+      request_performer = function(...) stop("request should not run")
+    ),
+    "page size must be a positive integer"
+  )
 })
 
 testthat::test_that("Exercise request handles successful empty response and errors", {

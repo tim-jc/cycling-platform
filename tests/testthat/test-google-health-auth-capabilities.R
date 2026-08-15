@@ -107,16 +107,20 @@ testthat::test_that("token metadata scope parsing supports Google response", {
   testthat::expect_setequal(actual, scopes)
 })
 
-testthat::test_that("Exercise interval filter uses session semantics", {
-  filter <- google_health_interval_filter(
-    "exercise",
+testthat::test_that("Exercise interval filter uses supported session semantics", {
+  filter <- google_health_exercise_interval_filter(
     as.Date("2026-08-01"),
     as.Date("2026-08-08")
   )
-  testthat::expect_match(filter, "exercise[.]interval[.]start_time", perl = TRUE)
-  testthat::expect_match(filter, "2026-08-01T00:00:00Z", fixed = TRUE)
-  testthat::expect_match(filter, "2026-08-08T00:00:00Z", fixed = TRUE)
+  testthat::expect_match(
+    filter,
+    "exercise[.]interval[.]civil_start_time",
+    perl = TRUE
+  )
+  testthat::expect_match(filter, "2026-08-01T00:00:00", fixed = TRUE)
+  testthat::expect_match(filter, "2026-08-08T00:00:00", fixed = TRUE)
   testthat::expect_false(grepl("sample_time", filter, fixed = TRUE))
+  testthat::expect_false(grepl("interval.start_time", filter, fixed = TRUE))
 })
 
 testthat::test_that("Exercise probe reports records and zero-record access", {
