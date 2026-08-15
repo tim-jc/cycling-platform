@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BACKUP_ROOT="${BACKUP_ROOT:-$(dirname "$RUNTIME_DIR")}"
+BACKUP_LOG_DIR="${BACKUP_LOG_DIR:-$HOME/Library/Logs/cycling-platform}"
 MODE="${1:-backup}"
-BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$PROJECT_DIR/backups/latest_success.json}"
-ALERT_STATE_DIR="${BACKUP_ALERT_STATE_DIR:-$PROJECT_DIR/backups/.alert-state}"
+BACKUP_CONFIG_FILE="${BACKUP_CONFIG_FILE:-$BACKUP_ROOT/config/backup.env}"
+BACKUP_DIR="${BACKUP_DIR:-$BACKUP_ROOT/data}"
+BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$BACKUP_DIR/latest_success.json}"
+ALERT_STATE_DIR="${BACKUP_ALERT_STATE_DIR:-$BACKUP_DIR/.alert-state}"
 STALE_HOURS="${BACKUP_FRESHNESS_STALE_HOURS:-}"
 CRITICAL_HOURS="${BACKUP_FRESHNESS_CRITICAL_HOURS:-}"
 NTFY_BASE_URL="${NTFY_BASE_URL:-https://ntfy.sh}"
-BACKUP_COMMAND="${BACKUP_COMMAND:-$PROJECT_DIR/scripts/backup_mariadb.sh}"
+DEFAULT_BACKUP_COMMAND="$RUNTIME_DIR/scripts/backup_mariadb.sh"
+BACKUP_COMMAND="${BACKUP_COMMAND:-$DEFAULT_BACKUP_COMMAND}"
 CURL_BIN="${CURL_BIN:-curl}"
 PHYSICAL_MARKER="$(mktemp -t cycling-platform-backup-physical.XXXXXX)"
 
@@ -31,7 +36,7 @@ read_backup_config() {
       exit
     }
     END { if (!found) print fallback }
-  ' "$PROJECT_DIR/config/platform.yml"
+  ' "$RUNTIME_DIR/config/platform.yml"
 }
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
@@ -40,11 +45,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -f "$PROJECT_DIR/.Renviron" ]]; then
+if [[ "$MODE" == "paths" ]]; then
+  printf 'runtime\t%s\nbackup_root\t%s\nconfig\t%s\ndata\t%s\nlogs\t%s\n' \
+    "$RUNTIME_DIR" "$BACKUP_ROOT" "$BACKUP_CONFIG_FILE" "$BACKUP_DIR" "$BACKUP_LOG_DIR"
+  exit 0
+fi
+
+if [[ -f "$BACKUP_CONFIG_FILE" ]]; then
   set -a
   # shellcheck disable=SC1091
-  source "$PROJECT_DIR/.Renviron"
+  source "$BACKUP_CONFIG_FILE"
   set +a
+fi
+
+if [[ "$MODE" == "backup" && ! -f "$BACKUP_CONFIG_FILE" && "$BACKUP_COMMAND" == "$DEFAULT_BACKUP_COMMAND" ]]; then
+  printf 'Backup configuration not found:\n%s\n' "$BACKUP_CONFIG_FILE" >&2
+  exit 1
 fi
 
 STALE_HOURS="${STALE_HOURS:-$(read_backup_config freshness_stale_hours 30)}"
@@ -84,6 +100,9 @@ backup_status=0
 if [[ "$MODE" == "backup" ]]; then
   log "Starting physical off-host backup."
   BACKUP_PHYSICAL_SUCCESS_MARKER="$PHYSICAL_MARKER" \
+    BACKUP_ROOT="$BACKUP_ROOT" \
+    BACKUP_CONFIG_FILE="$BACKUP_CONFIG_FILE" \
+    BACKUP_DIR="$BACKUP_DIR" \
     "$BACKUP_COMMAND" || backup_status=$?
 
   if ((backup_status != 0)); then
@@ -104,14 +123,14 @@ Latest attempted verified prefix: ${latest_prefix:-none}" || true
   else
     rm -f -- "$ALERT_STATE_DIR/backup-failure"
   fi
-elif [[ "$MODE" != "check" ]]; then
-  printf 'Usage: %s [backup|check]\n' "$0" >&2
+elif [[ "$MODE" != "check" && "$MODE" != "health" ]]; then
+  printf 'Usage: %s [backup|check|health]\n' "$0" >&2
   exit 2
 fi
 
 health="$(
-  cd "$PROJECT_DIR" &&
-    RENV_CONFIG_SANDBOX_ENABLED=FALSE Rscript \
+  cd "$RUNTIME_DIR" &&
+    Rscript --vanilla \
       scripts/check_backup_physical_health.R \
       "$BACKUP_STATUS_FILE" \
       "$STALE_HOURS" \

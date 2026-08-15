@@ -25,9 +25,10 @@ against durable operational metadata. The wrapper adds proactive metadata-only
 failure/freshness alerting without changing the dump format.
 
 The intended job runs on the Mac, connects across the network to MariaDB on
-`cycling-prod`, and stores dumps under the Mac checkout (or another configured
-Mac path). Backups must remain off-host from the production Pi so loss or
-corruption of its SD card does not also remove the recovery copy.
+`cycling-prod`, and stores dumps under
+`~/Library/Application Support/cycling-platform/backup/data`. Backups remain
+off-host from the production Pi so loss or corruption of its SD card does not
+also remove the recovery copy.
 
 Until restore testing is complete:
 
@@ -54,16 +55,18 @@ runs require all five durable dumps. Retention reconciliation continues to
 recognise historical four-file sets—Admin, Raw, Silver and Gold—that predate
 Reference. Restore orchestration remains owned by `cycling-infrastructure`.
 
-## Manual Backup
+## Manual or Controlled Backup
 
-Run from the project root through the operational wrapper:
+After installation, use the deployed operational wrapper. This exercises the
+same TCC-safe code and configuration as launchd:
 
 ```sh
-scripts/run_backup_workflow.sh backup
+"$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" backup
 ```
 
-The script reads MariaDB connection settings from environment variables. If a
-project `.Renviron` file exists, it is sourced first.
+The script reads MariaDB connection settings from the protected backup-specific
+`backup.env`. Repository `.Renviron` is consulted only by the installer during
+the first manual deployment and is never accessed by scheduled jobs.
 
 Required values:
 
@@ -83,7 +86,7 @@ Optional values:
 * `BACKUP_DUMP_MAX_ATTEMPTS`, defaults to `backups.dump_max_attempts`
 * `BACKUP_DUMP_RETRY_SLEEP_SECONDS`, defaults to
   `backups.dump_retry_sleep_seconds`
-* `BACKUP_STATUS_FILE`, defaults to `backups/latest_success.json` under the
+* `BACKUP_STATUS_FILE`, defaults to `latest_success.json` under the
   configured backup directory
 * `MYSQLDUMP`, optional absolute path to `mysqldump` or `mariadb-dump`
 
@@ -106,7 +109,7 @@ dump is retried according to `backups.dump_max_attempts` and
 Output shape:
 
 ```text
-backups/
+~/Library/Application Support/cycling-platform/backup/data/
   latest_success.json
   2026-06-23_230000_cycling_platform_admin.sql.gz
   2026-06-23_230000_cycling_platform_raw.sql.gz
@@ -183,7 +186,8 @@ not delete a valid new backup merely because observability failed.
 
 ## Recovery authority and restored Admin lag
 
-The verified Mac inventory and `backups/latest_success.json` are authoritative
+The verified Mac inventory and the canonical data directory's
+`latest_success.json` are authoritative
 for identifying the newest verified physical recovery point available.
 Admin backup tables are platform observability/history, not the physical
 inventory. Admin is dumped before the current run records its own success, so a
@@ -197,19 +201,58 @@ observability. The Pi remains deliberately uncoupled from the Mac filesystem.
 
 ### macOS scheduled runtime
 
-The checkout is under the macOS-protected `Documents` folder. To avoid granting
-Full Disk Access to scheduled R, the shell wrapper copies application code and
-configuration, including the small symlink-based renv project library, to
-`/tmp/cycling-platform-backup-runtime-$$` with `rsync`.
-Backup files themselves are not copied. The shell writes a small TSV inventory
-of their names, modification times, and sizes into the runtime directory.
+The authoritative Git checkout remains under the macOS-protected `Documents`
+folder, but scheduled jobs never access that checkout. A manually invoked
+installer deploys a minimal, generated runtime to TCC-safe user locations:
 
-The finalizer runs from that temporary project with its source supplied through
-standard input (`Rscript - < finalize_backup_observability.R`). It writes the
-JSON artefact in `/tmp`, records Admin metadata, and reconciles the supplied
-inventory. The shell then atomically copies the JSON artefact back to the Mac
-backup directory and removes the temporary project. This is the same
-protected-folder workaround used by the cycling-analytics scheduled workflow.
+```text
+runtime  ~/Library/Application Support/cycling-platform/backup/runtime
+config   ~/Library/Application Support/cycling-platform/backup/config/backup.env
+data     ~/Library/Application Support/cycling-platform/backup/data
+logs     ~/Library/Logs/cycling-platform
+plists   ~/Library/LaunchAgents
+```
+
+The repository is source authority; the Application Support runtime must never
+be edited manually. Its JSON manifest records the source Git commit,
+installation timestamp, schema version, file inventory, and SHA-256 hashes.
+`verify` detects any installed-file drift.
+
+The runtime code directory and the mutable backup root are deliberately
+separate. Each installed wrapper derives the backup root as the parent of its
+own `runtime` directory, then resolves `config/backup.env` and `data` as sibling
+paths. Consequently, direct invocation works without launchd environment
+variables:
+
+```sh
+"$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" health
+```
+
+The plists still set `BACKUP_CONFIG_FILE` and `BACKUP_DIR` explicitly as useful
+operational overrides, but they are not required for canonical path discovery.
+Backup mode fails immediately with the expected config path when
+`config/backup.env` is absent; it never falls back to `runtime/backup.env` or a
+`runtime/backups` directory.
+
+The installed runtime contains only the backup scripts, a backup-specific R
+bootstrap, the database inventory, connection and SQL helpers, the backup
+observability helper, and its three Admin DDL files. A generated, backup-only
+`config/platform.yml` fragment is retained because freshness, retention, lock,
+retry, dump-command, and durable-database settings are runtime dependencies; it
+contains no credentials. The runtime contains no exploration, tests, OAuth
+code, ingestion/transforms, `.Renviron`, or project `renv` library. The minimal
+R bootstrap explicitly sources only those backup dependencies.
+
+Scheduled R uses the already-installed Mac R packages `DBI`, `RMariaDB`,
+`jsonlite`, and `purrr`. The installer verifies code and paths but does not
+install packages or copy the broad project library. Package availability is
+checked by the non-destructive health command before enabling reliance on the
+new schedule.
+
+Installation is the only point at which Terminal reads the protected checkout.
+Normal backup, retention, finalisation, health, and alert executions operate
+entirely from Application Support, Library Logs, and the off-host data folder.
+No Full Disk Access is required.
 
 ## Freshness and Notifications
 
@@ -263,9 +306,11 @@ different from ingestion and validation, whose production schedules belong on
 Install or update the user LaunchAgents:
 
 ```sh
-scripts/install_backup_launchd.sh render
+scripts/install_backup_launchd.sh render /tmp/cycling-platform-backup-render
 scripts/install_backup_launchd.sh install
+scripts/install_backup_launchd.sh verify
 scripts/install_backup_launchd.sh status
+scripts/install_backup_launchd.sh health
 ```
 
 The 05:00 calendar job is coalesced by launchd after ordinary sleep/wake. An
@@ -273,11 +318,24 @@ hourly, run-at-load health agent checks the authoritative Mac artefact, so a
 missed run can alert even though no backup process failed. Existing locks
 prevent overlap.
 
-The installer renders absolute paths, validates plists, updates both agents
-idempotently and removes only superseded Mac backup cron lines. It preserves Pi
-cron and unrelated Mac jobs. Plists contain no secrets; the wrapper loads the
-project `.Renviron`. Logs are `logs/backup-launchd.log` and
-`logs/backup-health-launchd.log`.
+`render` creates an inspectable runtime and plists without loading anything.
+`install` renders into a sibling staging directory, validates it, migrates
+existing archives without deleting the source, atomically switches the active
+runtime, reloads both agents, and verifies the result. The preceding runtime is
+retained as `runtime.previous` for rollback. Repeated installs are idempotent.
+
+The installer creates `backup.env` with mode `0600` in a `0700` directory. On
+first install it extracts only `MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER`,
+`MARIADB_PASSWORD`, `NTFY_TOPIC`, and `NTFY_BASE_URL` when present. Strava,
+Google Health, OAuth, and other platform secrets are deliberately excluded.
+An existing `backup.env` is preserved rather than overwritten. Plists contain
+paths but no secret values.
+
+The database list remains generated from Git-controlled
+`config/platform_databases.tsv`; the installed inventory is regenerated on
+each install, so a future durable database addition cannot be silently omitted
+after deployment. Logs are `~/Library/Logs/cycling-platform/backup-launchd.log`
+and `backup-health-launchd.log`.
 
 Disable or re-enable with:
 
@@ -285,6 +343,62 @@ Disable or re-enable with:
 scripts/install_backup_launchd.sh uninstall
 scripts/install_backup_launchd.sh install
 ```
+
+`uninstall` removes only active LaunchAgents and installed runtime code. It
+preserves backup archives, `backup.env`, logs, and `runtime.previous`.
+
+### First rollout and controlled verification
+
+From the authoritative checkout in Terminal:
+
+```sh
+scripts/install_backup_launchd.sh render /tmp/cycling-platform-backup-render
+scripts/install_backup_launchd.sh install
+scripts/install_backup_launchd.sh verify
+scripts/install_backup_launchd.sh health
+```
+
+Inspect the rendered inventory and confirm neither runtime nor plist contains a
+`/Documents/` path. `health` is non-destructive: it verifies installed hashes,
+configuration permissions, writable data/log locations, the latest-success
+artefact, and existing freshness alert behaviour without creating dumps.
+
+Then run one controlled backup from the installed runtime:
+
+```sh
+"$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" backup
+scripts/install_backup_launchd.sh verify
+scripts/install_backup_launchd.sh status
+```
+
+Confirm five same-prefix `.sql.gz` files, successful gzip verification in the
+log, an advanced `latest_success.json`, healthy retention reconciliation in
+Admin, expected ntfy behaviour, and LaunchAgent last exit status `0`. Retain
+the old repository backup directory until this completes and the owner approves
+its later disposition; the installer never deletes it.
+
+### Recovery and rollback
+
+On a replacement Mac, restore the Git checkout and the encrypted recovery copy
+of `backup.env`, install R plus the four minimal R packages and MariaDB client,
+restore backup archives to the canonical data directory, then run `install`,
+`verify`, and `health`. The repository does not currently define the encrypted
+recovery source for `backup.env`; selecting and documenting that source is an
+owner follow-up. Machine-local config alone is not sufficient disaster
+recovery.
+
+To roll back before the controlled backup succeeds:
+
+1. run `scripts/install_backup_launchd.sh uninstall`;
+2. retain both old and new archive directories and their success artefacts;
+3. inspect `runtime.previous` if restoring the preceding installed runtime;
+4. reinstall the former Git revision, or temporarily restore the reviewed cron
+   command from Terminal if launchd must be abandoned;
+5. run a health check before trusting the restored schedule.
+
+Do not delete either archive or copy one `latest_success.json` over another
+during rollback. Cron fallback may invoke the installed Application Support
+runtime; pointing cron back into Documents reintroduces the same TCC risk.
 
 The backup time does not need to share the production application schedule, but
 avoid known maintenance/restart windows and verify that MariaDB is reachable.

@@ -6,7 +6,7 @@ if (length(args) < 3L || length(args) > 4L) {
     call. = FALSE
   )
 }
-source("bootstrap.R")
+source(file.path("R", "backup", "bootstrap_backup_runtime.R"))
 status_file <- args[[1]]
 stale_hours <- as.numeric(args[[2]])
 critical_hours <- as.numeric(args[[3]])

@@ -667,14 +667,17 @@ testthat::test_that("backup script derives the durable set from the shared inven
   testthat::expect_false("cycling_platform_stage" %in% durable)
 })
 
-testthat::test_that("backup observability R runs from an unprotected runtime", {
+testthat::test_that("backup observability uses the minimal installed runtime", {
   script <- file.path("scripts", "backup_mariadb.sh")
+  bootstrap <- file.path("R", "backup", "bootstrap_backup_runtime.R")
 
   if (!file.exists(script)) {
     script <- file.path("..", "..", script)
+    bootstrap <- file.path("..", "..", bootstrap)
   }
 
   text <- paste(readLines(script, warn = FALSE), collapse = "\n")
+  bootstrap_text <- paste(readLines(bootstrap, warn = FALSE), collapse = "\n")
 
   testthat::expect_match(
     text,
@@ -682,32 +685,24 @@ testthat::test_that("backup observability R runs from an unprotected runtime", {
   )
   testthat::expect_match(
     text,
-    'Rscript - \\',
+    'Rscript --vanilla scripts/plan_backup_retention.R',
     fixed = TRUE
   )
   testthat::expect_match(
     text,
-    '--exclude "backups"',
+    'Rscript --vanilla scripts/finalize_backup_observability.R',
     fixed = TRUE
   )
-  testthat::expect_false(
-    grepl('--exclude "renv/library"', text, fixed = TRUE)
-  )
+  testthat::expect_false(grepl("rsync", text, fixed = TRUE))
   testthat::expect_match(
     text,
     'cp "$RUNTIME_STATUS_FILE" "${BACKUP_STATUS_FILE}.tmp"',
     fixed = TRUE
   )
   testthat::expect_match(
-    text,
-    ') < "$RUNTIME_FINALIZER_SCRIPT"',
+    bootstrap_text,
+    '"backup_observability.R"',
     fixed = TRUE
   )
-  testthat::expect_false(
-    grepl(
-      ') < "$PROJECT_DIR/scripts/finalize_backup_observability.R"',
-      text,
-      fixed = TRUE
-    )
-  )
+  testthat::expect_false(grepl("bootstrap.R", bootstrap_text, fixed = TRUE))
 })

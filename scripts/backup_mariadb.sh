@@ -4,8 +4,10 @@
 # stores verified logical .sql.gz dumps off-host from the production Pi.
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKUP_DIR="${BACKUP_DIR:-}"
+RUNTIME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BACKUP_ROOT="${BACKUP_ROOT:-$(dirname "$RUNTIME_DIR")}"
+BACKUP_CONFIG_FILE="${BACKUP_CONFIG_FILE:-$BACKUP_ROOT/config/backup.env}"
+BACKUP_DIR="${BACKUP_DIR:-$BACKUP_ROOT/data}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-}"
 TEMPORARY_FILE_RETENTION_DAYS="${BACKUP_TEMPORARY_FILE_RETENTION_DAYS:-}"
 LOCK_DIR="${BACKUP_LOCK_DIR:-}"
@@ -67,7 +69,7 @@ read_config_value() {
         print default_value
       }
     }
-  ' "$PROJECT_DIR/config/platform.yml"
+  ' "$RUNTIME_DIR/config/platform.yml"
 }
 
 read_config_list() {
@@ -94,7 +96,7 @@ read_config_list() {
     in_list && $0 !~ /^    - / {
       exit
     }
-  ' "$PROJECT_DIR/config/platform.yml"
+  ' "$RUNTIME_DIR/config/platform.yml"
 }
 
 positive_integer_or_default() {
@@ -121,7 +123,7 @@ load_script_config() {
     if [[ "$configured_backup_dir" = /* ]]; then
       BACKUP_DIR="$configured_backup_dir"
     else
-      BACKUP_DIR="$PROJECT_DIR/$configured_backup_dir"
+      BACKUP_DIR="$BACKUP_ROOT/$configured_backup_dir"
     fi
   fi
 
@@ -182,7 +184,7 @@ load_script_config() {
 
   configured_databases="$(
     awk -F '\t' 'NR > 1 && $4 == "TRUE" { print $1 }' \
-      "$PROJECT_DIR/config/platform_databases.tsv"
+      "$RUNTIME_DIR/config/platform_databases.tsv"
   )"
 
   if [[ -n "$configured_databases" ]]; then
@@ -301,20 +303,11 @@ prepare_observability_runtime() {
   RUNTIME_MANIFEST_FILE="$RUNTIME_PROJECT_DIR/backup_manifest.tsv"
   RUNTIME_INVENTORY_FILE="$RUNTIME_PROJECT_DIR/backup_inventory.tsv"
   RUNTIME_STATUS_FILE="$RUNTIME_PROJECT_DIR/latest_success.json"
-  RUNTIME_FINALIZER_SCRIPT="$RUNTIME_PROJECT_DIR/scripts/finalize_backup_observability.R"
+  RUNTIME_FINALIZER_SCRIPT="$RUNTIME_DIR/scripts/finalize_backup_observability.R"
 
   rm -rf "$RUNTIME_PROJECT_DIR"
   mkdir -p "$RUNTIME_PROJECT_DIR"
   chmod 700 "$RUNTIME_PROJECT_DIR"
-
-  rsync -a \
-    --exclude ".git" \
-    --exclude "backups" \
-    --exclude "logs" \
-    --exclude "renv/staging" \
-    --exclude "renv/sandbox" \
-    "$PROJECT_DIR/" \
-    "$RUNTIME_PROJECT_DIR/"
 
   cp "$MANIFEST_FILE" "$RUNTIME_MANIFEST_FILE"
 
@@ -342,15 +335,18 @@ prepare_observability_runtime() {
   )
 }
 
-load_renviron() {
-  local renviron_file="$PROJECT_DIR/.Renviron"
-
-  if [[ -f "$renviron_file" ]]; then
+load_backup_environment() {
+  if [[ -f "$BACKUP_CONFIG_FILE" ]]; then
     set -a
     # shellcheck disable=SC1090
-    source "$renviron_file"
+    source "$BACKUP_CONFIG_FILE"
     set +a
   fi
+
+  RETENTION_DAYS="${RETENTION_DAYS:-${BACKUP_RETENTION_DAYS:-}}"
+  TEMPORARY_FILE_RETENTION_DAYS="${TEMPORARY_FILE_RETENTION_DAYS:-${BACKUP_TEMPORARY_FILE_RETENTION_DAYS:-}}"
+  LOCK_DIR="${LOCK_DIR:-${BACKUP_LOCK_DIR:-}}"
+  LOCK_MAX_AGE_SECONDS="${LOCK_MAX_AGE_SECONDS:-${BACKUP_LOCK_MAX_AGE_SECONDS:-}}"
 }
 
 require_command() {
@@ -430,6 +426,7 @@ configure_mysqldump_extra_args() {
   fi
 }
 
+load_backup_environment
 load_script_config
 
 resolve_mysqldump
@@ -437,10 +434,7 @@ configure_mysqldump_extra_args
 require_command gzip
 require_command find
 require_command Rscript
-require_command rsync
 require_command stat
-
-load_renviron
 
 mkdir -p "$BACKUP_DIR"
 
@@ -596,10 +590,9 @@ prepare_observability_runtime
 retention_plan_file="$RUNTIME_PROJECT_DIR/retention_delete_files.txt"
 set +e
 (
-  cd "$RUNTIME_PROJECT_DIR" &&
-    RENV_PROJECT="$RUNTIME_PROJECT_DIR" \
-      Rscript - "$BACKUP_DIR" "$RETENTION_DAYS"
-) < "$RUNTIME_PROJECT_DIR/scripts/plan_backup_retention.R" > "$retention_plan_file"
+  cd "$RUNTIME_DIR" &&
+    Rscript --vanilla scripts/plan_backup_retention.R "$BACKUP_DIR" "$RETENTION_DAYS"
+) > "$retention_plan_file"
 retention_plan_status=$?
 set -e
 
@@ -635,9 +628,8 @@ prepare_observability_runtime
 
 set +e
 (
-  cd "$RUNTIME_PROJECT_DIR" &&
-    RENV_PROJECT="$RUNTIME_PROJECT_DIR" \
-      Rscript - \
+  cd "$RUNTIME_DIR" &&
+    Rscript --vanilla scripts/finalize_backup_observability.R \
       "$RUNTIME_MANIFEST_FILE" \
       "$RUNTIME_INVENTORY_FILE" \
       "$RUNTIME_STATUS_FILE" \
@@ -647,7 +639,7 @@ set +e
       "$BACKUP_STARTED_EPOCH" \
       "$MARIADB_HOST" \
       "$BACKUP_HOST"
-) < "$RUNTIME_FINALIZER_SCRIPT"
+)
 observability_status=$?
 set -e
 

@@ -7,7 +7,7 @@
   <string>com.tim-jc.cycling-platform-backup</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__PROJECT_DIR__/scripts/run_backup_workflow.sh</string>
+    <string>__RUNTIME_DIR__/scripts/run_backup_workflow.sh</string>
     <string>backup</string>
   </array>
   <key>StartCalendarInterval</key>
@@ -17,6 +17,15 @@
     <key>Minute</key>
     <integer>0</integer>
   </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BACKUP_CONFIG_FILE</key>
+    <string>__CONFIG_FILE__</string>
+    <key>BACKUP_DIR</key>
+    <string>__DATA_DIR__</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>__RUNTIME_DIR__</string>
   <key>StandardOutPath</key>
   <string>__LOG_DIR__/backup-launchd.log</string>
   <key>StandardErrorPath</key>

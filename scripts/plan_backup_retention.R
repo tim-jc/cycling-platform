@@ -3,7 +3,7 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 2L) {
   stop("Usage: plan_backup_retention.R <backup_dir> <retention_days>", call. = FALSE)
 }
-source("bootstrap.R")
+source(file.path("R", "backup", "bootstrap_backup_runtime.R"))
 backup_dir <- args[[1]]
 retention_days <- as.integer(args[[2]])
 if (is.na(retention_days) || retention_days < 1L) {

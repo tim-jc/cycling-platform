@@ -29,7 +29,7 @@ if (
   setwd(project_dir)
 }
 
-source("bootstrap.R")
+source(file.path("R", "backup", "bootstrap_backup_runtime.R"))
 
 manifest_path <- args[[1]]
 inventory_path <- args[[2]]
