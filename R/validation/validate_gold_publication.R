@@ -792,6 +792,96 @@ gold_activity_achievements_publication_checks <- function(
     return(dplyr::bind_rows(checks))
   }
 
+  state_table_exists <- validation_table_exists(
+    connection = connection,
+    table_schema = "cycling_platform_admin",
+    table_name = "activity_achievement_evaluation_state"
+  )
+  checks <- append_validation_result(
+    checks,
+    validation_named_table_exists_result(
+      table_exists = state_table_exists,
+      check_name = "activity_achievement_evaluation_state_table_exists",
+      check_scope = check_scope,
+      table_schema = "cycling_platform_admin",
+      table_name = "activity_achievement_evaluation_state"
+    )
+  )
+  if (!isTRUE(state_table_exists)) return(dplyr::bind_rows(checks))
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "activity_achievement_evaluation_state_valid",
+      check_scope = check_scope,
+      severity = "CRITICAL",
+      query = "SELECT activity_id, calculation_version, evaluation_status
+                 FROM cycling_platform_admin.activity_achievement_evaluation_state
+                WHERE evaluation_status NOT IN ('CURRENT', 'INVALIDATED')
+                   OR achievement_count < 0
+                   OR (evaluation_status = 'CURRENT'
+                       AND (evaluated_at IS NULL OR input_signature IS NULL OR input_signature = ''))
+                LIMIT 1000",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "activity_achievement_evaluation_state_complete_when_initialized",
+      check_scope = check_scope,
+      severity = "CRITICAL",
+      query = glue::glue("\
+        SELECT activities.activity_id
+          FROM cycling_platform_silver.activities activities
+          LEFT JOIN cycling_platform_admin.activity_achievement_evaluation_state state
+            ON state.activity_id = activities.activity_id
+           AND state.calculation_version = {calculation_version_sql}
+         WHERE EXISTS (
+                 SELECT 1
+                   FROM cycling_platform_admin.activity_achievement_evaluation_state initialized
+                  WHERE initialized.calculation_version = {calculation_version_sql}
+               )
+           AND (state.activity_id IS NULL OR state.evaluation_status <> 'CURRENT')
+         LIMIT 1000
+      "),
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "activity_achievement_evaluation_fact_count_reconciled",
+      check_scope = check_scope,
+      severity = "CRITICAL",
+      query = glue::glue("\
+        WITH fact_count AS (
+          SELECT activity_id, COUNT(*) AS fact_count
+            FROM cycling_platform_gold.activity_achievements
+           WHERE calculation_version = {calculation_version_sql}
+           GROUP BY activity_id
+        )
+        SELECT state.activity_id, state.achievement_count,
+               COALESCE(fact_count.fact_count, 0) AS fact_count
+          FROM cycling_platform_admin.activity_achievement_evaluation_state state
+          LEFT JOIN fact_count ON fact_count.activity_id = state.activity_id
+         WHERE state.calculation_version = {calculation_version_sql}
+           AND state.evaluation_status = 'CURRENT'
+           AND state.achievement_count <> COALESCE(fact_count.fact_count, 0)
+         LIMIT 1000
+      "),
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
   checks <- append_validation_result(
     checks,
     run_validation_query(

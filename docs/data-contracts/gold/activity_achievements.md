@@ -62,6 +62,12 @@ The JSON entries are authoritative for TODO status and resolution.
 ## Architectural notes
 
 Notification eligibility is an output attribute; delivery state remains an operational concern outside this object.
+Evaluation completeness is owned by Admin in
+`activity_achievement_evaluation_state`. A missing sparse achievement fact is not
+evidence that an activity has never been evaluated. Activities producing zero
+facts have a `CURRENT` state row with `achievement_count = 0` after initialization.
+Historical date-forward invalidation is not yet implemented; changed historical
+inputs temporarily use conservative full-history evaluation.
 
 ## Generated metadata
 

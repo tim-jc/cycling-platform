@@ -233,6 +233,15 @@ control change and an activity deletion/exclusion currently make the context
 untrusted because their complete historical dependency set is not yet
 authoritative.
 
+Gold achievements deliberately remain sparse analytical facts. Dense technical
+evaluation state belongs to Admin at one row per activity and achievement
+calculation version. After an explicit achievement backfill initializes this
+state, trusted no-change DAILY runs use it to distinguish a legitimate
+zero-achievement result from work that has never been evaluated. REPAIR and
+BACKFILL remain broader recovery/reference modes. Until date-forward invalidation
+is implemented, any upstream change uses conservative historical achievement
+evaluation rather than risking incomplete later record truth.
+
 ## Runtime and Deployment Boundary
 
 `renv.lock` defines R package dependencies. `Dockerfile` defines the production

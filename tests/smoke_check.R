@@ -263,6 +263,7 @@ expected_tables <- c(
   "admin/080_create_backup_run.sql" = "cycling_platform_admin.backup_run",
   "admin/081_create_backup_run_file.sql" = "cycling_platform_admin.backup_run_file",
   "admin/082_create_backup_reconciliation_run.sql" = "cycling_platform_admin.backup_reconciliation_run",
+  "admin/090_create_activity_achievement_evaluation_state.sql" = "cycling_platform_admin.activity_achievement_evaluation_state",
   "stage/010_create_activity_streams_build.sql" = "cycling_platform_stage.activity_streams_build",
   "raw/010_create_strava_activities.sql" = "cycling_platform_raw.activities",
   "raw/020_create_strava_activity_streams.sql" = "cycling_platform_raw.activity_streams",

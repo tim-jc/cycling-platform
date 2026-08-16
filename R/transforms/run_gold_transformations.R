@@ -46,6 +46,7 @@ run_gold_transformations <- function(
   achievement_result <- rebuild_gold_activity_achievements(
     connection = connection,
     config = config,
+    gold_change_context = gold_change_context,
     mode = mode
   )
 

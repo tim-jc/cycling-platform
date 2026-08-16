@@ -121,6 +121,97 @@ The explicit achievement backfill establishes historical record context with
 new activities, refresh Gold, queue only newly eligible recent achievements,
 and deliver notifications without flooding historical records.
 
+## Durable Evaluation State
+
+`cycling_platform_gold.activity_achievements` remains a sparse fact table: an
+activity with no record achievement has no Gold fact row. Transform completeness
+is recorded separately in
+`cycling_platform_admin.activity_achievement_evaluation_state`, at one row per
+activity and achievement calculation version.
+
+`CURRENT` means facts and the stored zero-or-positive `achievement_count` were
+committed together for the recorded semantic input signature. `INVALIDATED`
+means the state must not be used as evidence of current evaluation. State has no
+foreign key to current Silver because future deletion recovery may need to retain
+technical evidence after a source entity disappears.
+
+The input signature contains the activity local date, achievement-relevant
+metric/type/duration/value rows, the achievement calculation version and the
+best-effort calculation version. It excludes transform timestamps, run timestamps
+and other volatile metadata.
+
+DAILY uses state-driven candidate selection only after an explicit backfill has
+created complete `CURRENT` state for every Silver activity. Before initialization,
+DAILY retains conservative selection and does not infer or create state from
+sparse fact presence. A no-change trusted daily context then selects only missing,
+invalidated or fact-count-inconsistent state; normally this is zero activities.
+
+REPAIR compares signatures, source versions and fact counts. Any repair debt uses
+a full conservative history evaluation until Phase 3 implements date-forward
+dependency invalidation. Likewise, any changed or untrusted daily context uses
+the conservative full-history path so a historical correction cannot leave later
+record truth incorrectly current. Calculation-version changes require an explicit
+backfill rather than an implicit expensive DAILY rebuild. REPAIR cannot initialize
+an entirely empty state table: the first initialization must be an explicit
+backfill, which recalculates every activity rather than inferring state from sparse
+facts.
+
+Audit candidate selection without publishing changes:
+
+```sh
+Rscript scripts/gold/audit_activity_achievement_evaluation_state.R
+```
+
+This reports the old conservative candidate count alongside state-driven repair
+debt. Canonical deletion/exclusion propagation remains unresolved; orphan facts
+cause an actionable REPAIR failure rather than silent deletion.
+
+### Evaluation-state initialization
+
+After deploying and bootstrapping the additive Admin table, capture the audit
+signature, run the explicit historical rebuild, then audit again:
+
+```sh
+Rscript scripts/gold/audit_activity_achievement_evaluation_state.R
+Rscript scripts/gold/run_activity_achievements.R backfill
+Rscript scripts/gold/audit_activity_achievement_evaluation_state.R
+```
+
+The sparse fact semantic signature printed before and after must match. The
+post-backfill audit must report one `CURRENT` state per Silver activity, zero
+`INVALIDATED` rows and zero state-driven candidates. The conservative candidate
+count may remain large because it deliberately exposes the retired sparse-fact
+selection defect.
+
+Database reconciliation queries:
+
+```sql
+SELECT COUNT(*) AS silver_activities
+FROM cycling_platform_silver.activities;
+
+SELECT evaluation_status, calculation_version, COUNT(*) AS state_rows,
+       SUM(achievement_count) AS recorded_facts
+FROM cycling_platform_admin.activity_achievement_evaluation_state
+GROUP BY evaluation_status, calculation_version;
+
+SELECT COUNT(*) AS sparse_facts
+FROM cycling_platform_gold.activity_achievements
+WHERE calculation_version = 'activity_achievements_v1';
+
+SELECT COUNT(*) AS fact_count_mismatches
+FROM cycling_platform_admin.activity_achievement_evaluation_state state
+LEFT JOIN (
+  SELECT activity_id, calculation_version, COUNT(*) AS fact_count
+  FROM cycling_platform_gold.activity_achievements
+  GROUP BY activity_id, calculation_version
+) facts
+  ON facts.activity_id = state.activity_id
+ AND facts.calculation_version = state.calculation_version
+WHERE state.calculation_version = 'activity_achievements_v1'
+  AND state.evaluation_status = 'CURRENT'
+  AND state.achievement_count <> COALESCE(facts.fact_count, 0);
+```
+
 ## Notification Outbox
 
 Table:

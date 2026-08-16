@@ -156,6 +156,33 @@ format_gold_transform_summary_line <- function(
     }
   }
 
+  if (identical(entity_name, "activity_achievements") && !is.null(timing)) {
+    if (!is.null(timing$evaluation_debt_count) && !is.na(timing$evaluation_debt_count)) {
+      parts <- append(
+        parts,
+        paste0("evaluation debt ", timing$evaluation_debt_count),
+        after = 1L
+      )
+    }
+    if (!is.null(timing$candidate_mode) && nzchar(timing$candidate_mode)) {
+      parts <- c(parts, paste0("candidate mode ", timing$candidate_mode))
+    }
+    if (!is.null(timing$zero_achievement_evaluations) &&
+        timing$zero_achievement_evaluations > 0L) {
+      parts <- c(
+        parts,
+        paste0("zero-achievement evaluations ", timing$zero_achievement_evaluations)
+      )
+    }
+    if (!is.null(timing$evaluation_state_rows_written) &&
+        timing$evaluation_state_rows_written > 0L) {
+      parts <- c(
+        parts,
+        paste0("state CURRENT ", timing$evaluation_state_rows_written)
+      )
+    }
+  }
+
   if (length(timing_text) > 0L && nzchar(timing_text)) {
     return(paste0(
       paste(parts, collapse = " · "),

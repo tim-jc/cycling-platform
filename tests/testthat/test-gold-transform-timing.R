@@ -140,3 +140,30 @@ testthat::test_that("Gold summary exposes affected-set discovery semantics", {
   testthat::expect_match(line, "discovery skipped", fixed = TRUE)
   testthat::expect_match(line, "outputs changed 0", fixed = TRUE)
 })
+
+testthat::test_that("achievement summary exposes durable evaluation state", {
+  source_gold_timing_helpers()
+  timing <- gold_transform_timing(
+    entity_name = "activity_achievements",
+    candidate_discovery_seconds = 0,
+    processing_seconds = 0,
+    total_seconds = 0
+  )
+  timing$candidate_mode <- "evaluation_state"
+  timing$evaluation_debt_count <- 0L
+  timing$evaluation_state_rows_written <- 0L
+  timing$zero_achievement_evaluations <- 0L
+  line <- format_gold_transform_summary_line(
+    entity_name = "activity_achievements",
+    run_status = "SUCCESS",
+    run_mode = "daily",
+    activities_completed = 0L,
+    activities_planned = 0L,
+    rows_inserted = 0L,
+    rows_deleted = 0L,
+    timing = timing
+  )
+  testthat::expect_match(line, "evaluation debt 0", fixed = TRUE)
+  testthat::expect_match(line, "candidates evaluated 0/0", fixed = TRUE)
+  testthat::expect_match(line, "candidate mode evaluation_state", fixed = TRUE)
+})
