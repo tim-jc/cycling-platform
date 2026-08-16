@@ -34,6 +34,12 @@ Sample start/end fields are elapsed offsets and positions. `computed_at` is a pr
 
 Configured rolling-duration calculations select a peak and capture sample/location boundaries, eligibility, source classification and calculation version.
 
+Normal DAILY execution consumes an authoritative in-memory Silver change context
+and calculates only activities whose stream content or power eligibility changed.
+A `COMPLETE` empty context is a trusted no-op; unavailable or untrusted context
+falls back to global repair discovery. REPAIR and BACKFILL remain explicit
+completeness/reference modes and do not depend on incremental propagation.
+
 Watt efforts inherit canonical power provenance and record eligibility from the
 parent Silver activity. Eligibility must not be inferred independently from a
 stream or lap source flag. Virtual or estimated watt efforts may remain stored
@@ -47,6 +53,9 @@ The business key is unique; peak, boundary and version lineage fields are comple
 ## Known limitations
 
 Results depend on sample density, gap treatment, eligibility rules and calculation version.
+Canonical activity deletion/exclusion is not yet authoritative enough for direct
+incremental Gold deletion. Global power-classification control changes likewise
+require explicit repair/rebuild rather than a partial affected set.
 
 ## Consumers
 

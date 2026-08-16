@@ -112,3 +112,31 @@ testthat::test_that("summary labels legacy Admin duration accurately", {
     fixed = TRUE
   )
 })
+
+testthat::test_that("Gold summary exposes affected-set discovery semantics", {
+  source_gold_timing_helpers()
+  timing <- gold_transform_timing(
+    entity_name = "activity_best_efforts",
+    candidate_discovery_seconds = 0,
+    processing_seconds = 0,
+    total_seconds = 0
+  )
+  timing$discovery_mode <- "skipped"
+  timing$upstream_affected_count <- 0L
+  timing$output_changed_activity_count <- 0L
+
+  line <- format_gold_transform_summary_line(
+    entity_name = "activity_best_efforts",
+    run_status = "SUCCESS",
+    run_mode = "daily",
+    activities_completed = 0L,
+    activities_planned = 0L,
+    rows_inserted = 0L,
+    rows_deleted = 0L,
+    timing = timing
+  )
+
+  testthat::expect_match(line, "affected 0", fixed = TRUE)
+  testthat::expect_match(line, "discovery skipped", fixed = TRUE)
+  testthat::expect_match(line, "outputs changed 0", fixed = TRUE)
+})

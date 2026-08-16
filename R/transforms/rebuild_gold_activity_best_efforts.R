@@ -237,6 +237,105 @@ db_get_query_optional_params <- function(
   )
 }
 
+gold_best_effort_stale_version_count <- function(
+  connection,
+  calculation_version,
+  metrics,
+  durations
+) {
+  DBI::dbGetQuery(
+    connection,
+    paste0(
+      "SELECT COUNT(*) AS stale_count FROM cycling_platform_gold.activity_best_efforts ",
+      "WHERE metric_name IN (", best_effort_placeholders(metrics), ") ",
+      "AND duration_seconds IN (", best_effort_placeholders(durations), ") ",
+      "AND (calculation_version IS NULL OR calculation_version <> ?)"
+    ),
+    params = c(
+      as.list(metrics),
+      as.list(as.integer(durations)),
+      list(calculation_version)
+    )
+  )$stale_count[[1]]
+}
+
+direct_best_effort_activity_plan <- function(activity_ids) {
+  activity_ids <- unique(as.character(activity_ids))
+  data.frame(
+    activity_id = bit64::as.integer64(activity_ids),
+    repair_reason = rep("affected_set", length(activity_ids))
+  )
+}
+
+fetch_existing_activity_best_efforts <- function(
+  connection,
+  activity_ids,
+  metrics,
+  durations
+) {
+  activity_ids <- unique(as.character(activity_ids))
+  if (length(activity_ids) == 0L) return(data.frame())
+
+  DBI::dbGetQuery(
+    connection,
+    paste0(
+      "SELECT activity_id, metric_name, duration_seconds, peak_value, ",
+      "start_sample_index, end_sample_index, start_time_seconds, end_time_seconds, ",
+      "start_distance_metres, end_distance_metres, start_latitude, start_longitude, ",
+      "end_latitude, end_longitude, sample_count, is_record_eligible, ",
+      "record_exclusion_reason, source_classification, power_classification_version, ",
+      "calculation_version, computed_at ",
+      "FROM cycling_platform_gold.activity_best_efforts ",
+      "WHERE activity_id IN (", best_effort_placeholders(activity_ids), ") ",
+      "AND metric_name IN (", best_effort_placeholders(metrics), ") ",
+      "AND duration_seconds IN (", best_effort_placeholders(durations), ") ",
+      "ORDER BY activity_id, metric_name, duration_seconds"
+    ),
+    params = c(
+      as.list(activity_ids),
+      as.list(metrics),
+      as.list(as.integer(durations))
+    )
+  )
+}
+
+best_effort_output_signature <- function(rows) {
+  if (nrow(rows) == 0L) return(digest::digest(data.frame(), algo = "sha256"))
+  signature_columns <- c(
+    "activity_id", "metric_name", "duration_seconds", "peak_value",
+    "start_sample_index", "end_sample_index", "start_time_seconds",
+    "end_time_seconds", "start_distance_metres", "end_distance_metres",
+    "start_latitude", "start_longitude", "end_latitude", "end_longitude",
+    "sample_count", "is_record_eligible", "record_exclusion_reason",
+    "source_classification", "power_classification_version",
+    "calculation_version"
+  )
+  for (column in setdiff(signature_columns, names(rows))) rows[[column]] <- NA
+  rows <- rows[, signature_columns, drop = FALSE]
+  rows <- rows[order(
+    as.character(rows$activity_id),
+    rows$metric_name,
+    rows$duration_seconds
+  ), , drop = FALSE]
+  rows[] <- lapply(rows, function(column) {
+    value <- as.character(column)
+    value[is.na(column)] <- "<NA>"
+    value
+  })
+  rownames(rows) <- NULL
+  digest::digest(rows, algo = "sha256")
+}
+
+best_effort_changed_activity_ids <- function(existing, proposed, activity_ids) {
+  activity_ids <- unique(as.character(activity_ids))
+  changed <- vapply(activity_ids, function(activity_id) {
+    existing_rows <- existing[as.character(existing$activity_id) == activity_id, , drop = FALSE]
+    proposed_rows <- proposed[as.character(proposed$activity_id) == activity_id, , drop = FALSE]
+    best_effort_output_signature(existing_rows) != best_effort_output_signature(proposed_rows)
+  }, logical(1))
+  bit64::as.integer64(activity_ids[changed])
+}
+
 get_latest_successful_transform_completed_at <- function(
   connection,
   layer_name,
@@ -307,6 +406,10 @@ get_best_effort_activity_plan <- function(
   durations,
   calculation_version
 ) {
+  if (!is.null(activity_ids)) {
+    return(direct_best_effort_activity_plan(activity_ids))
+  }
+
   metric_columns <- best_effort_metric_columns()[metrics]
 
   metric_source_sql <- paste(
@@ -335,19 +438,6 @@ get_best_effort_activity_plan <- function(
     ),
     collapse = "\nUNION ALL\n"
   )
-
-  activity_filter_sql <- ""
-  activity_filter_params <- list()
-
-  if (!is.null(activity_ids)) {
-    activity_filter_sql <- paste0(
-      " AND streams.activity_id IN (",
-      best_effort_placeholders(activity_ids),
-      ")"
-    )
-
-    activity_filter_params <- as.list(as.character(activity_ids))
-  }
 
   if (identical(mode, "backfill")) {
     sql <- paste0(
@@ -380,9 +470,7 @@ get_best_effort_activity_plan <- function(
       INNER JOIN expected
         ON expected.activity_id = metric_source.activity_id
        AND expected.metric_name = metric_source.metric_name
-      WHERE 1 = 1",
-      activity_filter_sql,
-      "
+      WHERE 1 = 1
       GROUP BY metric_source.activity_id
       ORDER BY metric_source.activity_id
       "
@@ -392,7 +480,7 @@ get_best_effort_activity_plan <- function(
       db_get_query_optional_params(
         connection = connection,
         statement = sql,
-        params = activity_filter_params
+        params = list()
       )
     )
   }
@@ -465,7 +553,6 @@ get_best_effort_activity_plan <- function(
     LEFT JOIN gold_summary
       ON gold_summary.activity_id = source_summary.activity_id
     WHERE 1 = 1",
-    activity_filter_sql,
     "
       AND (
         COALESCE(gold_summary.best_effort_row_count, 0)
@@ -488,8 +575,7 @@ get_best_effort_activity_plan <- function(
   params <- c(
     list(calculation_version),
     as.list(metrics),
-    as.list(as.integer(durations)),
-    activity_filter_params
+    as.list(as.integer(durations))
   )
 
   activity_plan <- db_get_query_optional_params(
@@ -887,6 +973,9 @@ rebuild_gold_activity_best_efforts <- function(
   candidate_discovery_seconds <- NULL
   processing_seconds <- 0
   finalisation_seconds <- 0
+  discovery_mode <- "repair_scan"
+  upstream_affected_count <- if (is.null(activity_ids)) NA_integer_ else length(unique(activity_ids))
+  output_changed_activity_ids <- bit64::as.integer64(character())
 
   finish_with_timing <- function(result) {
     timing <- gold_transform_timing(
@@ -899,7 +988,13 @@ rebuild_gold_activity_best_efforts <- function(
     )
 
     log_gold_transform_timing(timing)
-    invisible(attach_gold_transform_timing(result, timing))
+    result <- attach_gold_transform_timing(result, timing)
+    attr(result, "gold_best_effort_result") <- list(
+      discovery_mode = discovery_mode,
+      upstream_affected_count = upstream_affected_count,
+      output_changed_activity_ids = output_changed_activity_ids
+    )
+    invisible(result)
   }
 
   if (is.null(metrics)) {
@@ -974,6 +1069,22 @@ rebuild_gold_activity_best_efforts <- function(
     connection = connection
   )
 
+  explicit_daily_affected_set <- identical(mode, "daily") && !is.null(activity_ids)
+  if (explicit_daily_affected_set) {
+    stale_version_count <- gold_best_effort_stale_version_count(
+      connection = connection,
+      calculation_version = calculation_version,
+      metrics = metrics,
+      durations = durations
+    )
+    if (stale_version_count > 0) {
+      stop(
+        "Gold activity_best_efforts calculation version is stale; run explicit repair/rebuild before DAILY affected-set execution.",
+        call. = FALSE
+      )
+    }
+  }
+
   daily_can_skip <-
     identical(mode, "daily") &&
       is.null(activity_ids) &&
@@ -983,6 +1094,7 @@ rebuild_gold_activity_best_efforts <- function(
   setup_seconds <- gold_elapsed_seconds(setup_started_at)
 
   if (daily_can_skip) {
+    discovery_mode <- "skipped"
     candidate_discovery_seconds <- 0
     message(
       "Skipping gold activity_best_efforts candidate scan: latest Gold ",
@@ -1018,14 +1130,20 @@ rebuild_gold_activity_best_efforts <- function(
   }
 
   candidate_discovery_started_at <- gold_timing_now()
-  activity_plan <- get_best_effort_activity_plan(
-    connection = connection,
-    mode = mode,
-    activity_ids = activity_ids,
-    metrics = metrics,
-    durations = durations,
-    calculation_version = calculation_version
-  )
+  activity_plan <- if (explicit_daily_affected_set) {
+    discovery_mode <- if (length(activity_ids) == 0L) "skipped" else "affected_set"
+    direct_best_effort_activity_plan(activity_ids)
+  } else {
+    discovery_mode <- "repair_scan"
+    get_best_effort_activity_plan(
+      connection = connection,
+      mode = mode,
+      activity_ids = activity_ids,
+      metrics = metrics,
+      durations = durations,
+      calculation_version = calculation_version
+    )
+  }
   candidate_discovery_seconds <- gold_elapsed_seconds(
     candidate_discovery_started_at
   )
@@ -1040,7 +1158,9 @@ rebuild_gold_activity_best_efforts <- function(
   candidate_activity_count <- nrow(activity_plan)
 
   message(glue::glue(
-    "Gold activity_best_efforts candidates: {candidate_activity_count} activities."
+    "Gold activity_best_efforts discovery mode: {discovery_mode}; ",
+    "upstream affected: {ifelse(is.na(upstream_affected_count), 'unavailable', upstream_affected_count)}; ",
+    "candidates: {candidate_activity_count}."
   ))
 
   activity_batches <- if (nrow(activity_plan) == 0) {
@@ -1120,6 +1240,7 @@ rebuild_gold_activity_best_efforts <- function(
 
           rows_deleted <- 0L
           rows_inserted <- 0L
+          changed_activity_ids_batch <- bit64::as.integer64(character())
 
           batch_error <- tryCatch(
             {
@@ -1154,38 +1275,59 @@ rebuild_gold_activity_best_efforts <- function(
                 power_classification = power_classification
               )
 
-              DBI::dbBegin(connection)
-
-              tryCatch(
-                {
-                  rows_deleted <- delete_gold_activity_best_efforts(
-                    connection = connection,
-                    activity_ids = activity_ids_batch,
-                    metrics = metrics,
-                    durations = durations
-                  )
-
-                  rows_inserted <- insert_gold_activity_best_efforts(
-                    connection = connection,
-                    best_efforts = best_efforts
-                  )
-
-                  DBI::dbCommit(connection)
-                },
-                error = function(e) {
-                  tryCatch(
-                    DBI::dbRollback(connection),
-                    error = function(rollback_error) {
-                      message(glue::glue(
-                        "Gold best effort batch rollback failed: ",
-                        "{conditionMessage(rollback_error)}"
-                      ))
-                    }
-                  )
-
-                  stop(e)
-                }
+              existing_best_efforts <- fetch_existing_activity_best_efforts(
+                connection = connection,
+                activity_ids = activity_ids_batch,
+                metrics = metrics,
+                durations = durations
               )
+              changed_activity_ids_batch <- best_effort_changed_activity_ids(
+                existing = existing_best_efforts,
+                proposed = best_efforts,
+                activity_ids = activity_ids_batch
+              )
+
+              if (length(changed_activity_ids_batch) > 0L) {
+                changed_id_chars <- as.character(changed_activity_ids_batch)
+                best_efforts <- best_efforts[
+                  as.character(best_efforts$activity_id) %in% changed_id_chars,
+                  ,
+                  drop = FALSE
+                ]
+
+                DBI::dbBegin(connection)
+
+                tryCatch(
+                  {
+                    rows_deleted <- delete_gold_activity_best_efforts(
+                      connection = connection,
+                      activity_ids = changed_activity_ids_batch,
+                      metrics = metrics,
+                      durations = durations
+                    )
+
+                    rows_inserted <- insert_gold_activity_best_efforts(
+                      connection = connection,
+                      best_efforts = best_efforts
+                    )
+
+                    DBI::dbCommit(connection)
+                  },
+                  error = function(e) {
+                    tryCatch(
+                      DBI::dbRollback(connection),
+                      error = function(rollback_error) {
+                        message(glue::glue(
+                          "Gold best effort batch rollback failed: ",
+                          "{conditionMessage(rollback_error)}"
+                        ))
+                      }
+                    )
+
+                    stop(e)
+                  }
+                )
+              }
 
               NULL
             },
@@ -1209,6 +1351,10 @@ rebuild_gold_activity_best_efforts <- function(
 
           completed_batches <<- completed_batches + 1L
           activities_completed <<- activities_completed + length(activity_ids_batch)
+          output_changed_activity_ids <<- unique(c(
+            output_changed_activity_ids,
+            changed_activity_ids_batch
+          ))
           total_rows_deleted <<- total_rows_deleted + rows_deleted
           total_rows_inserted <<- total_rows_inserted + rows_inserted
 
@@ -1234,7 +1380,8 @@ rebuild_gold_activity_best_efforts <- function(
             "Completed gold best effort batch {batch_index}/",
             "{length(activity_batches)}: {rows_deleted} rows deleted, ",
             "{rows_inserted} rows inserted, ",
-            "{length(activity_ids_batch)} activities processed."
+            "{length(activity_ids_batch)} activities processed, ",
+            "{length(changed_activity_ids_batch)} outputs changed."
           ))
         }
       )

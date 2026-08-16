@@ -197,9 +197,11 @@ docker compose run --rm cycling-platform
 ```
 
 It runs raw ingestion through `run_raw_ingestion.R`, then runs Silver transforms only if
-raw ingestion succeeds. Silver streams use repair mode for normal automation, so
-the large stream table is not truncated and historical staging repair tooling is
-not invoked.
+raw ingestion succeeds. Normal daily Silver processing receives the authoritative
+Raw reconciliation worklist. Silver streams rebuild those explicit activities and
+compare deterministic content before and after transformation; equal row counts
+alone are not evidence that stream content is unchanged. Manual `repair` mode
+retains global completeness discovery.
 
 After Silver transforms, `run_daily_platform.R` runs only fast publication-gate
 checks. Deep validation runs separately via:
@@ -222,6 +224,14 @@ Rscript run_silver.R repair
 Gold processing is orchestrated by `run_daily_platform.R` after successful
 Silver publication checks. `run_raw_ingestion.R` remains focused on Raw ingestion; the
 daily wrapper owns Raw-to-Silver-to-Gold publication sequencing.
+
+The daily wrapper passes an in-memory Silver-to-Gold change context. `COMPLETE`
+means the worklist is authoritative, including a zero-row trusted result. Missing,
+`UNAVAILABLE`, or `UNTRUSTED` context triggers the existing safe Gold discovery
+path and must never be interpreted as no change. A global power-classification
+control change and an activity deletion/exclusion currently make the context
+untrusted because their complete historical dependency set is not yet
+authoritative.
 
 ## Runtime and Deployment Boundary
 

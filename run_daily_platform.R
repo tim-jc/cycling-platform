@@ -35,6 +35,9 @@ phase_results <- data.frame(
 )
 
 raw_ingestion_summary <- NULL
+gold_change_context <- unavailable_gold_change_context(
+  "Daily Silver phase has not produced change context."
+)
 
 get_latest_etl_run_id <- function() {
   connection <- get_connection("cycling_platform_admin")
@@ -201,6 +204,7 @@ get_raw_ingestion_summary <- function(previous_run_id) {
         entity_lines = entity_lines,
         reconciliation_lines = reconciliation_lines,
         affected_activity_ids = affected$activity_id,
+        run_id = run$run_id[[1]],
         pending_line = glue::glue(
           "Pending: streams {pending_summary$streams_remaining[[1]]} · ",
           "details {pending_summary$details_remaining[[1]]} · ",
@@ -837,11 +841,12 @@ tryCatch(
 
         tryCatch(
           {
-            run_silver_transformations(
+            gold_change_context <<- run_silver_transformations(
               connection = connection,
               config = config,
               stream_rebuild_mode = "repair",
-              activity_ids = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$affected_activity_ids else NULL
+              activity_ids = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$affected_activity_ids else NULL,
+              raw_run_id = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$run_id else NA_integer_
             )
           },
           finally = {
@@ -912,6 +917,7 @@ tryCatch(
             gold_transform_timings <- run_gold_transformations(
               connection = connection,
               config = config,
+              gold_change_context = gold_change_context,
               mode = "daily"
             )
           },

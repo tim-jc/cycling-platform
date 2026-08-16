@@ -57,6 +57,69 @@ get_silver_stream_repair_activity_plan <- function(connection) {
   )
 }
 
+get_silver_stream_affected_activity_plan <- function(connection, activity_ids) {
+  activity_ids <- unique(as.character(activity_ids))
+  if (length(activity_ids) == 0L) {
+    return(data.frame(
+      activity_id = bit64::as.integer64(character()),
+      expected_row_count = numeric()
+    ))
+  }
+
+  requested_sql <- paste(
+    rep("SELECT CAST(? AS UNSIGNED) AS activity_id", length(activity_ids)),
+    collapse = " UNION ALL "
+  )
+
+  DBI::dbGetQuery(
+    conn = connection,
+    statement = paste0(
+      "WITH requested AS (", requested_sql, "), raw_summary AS (",
+      " SELECT activity_id, MAX(original_size) AS expected_row_count",
+      " FROM cycling_platform_raw.activity_streams",
+      " GROUP BY activity_id)",
+      " SELECT requested.activity_id,",
+      " COALESCE(raw_summary.expected_row_count, 0) AS expected_row_count",
+      " FROM requested LEFT JOIN raw_summary",
+      " ON raw_summary.activity_id = requested.activity_id",
+      " ORDER BY requested.activity_id"
+    ),
+    params = as.list(activity_ids)
+  )
+}
+
+silver_stream_rows_hash <- function(rows) {
+  if (nrow(rows) == 0L) return(digest::digest(data.frame(), algo = "sha256"))
+  rows <- rows[order(rows$sample_index), , drop = FALSE]
+  rownames(rows) <- NULL
+  digest::digest(rows, algo = "sha256")
+}
+
+silver_stream_content_hashes <- function(connection, activity_ids) {
+  activity_ids <- unique(as.character(activity_ids))
+  if (length(activity_ids) == 0L) return(stats::setNames(character(), character()))
+
+  rows <- DBI::dbGetQuery(
+    conn = connection,
+    statement = paste0(
+      "SELECT activity_id, sample_index, time_seconds, distance_metres, ",
+      "latitude, longitude, altitude_metres, velocity_smooth_metres_per_second, ",
+      "heartrate_bpm, cadence_rpm, watts, temperature_celsius, is_moving, ",
+      "grade_smooth_percent FROM cycling_platform_silver.activity_streams ",
+      "WHERE activity_id IN (", format_activity_id_filter(activity_ids), ") ",
+      "ORDER BY activity_id, sample_index"
+    )
+  )
+
+  empty_hash <- silver_stream_rows_hash(data.frame())
+  hashes <- stats::setNames(rep(empty_hash, length(activity_ids)), activity_ids)
+  if (nrow(rows) == 0L) return(hashes)
+
+  row_groups <- split(rows, as.character(rows$activity_id))
+  hashes[names(row_groups)] <- vapply(row_groups, silver_stream_rows_hash, character(1))
+  hashes
+}
+
 #' Build Silver Stream Activity Batches
 #'
 #' Pack activities into batches using both activity count and expected row count.
@@ -553,6 +616,7 @@ rebuild_silver_activity_streams <- function(
   progress_every_seconds = 60,
   log_level = "INFO",
   status_callback = NULL,
+  activity_ids = NULL,
   mode = c(
     "full",
     "repair"
@@ -568,6 +632,13 @@ rebuild_silver_activity_streams <- function(
 
   rebuild_started_at <- Sys.time()
 
+  explicit_activity_ids <- if (is.null(activity_ids)) NULL else unique(activity_ids)
+  before_hashes <- if (!is.null(explicit_activity_ids)) {
+    silver_stream_content_hashes(connection, explicit_activity_ids)
+  } else {
+    NULL
+  }
+
   if (mode == "full") {
     message("Truncating silver activity streams.")
 
@@ -578,6 +649,12 @@ rebuild_silver_activity_streams <- function(
 
     activity_plan <- get_silver_stream_activity_plan(
       connection = connection
+    )
+  } else if (!is.null(explicit_activity_ids)) {
+    message("Rebuilding explicitly affected silver activity streams.")
+    activity_plan <- get_silver_stream_affected_activity_plan(
+      connection = connection,
+      activity_ids = explicit_activity_ids
     )
   } else {
     message("Repairing incomplete silver activity streams.")
@@ -635,7 +712,10 @@ rebuild_silver_activity_streams <- function(
       run_status = "SUCCESS"
     )
 
-    return(invisible(NULL))
+    return(invisible(list(
+      processed_activity_ids = bit64::as.integer64(character()),
+      materially_changed_activity_ids = bit64::as.integer64(character())
+    )))
   }
 
   message(glue::glue(
@@ -1045,5 +1125,16 @@ rebuild_silver_activity_streams <- function(
     failed_batches = failed_batches
   ))
 
-  invisible(NULL)
+  materially_changed_activity_ids <- if (is.null(explicit_activity_ids)) {
+    unique(activity_plan$activity_id)
+  } else {
+    after_hashes <- silver_stream_content_hashes(connection, explicit_activity_ids)
+    changed <- names(before_hashes)[before_hashes != after_hashes[names(before_hashes)]]
+    bit64::as.integer64(changed)
+  }
+
+  invisible(list(
+    processed_activity_ids = unique(activity_plan$activity_id),
+    materially_changed_activity_ids = materially_changed_activity_ids
+  ))
 }

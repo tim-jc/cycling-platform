@@ -89,11 +89,19 @@ Rscript scripts/gold/run_activity_best_efforts.R repair
 Rscript scripts/gold/run_activity_best_efforts.R backfill
 ```
 
-Daily platform automation runs `gold.activity_best_efforts` in incremental
-daily mode after Silver publication checks pass. This mode processes activities
-with missing or incomplete Gold rows, stale Silver stream inputs, or an old
-`calculation_version`. Full historical backfill remains an explicit manual
-operation.
+Daily platform automation runs `gold.activity_best_efforts` after Silver
+publication checks pass. With a trusted Silver change context, DAILY uses the
+explicit activities whose streams or power eligibility materially changed. A
+trusted empty context skips historical stream discovery entirely. Missing or
+untrusted context falls back to global discovery rather than becoming a silent
+no-op.
+
+REPAIR remains the global completeness path for missing or incomplete Gold rows,
+stale Silver inputs, missed propagation and interrupted runs. BACKFILL remains an
+explicit broad operation. A stale calculation version is not silently rebuilt by
+the affected-set DAILY path; the operator must run an explicit repair/rebuild.
+Current activity deletion/exclusion and global power-classification rule changes
+also require that safe broader path.
 
 ### `gold.activity_achievements`
 

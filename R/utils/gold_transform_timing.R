@@ -136,6 +136,26 @@ format_gold_transform_summary_line <- function(
     paste0("failed batches ", failed_batch_count)
   )
 
+  if (identical(entity_name, "activity_best_efforts") && !is.null(timing)) {
+    discovery_mode <- timing$discovery_mode
+    affected_count <- timing$upstream_affected_count
+    output_changed_count <- timing$output_changed_activity_count
+    if (!is.null(affected_count) && !is.na(affected_count)) {
+      parts <- append(parts, paste0("affected ", affected_count), after = 1L)
+    }
+    if (!is.null(discovery_mode) && nzchar(discovery_mode)) {
+      discovery_label <- if (identical(discovery_mode, "skipped")) {
+        "discovery skipped ✓"
+      } else {
+        paste0("discovery ", discovery_mode)
+      }
+      parts <- append(parts, discovery_label, after = min(2L, length(parts)))
+    }
+    if (!is.null(output_changed_count) && !is.na(output_changed_count)) {
+      parts <- c(parts, paste0("outputs changed ", output_changed_count))
+    }
+  }
+
   if (length(timing_text) > 0L && nzchar(timing_text)) {
     return(paste0(
       paste(parts, collapse = " · "),
