@@ -166,6 +166,23 @@ This reports the old conservative candidate count alongside state-driven repair
 debt. Canonical deletion/exclusion propagation remains unresolved; orphan facts
 cause an actionable REPAIR failure rather than silent deletion.
 
+For a retained before/after full-rebuild equivalence check, capture the semantic
+Gold fields to a local snapshot, run the explicit backfill, then compare against
+the snapshot:
+
+```sh
+Rscript scripts/gold/audit_activity_achievement_evaluation_state.R \
+  snapshot /tmp/activity-achievements-before.rds
+Rscript scripts/gold/run_activity_achievements.R backfill
+Rscript scripts/gold/audit_activity_achievement_evaluation_state.R \
+  compare /tmp/activity-achievements-before.rds
+```
+
+The comparison excludes operational timestamps, notification state and run
+lineage. It exits non-zero if a business key exists on only one side or any
+semantic value differs. Use a persistent host-mounted path instead of `/tmp`
+when snapshot and comparison run in separate ephemeral containers.
+
 ### Evaluation-state initialization
 
 After deploying and bootstrapping the additive Admin table, capture the audit

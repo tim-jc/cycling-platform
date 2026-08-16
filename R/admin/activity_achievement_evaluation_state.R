@@ -329,8 +329,8 @@ audit_achievement_evaluation_candidates <- function(
   )
 }
 
-achievement_fact_semantic_signature <- function(connection) {
-  rows <- DBI::dbGetQuery(
+fetch_achievement_fact_semantic_rows <- function(connection) {
+  DBI::dbGetQuery(
     connection,
     "SELECT activity_achievement_key, activity_id, achievement_type,
             metric_name, duration_seconds, comparison_scope,
@@ -341,6 +341,10 @@ achievement_fact_semantic_signature <- function(connection) {
        FROM cycling_platform_gold.activity_achievements
       ORDER BY activity_achievement_key"
   )
+}
+
+achievement_fact_semantic_signature <- function(connection) {
+  rows <- fetch_achievement_fact_semantic_rows(connection)
   rows[] <- lapply(rows, function(value) {
     value <- as.character(value)
     value[is.na(value)] <- "<NA>"
@@ -348,4 +352,48 @@ achievement_fact_semantic_signature <- function(connection) {
   })
   rownames(rows) <- NULL
   digest::digest(rows, algo = "sha256")
+}
+
+compare_achievement_fact_semantics <- function(before, after) {
+  key <- "activity_achievement_key"
+  before_keys <- as.character(before[[key]])
+  after_keys <- as.character(after[[key]])
+  shared <- intersect(before_keys, after_keys)
+  semantic_columns <- setdiff(intersect(names(before), names(after)), key)
+  normalise <- function(rows) {
+    rows[] <- lapply(rows, function(value) {
+      value <- as.character(value)
+      value[is.na(value)] <- "<NA>"
+      value
+    })
+    rows
+  }
+  before_shared <- normalise(
+    before[match(shared, before_keys), semantic_columns, drop = FALSE]
+  )
+  after_shared <- normalise(
+    after[match(shared, after_keys), semantic_columns, drop = FALSE]
+  )
+  mismatched <- if (length(shared) == 0L) {
+    character()
+  } else {
+    different <- vapply(seq_along(shared), function(index) {
+      !identical(
+        as.list(before_shared[index, , drop = FALSE]),
+        as.list(after_shared[index, , drop = FALSE])
+      )
+    }, logical(1))
+    shared[different]
+  }
+  only_before <- setdiff(before_keys, after_keys)
+  only_after <- setdiff(after_keys, before_keys)
+  list(
+    before_count = nrow(before),
+    after_count = nrow(after),
+    only_before = only_before,
+    only_after = only_after,
+    mismatched = mismatched,
+    equal = length(only_before) == 0L && length(only_after) == 0L &&
+      length(mismatched) == 0L
+  )
 }

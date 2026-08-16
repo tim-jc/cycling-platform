@@ -166,3 +166,24 @@ testthat::test_that("achievement facts and state are written in one batch transa
     fixed = TRUE
   )
 })
+
+testthat::test_that("semantic comparison reports business-key and value drift", {
+  before <- data.frame(
+    activity_achievement_key = c("a", "b"),
+    activity_id = c("1", "2"),
+    metric_value = c(100, 200),
+    calculation_version = "v1"
+  )
+  testthat::expect_true(compare_achievement_fact_semantics(before, before)$equal)
+
+  changed <- before
+  changed$metric_value[[2]] <- 201
+  comparison <- compare_achievement_fact_semantics(before, changed)
+  testthat::expect_false(comparison$equal)
+  testthat::expect_identical(comparison$mismatched, "b")
+
+  removed <- before[1, , drop = FALSE]
+  comparison <- compare_achievement_fact_semantics(before, removed)
+  testthat::expect_identical(comparison$only_before, "b")
+  testthat::expect_length(comparison$only_after, 0L)
+})
