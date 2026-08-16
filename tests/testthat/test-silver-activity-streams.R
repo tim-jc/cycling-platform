@@ -55,6 +55,32 @@ test_that("silver activity stream rows are built from raw JSON payloads", {
   expect_equal(rows$raw_max_original_size, c(3L, 3L, 3L))
 })
 
+test_that("affected stream plans preserve Strava IDs above 32-bit range", {
+  transform_file <- file.path("R", "transforms", "rebuild_silver_activity_streams.R")
+  if (!file.exists(transform_file)) {
+    transform_file <- file.path("..", "..", transform_file)
+  }
+  source(transform_file)
+
+  activity_ids <- c("19748350909", "19750357368", "19760000000")
+  raw_summary <- data.frame(
+    activity_id = bit64::as.integer64(c("19748350909", "19750357368")),
+    expected_row_count = c(339L, 717L)
+  )
+  plan <- build_silver_stream_affected_activity_plan(activity_ids, raw_summary)
+
+  expect_s3_class(plan$activity_id, "integer64")
+  expect_identical(
+    as.character(plan$activity_id),
+    c("19748350909", "19750357368", "19760000000")
+  )
+  expect_equal(plan$expected_row_count, c(339, 717, 0))
+  expect_identical(
+    format_activity_id_filter(plan$activity_id),
+    "19748350909, 19750357368, 19760000000"
+  )
+})
+
 test_that("zero-work stream repairs are logged as successful runs", {
   transform_file <- file.path(
     "R",

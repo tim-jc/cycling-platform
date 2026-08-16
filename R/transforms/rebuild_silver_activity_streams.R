@@ -66,26 +66,40 @@ get_silver_stream_affected_activity_plan <- function(connection, activity_ids) {
     ))
   }
 
-  requested_sql <- paste(
-    rep("SELECT CAST(? AS UNSIGNED) AS activity_id", length(activity_ids)),
-    collapse = " UNION ALL "
-  )
+  if (any(!grepl("^[0-9]+$", activity_ids))) {
+    stop("Activity IDs must contain digits only.", call. = FALSE)
+  }
 
-  DBI::dbGetQuery(
+  raw_summary <- DBI::dbGetQuery(
     conn = connection,
     statement = paste0(
-      "WITH requested AS (", requested_sql, "), raw_summary AS (",
-      " SELECT activity_id, MAX(original_size) AS expected_row_count",
-      " FROM cycling_platform_raw.activity_streams",
-      " GROUP BY activity_id)",
-      " SELECT requested.activity_id,",
-      " COALESCE(raw_summary.expected_row_count, 0) AS expected_row_count",
-      " FROM requested LEFT JOIN raw_summary",
-      " ON raw_summary.activity_id = requested.activity_id",
-      " ORDER BY requested.activity_id"
+      "SELECT activity_id, MAX(original_size) AS expected_row_count ",
+      "FROM cycling_platform_raw.activity_streams ",
+      "WHERE activity_id IN (",
+      paste(rep("?", length(activity_ids)), collapse = ", "),
+      ") GROUP BY activity_id ORDER BY activity_id"
     ),
     params = as.list(activity_ids)
   )
+
+  build_silver_stream_affected_activity_plan(
+    activity_ids = activity_ids,
+    raw_summary = raw_summary
+  )
+}
+
+build_silver_stream_affected_activity_plan <- function(activity_ids, raw_summary) {
+  activity_ids <- unique(as.character(activity_ids))
+  raw_ids <- as.character(raw_summary$activity_id)
+  matched <- match(activity_ids, raw_ids)
+  expected <- raw_summary$expected_row_count[matched]
+  expected[is.na(expected)] <- 0
+
+  plan <- data.frame(
+    activity_id = bit64::as.integer64(activity_ids),
+    expected_row_count = as.numeric(expected)
+  )
+  plan[order(plan$activity_id), , drop = FALSE]
 }
 
 silver_stream_rows_hash <- function(rows) {
