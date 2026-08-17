@@ -773,7 +773,14 @@ validate_gold_activity_achievements <- function(
               WHERE evaluation_status NOT IN ('CURRENT', 'INVALIDATED')
                  OR achievement_count < 0
                  OR (evaluation_status = 'CURRENT'
-                     AND (evaluated_at IS NULL OR input_signature IS NULL OR input_signature = ''))"
+                     AND (evaluated_at IS NULL OR input_signature IS NULL OR input_signature = ''))
+                 OR (evaluation_status = 'INVALIDATED' AND (
+                       invalidation_reason IS NULL OR invalidation_reason NOT IN (
+                         'HISTORICAL_ACTIVITY_CHANGE', 'HISTORICAL_INSERT',
+                         'BEST_EFFORT_CHANGE', 'POWER_ELIGIBILITY_CHANGE',
+                         'DATE_CHANGE', 'REPAIR', 'explicit_backfill'
+                       )
+                    ))"
     ),
     list(
       check_name = "achievement_evaluation_fact_count_reconciled",
@@ -864,6 +871,7 @@ rebuild_gold_activity_achievements <- function(
   connection,
   config = list(),
   gold_change_context = NULL,
+  best_effort_changed_activity_ids = bit64::as.integer64(character()),
   activity_ids = NULL,
   durations = NULL,
   batch_size = NULL,
@@ -886,6 +894,12 @@ rebuild_gold_activity_achievements <- function(
   evaluation_debt_count <- NA_integer_
   evaluation_state_rows_written <- 0L
   zero_achievement_evaluations <- 0L
+  invalidation_action <- "none"
+  dependency_start_date <- as.Date(NA)
+  closure_activity_count <- 0L
+  evaluation_state_rows_invalidated <- 0L
+  remaining_invalidated_count <- 0L
+  direct_affected_count <- 0L
 
   finish_with_timing <- function(result) {
     timing <- gold_transform_timing(
@@ -902,6 +916,12 @@ rebuild_gold_activity_achievements <- function(
     timing$evaluation_debt_count <- evaluation_debt_count
     timing$evaluation_state_rows_written <- evaluation_state_rows_written
     timing$zero_achievement_evaluations <- zero_achievement_evaluations
+    timing$invalidation_action <- invalidation_action
+    timing$dependency_start_date <- dependency_start_date
+    timing$closure_activity_count <- closure_activity_count
+    timing$evaluation_state_rows_invalidated <- evaluation_state_rows_invalidated
+    timing$remaining_invalidated_count <- remaining_invalidated_count
+    timing$direct_affected_count <- direct_affected_count
     log_gold_transform_timing(timing)
     invisible(attach_gold_transform_timing(result, timing))
   }
@@ -978,7 +998,17 @@ rebuild_gold_activity_achievements <- function(
     connection = connection,
     calculation_version = calculation_version
   )
-  state_initialized <- achievement_evaluation_state_initialized(state_summary)
+  state_established <- state_summary$state_count[[1]] > 0L
+  if (
+    identical(mode, "daily") &&
+      state_established &&
+      state_summary$invalidated_count[[1]] > 0L
+  ) {
+    stop(
+      "Achievement evaluation state contains INVALIDATED rows; run explicit REPAIR before DAILY processing.",
+      call. = FALSE
+    )
+  }
   if (
     identical(mode, "repair") &&
       state_summary$silver_count[[1]] > 0L &&
@@ -1005,46 +1035,95 @@ rebuild_gold_activity_achievements <- function(
   context_validation <- validate_gold_change_context(gold_change_context)
   context_has_changes <- isTRUE(context_validation$trusted) &&
     nrow(context_validation$context$activities) > 0L
-  candidate_policy <- achievement_candidate_policy(
-    mode = mode,
-    state_initialized = state_initialized,
-    context_trusted = context_validation$trusted,
-    context_has_changes = context_has_changes,
-    explicit_activity_ids = !is.null(activity_ids)
-  )
-  safe_state_daily <- candidate_policy$use_state_daily
+  daily_plan <- NULL
+  safe_state_daily <- identical(mode, "daily") && state_established &&
+    is.null(activity_ids)
+  candidate_activity_ids <- character()
 
-  candidate_activity_ids <- if (safe_state_daily) {
-    candidate_mode <- candidate_policy$candidate_mode
-    get_achievement_evaluation_debt_ids(connection, calculation_version)
-  } else {
-    candidate_mode <- candidate_policy$candidate_mode
-    if (identical(mode, "repair")) {
-      get_achievement_evaluation_debt_ids(connection, calculation_version)
-    } else if (
-      identical(mode, "daily") && state_initialized &&
-        (
-          !isTRUE(context_validation$trusted) || context_has_changes ||
-            !is.null(activity_ids)
-        )
-    ) {
-      get_activity_achievement_candidate_ids(
-        connection = connection,
-        mode = "backfill",
-        calculation_version = calculation_version
-      )
-    } else {
-      get_activity_achievement_candidate_ids(
-        connection = connection,
-        mode = mode,
-        calculation_version = calculation_version,
-        activity_ids = activity_ids
+  if (safe_state_daily) {
+    daily_plan <- plan_achievement_daily_invalidation(
+      context_validation = context_validation,
+      best_effort_changed_activity_ids = best_effort_changed_activity_ids,
+      history_boundary = achievement_history_boundary(connection, calculation_version)
+    )
+    direct_affected_count <- length(daily_plan$direct_activity_ids)
+    if (identical(daily_plan$action, "fallback")) {
+      stop(
+        daily_plan$reason,
+        " Run explicit Gold REPAIR/REBUILD; DAILY cannot derive a safe closure.",
+        call. = FALSE
       )
     }
-  }
-  evaluation_debt_count <- length(candidate_activity_ids)
 
-  recent_activity_ids <- if (identical(mode, "daily") && !safe_state_daily) {
+    debt_ids <- get_achievement_evaluation_debt_ids(connection, calculation_version)
+    evaluation_debt_count <- length(debt_ids)
+    unexpected_debt_ids <- achievement_unexpected_debt_ids(daily_plan, debt_ids)
+    if (identical(daily_plan$action, "no_change") && length(debt_ids) == 0L) {
+      candidate_mode <- "evaluation_state"
+    } else if (
+      identical(daily_plan$action, "latest_append") &&
+        length(unexpected_debt_ids) == 0L
+    ) {
+      candidate_mode <- "latest_append"
+      invalidation_action <- "latest_append"
+      dependency_start_date <- daily_plan$dependency_start_date
+      candidate_activity_ids <- daily_plan$direct_activity_ids
+    } else {
+      debt_dates <- achievement_activity_dates(connection, unexpected_debt_ids)
+      possible_dates <- c(daily_plan$dependency_start_date, unname(debt_dates))
+      possible_dates <- possible_dates[!is.na(possible_dates)]
+      if (length(possible_dates) == 0L) {
+        stop(
+          "Achievement evaluation debt has no recoverable local date; run explicit REBUILD.",
+          call. = FALSE
+        )
+      }
+      dependency_start_date <- min(as.Date(possible_dates))
+      invalidation_reason <- if (length(unexpected_debt_ids) > 0L) {
+        "REPAIR"
+      } else {
+        daily_plan$invalidation_reason
+      }
+      candidate_mode <- "historical_closure"
+      invalidation_action <- "historical_closure"
+      candidate_activity_ids <- get_achievement_closure_activity_ids(
+        connection,
+        dependency_start_date
+      )
+      closure_activity_count <- length(candidate_activity_ids)
+      evaluation_state_rows_invalidated <-
+        mark_achievement_evaluation_closure_invalidated(
+          connection = connection,
+          calculation_version = calculation_version,
+          dependency_start_date = dependency_start_date,
+          invalidation_reason = invalidation_reason
+        )
+      message(
+        "Achievement historical invalidation from ", dependency_start_date,
+        "; reason=", invalidation_reason,
+        "; closure=", closure_activity_count,
+        "; state rows invalidated=", evaluation_state_rows_invalidated, "."
+      )
+    }
+  } else if (identical(mode, "repair")) {
+    candidate_mode <- "repair"
+    candidate_activity_ids <- get_achievement_evaluation_debt_ids(
+      connection,
+      calculation_version
+    )
+    evaluation_debt_count <- length(candidate_activity_ids)
+  } else {
+    candidate_mode <- if (identical(mode, "backfill")) "rebuild" else "conservative_fallback"
+    candidate_activity_ids <- get_activity_achievement_candidate_ids(
+      connection = connection,
+      mode = mode,
+      calculation_version = calculation_version,
+      activity_ids = activity_ids
+    )
+    evaluation_debt_count <- length(candidate_activity_ids)
+  }
+
+  recent_activity_ids <- if (identical(mode, "daily") && !identical(candidate_mode, "evaluation_state")) {
     get_recent_activity_ids(
       connection = connection,
       recent_activity_days = recent_activity_days
@@ -1057,7 +1136,7 @@ rebuild_gold_activity_achievements <- function(
     candidate_activity_ids = candidate_activity_ids,
     recent_activity_ids = recent_activity_ids,
     mode = mode,
-    existing_achievement_count = if (safe_state_daily) 0L else existing_achievement_count
+    existing_achievement_count = if (state_established) 0L else existing_achievement_count
   )
 
   if (
@@ -1074,18 +1153,24 @@ rebuild_gold_activity_achievements <- function(
   }
 
   if (identical(candidate_mode, "conservative_fallback")) {
-    fallback_reason <- if (!state_initialized) {
+    fallback_reason <- if (!state_established) {
       "evaluation state is not initialized; run explicit backfill"
     } else if (!isTRUE(context_validation$trusted)) {
       paste0("change context is ", context_validation$status)
     } else if (context_has_changes) {
-      "upstream changes require conservative history evaluation until Phase 3"
+      "incremental dependency plan was unavailable"
     } else {
       "explicit activity selection"
     }
     message("Achievement candidate mode: conservative_fallback; reason=", fallback_reason)
   } else {
-    message("Achievement candidate mode: ", candidate_mode, "; evaluation debt=", evaluation_debt_count)
+    message(
+      "Achievement candidate mode: ", candidate_mode,
+      "; direct affected=",
+      if (is.null(daily_plan)) 0L else length(daily_plan$direct_activity_ids),
+      "; evaluation debt=", evaluation_debt_count,
+      "; candidates=", length(candidate_activity_ids), "."
+    )
   }
 
   if (!is.null(max_activities)) {
@@ -1102,7 +1187,7 @@ rebuild_gold_activity_achievements <- function(
 
   source_preparation_started_at <- gold_timing_now()
   write_evaluation_state <- identical(mode, "backfill") ||
-    identical(mode, "repair") || state_initialized
+    identical(mode, "repair") || state_established
   source_rows <- if (candidate_activity_count > 0L || identical(mode, "repair")) {
     fetch_activity_achievement_source_rows(
       connection = connection,
@@ -1148,13 +1233,35 @@ rebuild_gold_activity_achievements <- function(
     repair_debt <- unique(c(candidate_activity_ids, signature_debt))
     evaluation_debt_count <- length(repair_debt)
     if (length(repair_debt) > 0L) {
-      # Until Phase 3, any historical repair debt uses the full conservative
-      # closure so later record truth cannot remain incorrectly current.
-      candidate_activity_ids <- as.character(activity_base$activity_id)
+      repair_dates <- as.Date(activity_base$activity_date_local[
+        match(repair_debt, as.character(activity_base$activity_id))
+      ])
+      if (any(is.na(repair_dates))) {
+        stop(
+          "Achievement REPAIR debt has no recoverable local date; run explicit REBUILD.",
+          call. = FALSE
+        )
+      }
+      dependency_start_date <- min(repair_dates)
+      invalidation_action <- "historical_closure"
+      candidate_mode <- "repair_closure"
+      candidate_activity_ids <- get_achievement_closure_activity_ids(
+        connection,
+        dependency_start_date
+      )
       candidate_activity_count <- length(candidate_activity_ids)
+      closure_activity_count <- candidate_activity_count
+      evaluation_state_rows_invalidated <-
+        mark_achievement_evaluation_closure_invalidated(
+          connection = connection,
+          calculation_version = calculation_version,
+          dependency_start_date = dependency_start_date,
+          invalidation_reason = "REPAIR"
+        )
       message(
         "Achievement REPAIR found ", length(repair_debt),
-        " stale activities; evaluating full history until Phase 3 invalidation exists."
+        " stale activities; invalidated and evaluating ", closure_activity_count,
+        " activities from ", dependency_start_date, "."
       )
     } else {
       candidate_activity_ids <- character()
@@ -1214,7 +1321,8 @@ rebuild_gold_activity_achievements <- function(
     validation_results <- validate_gold_activity_achievements(
       connection = connection,
       calculation_version = calculation_version,
-      require_complete_evaluation_state = state_initialized
+      require_complete_evaluation_state = state_established ||
+        identical(mode, "repair")
     )
 
     update_transform_run(
@@ -1225,6 +1333,10 @@ rebuild_gold_activity_achievements <- function(
       activities_completed = activities_completed,
       rows_inserted = total_rows_inserted,
       rows_deleted = total_rows_deleted
+    )
+    remaining_invalidated_count <- get_achievement_invalidated_count(
+      connection,
+      calculation_version
     )
     finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 
@@ -1401,6 +1513,15 @@ rebuild_gold_activity_achievements <- function(
 
   if (!is.null(run_error)) {
     processing_seconds <- gold_elapsed_seconds(processing_started_at)
+    remaining_invalidated_count <- tryCatch(
+      get_achievement_invalidated_count(connection, calculation_version),
+      error = function(e) NA_integer_
+    )
+    message(
+      "Gold achievement processing failed after ", activities_completed,
+      " activities; remaining INVALIDATED state rows: ",
+      remaining_invalidated_count, "."
+    )
     update_transform_run(
       connection = connection,
       transform_run_id = transform_run_id,
@@ -1422,7 +1543,7 @@ rebuild_gold_activity_achievements <- function(
     connection = connection,
     calculation_version = calculation_version,
     require_complete_evaluation_state = identical(mode, "backfill") ||
-      state_initialized
+      identical(mode, "repair") || state_established
   )
 
   update_transform_run(
@@ -1433,6 +1554,10 @@ rebuild_gold_activity_achievements <- function(
     activities_completed = activities_completed,
     rows_inserted = total_rows_inserted,
     rows_deleted = total_rows_deleted
+  )
+  remaining_invalidated_count <- get_achievement_invalidated_count(
+    connection,
+    calculation_version
   )
   finalisation_seconds <- gold_elapsed_seconds(finalisation_started_at)
 

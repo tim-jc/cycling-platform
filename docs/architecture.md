@@ -237,10 +237,12 @@ Gold achievements deliberately remain sparse analytical facts. Dense technical
 evaluation state belongs to Admin at one row per activity and achievement
 calculation version. After an explicit achievement backfill initializes this
 state, trusted no-change DAILY runs use it to distinguish a legitimate
-zero-achievement result from work that has never been evaluated. REPAIR and
-BACKFILL remain broader recovery/reference modes. Until date-forward invalidation
-is implemented, any upstream change uses conservative historical achievement
-evaluation rather than risking incomplete later record truth.
+zero-achievement result from work that has never been evaluated. Pure latest
+appends evaluate only the appended activities. Historical material changes use
+the minimum affected local date and durably invalidate the inclusive date-forward
+closure before reevaluation. REPAIR resumes incomplete closures; BACKFILL remains
+the full-history correctness oracle. Global semantic/version changes and
+non-authoritative deletions remain explicit rebuild/recovery cases.
 
 ## Runtime and Deployment Boundary
 

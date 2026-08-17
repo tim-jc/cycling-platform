@@ -157,6 +157,255 @@ achievement_candidate_policy <- function(
   )
 }
 
+achievement_history_boundary <- function(connection, calculation_version) {
+  result <- DBI::dbGetQuery(
+    connection,
+    "SELECT activity_date_local, activity_id
+       FROM cycling_platform_admin.activity_achievement_evaluation_state
+      WHERE calculation_version = ?
+        AND evaluation_status = 'CURRENT'
+        AND source_present = 1
+        AND activity_date_local IS NOT NULL
+      ORDER BY activity_date_local DESC, activity_id DESC
+      LIMIT 1",
+    params = list(calculation_version)
+  )
+  if (nrow(result) == 0L) {
+    return(list(activity_date_local = as.Date(NA), activity_id = NA_character_))
+  }
+  list(
+    activity_date_local = as.Date(result$activity_date_local[[1]]),
+    activity_id = as.character(result$activity_id[[1]])
+  )
+}
+
+plan_achievement_daily_invalidation <- function(
+  context_validation,
+  best_effort_changed_activity_ids,
+  history_boundary
+) {
+  if (!isTRUE(context_validation$trusted)) {
+    context_reason <- if (
+      !is.null(context_validation$reason) &&
+        !is.na(context_validation$reason) && nzchar(context_validation$reason)
+    ) {
+      paste0(": ", context_validation$reason)
+    } else {
+      ""
+    }
+    return(list(
+      action = "fallback",
+      direct_activity_ids = character(),
+      dependency_start_date = as.Date(NA),
+      invalidation_reason = NA_character_,
+      reason = paste0(
+        "Gold change context is ", context_validation$status, context_reason
+      )
+    ))
+  }
+
+  rows <- context_validation$context$activities
+  best_effort_changed_activity_ids <- unique(as.character(best_effort_changed_activity_ids))
+  if (nrow(rows) == 0L) {
+    if (length(best_effort_changed_activity_ids) > 0L) {
+      return(list(
+        action = "fallback",
+        direct_activity_ids = character(),
+        dependency_start_date = as.Date(NA),
+        invalidation_reason = NA_character_,
+        reason = "Best-effort outputs changed without corresponding Silver change rows."
+      ))
+    }
+    return(list(
+      action = "no_change",
+      direct_activity_ids = character(),
+      dependency_start_date = as.Date(NA),
+      invalidation_reason = NA_character_,
+      reason = NA_character_
+    ))
+  }
+
+  ids <- as.character(rows$activity_id)
+  deletion <- rows$change_type == "delete_or_exclude"
+  if (any(deletion)) {
+    return(list(
+      action = "fallback",
+      direct_activity_ids = ids[deletion],
+      dependency_start_date = as.Date(NA),
+      invalidation_reason = NA_character_,
+      reason = "Canonical deletion/exclusion propagation is not authoritative."
+    ))
+  }
+
+  relevant <- rows$change_type == "insert" |
+    rows$silver_activities_changed |
+    rows$power_classification_changed |
+    ids %in% best_effort_changed_activity_ids
+  rows <- rows[relevant, , drop = FALSE]
+  ids <- as.character(rows$activity_id)
+  if (nrow(rows) == 0L) {
+    return(list(
+      action = "no_change",
+      direct_activity_ids = character(),
+      dependency_start_date = as.Date(NA),
+      invalidation_reason = NA_character_,
+      reason = NA_character_
+    ))
+  }
+
+  dependency_dates <- as.Date(rows$dependency_start_date)
+  if (any(is.na(dependency_dates))) {
+    return(list(
+      action = "fallback",
+      direct_activity_ids = ids,
+      dependency_start_date = as.Date(NA),
+      invalidation_reason = NA_character_,
+      reason = "Achievement-relevant change has no dependency start date."
+    ))
+  }
+
+  after_dates <- as.Date(rows$activity_date_after)
+  is_insert <- rows$change_type == "insert"
+  boundary_date <- as.Date(history_boundary$activity_date_local)
+  boundary_id <- history_boundary$activity_id
+  after_boundary <- if (is.na(boundary_date)) {
+    rep(TRUE, nrow(rows))
+  } else {
+    after_dates > boundary_date |
+      (after_dates == boundary_date &
+        bit64::as.integer64(ids) > bit64::as.integer64(boundary_id))
+  }
+  pure_latest_append <- all(is_insert & !is.na(after_dates) & after_boundary)
+  if (pure_latest_append) {
+    ordered <- order(after_dates, bit64::as.integer64(ids))
+    return(list(
+      action = "latest_append",
+      direct_activity_ids = ids[ordered],
+      dependency_start_date = min(dependency_dates),
+      invalidation_reason = NA_character_,
+      reason = NA_character_
+    ))
+  }
+
+  dates_changed <- !is.na(rows$activity_date_before) & !is.na(rows$activity_date_after) &
+    as.Date(rows$activity_date_before) != as.Date(rows$activity_date_after)
+  reason <- if (any(dates_changed)) {
+    "DATE_CHANGE"
+  } else if (any(is_insert)) {
+    "HISTORICAL_INSERT"
+  } else if (any(rows$power_classification_changed)) {
+    "POWER_ELIGIBILITY_CHANGE"
+  } else if (any(ids %in% best_effort_changed_activity_ids)) {
+    "BEST_EFFORT_CHANGE"
+  } else {
+    "HISTORICAL_ACTIVITY_CHANGE"
+  }
+  list(
+    action = "historical_closure",
+    direct_activity_ids = ids,
+    dependency_start_date = min(dependency_dates),
+    invalidation_reason = reason,
+    reason = NA_character_
+  )
+}
+
+achievement_unexpected_debt_ids <- function(daily_plan, debt_ids) {
+  debt_ids <- unique(as.character(debt_ids))
+  if (identical(daily_plan$action, "latest_append")) {
+    return(setdiff(debt_ids, as.character(daily_plan$direct_activity_ids)))
+  }
+  debt_ids
+}
+
+get_achievement_closure_activity_ids <- function(connection, dependency_start_date) {
+  result <- DBI::dbGetQuery(
+    connection,
+    "SELECT activity_id, start_date_local AS activity_date_local
+       FROM cycling_platform_silver.activities
+      WHERE start_date_local >= ?
+      ORDER BY start_date_local, activity_id",
+    params = list(as.Date(dependency_start_date))
+  )
+  achievement_closure_ids_from_activity_base(result, dependency_start_date)
+}
+
+achievement_closure_ids_from_activity_base <- function(
+  activity_base,
+  dependency_start_date
+) {
+  if (nrow(activity_base) == 0L) return(character())
+  activity_base$activity_date_local <- as.Date(activity_base$activity_date_local)
+  activity_base <- activity_base[
+    !is.na(activity_base$activity_date_local) &
+      activity_base$activity_date_local >= as.Date(dependency_start_date),
+    ,
+    drop = FALSE
+  ]
+  activity_base <- activity_base[
+    order(
+      activity_base$activity_date_local,
+      bit64::as.integer64(as.character(activity_base$activity_id))
+    ),
+    ,
+    drop = FALSE
+  ]
+  as.character(activity_base$activity_id)
+}
+
+achievement_activity_dates <- function(connection, activity_ids) {
+  activity_ids <- unique(as.character(activity_ids))
+  if (length(activity_ids) == 0L) return(as.Date(character()))
+  result <- DBI::dbGetQuery(
+    connection,
+    paste0(
+      "SELECT activity_id, start_date_local FROM cycling_platform_silver.activities ",
+      "WHERE activity_id IN (", format_activity_id_filter(activity_ids), ")"
+    )
+  )
+  stats::setNames(as.Date(result$start_date_local), as.character(result$activity_id))
+}
+
+mark_achievement_evaluation_closure_invalidated <- function(
+  connection,
+  calculation_version,
+  dependency_start_date,
+  invalidation_reason
+) {
+  allowed <- c(
+    "HISTORICAL_ACTIVITY_CHANGE", "HISTORICAL_INSERT", "BEST_EFFORT_CHANGE",
+    "POWER_ELIGIBILITY_CHANGE", "DATE_CHANGE", "REPAIR"
+  )
+  if (!invalidation_reason %in% allowed) {
+    stop("Unknown achievement invalidation reason.", call. = FALSE)
+  }
+  DBI::dbExecute(
+    connection,
+    "UPDATE cycling_platform_admin.activity_achievement_evaluation_state
+        SET evaluation_status = 'INVALIDATED',
+            invalidation_reason = ?,
+            invalidated_at = UTC_TIMESTAMP()
+      WHERE calculation_version = ?
+        AND source_present = 1
+        AND activity_date_local >= ?",
+    params = list(
+      invalidation_reason,
+      calculation_version,
+      as.Date(dependency_start_date)
+    )
+  )
+}
+
+get_achievement_invalidated_count <- function(connection, calculation_version) {
+  as.integer(DBI::dbGetQuery(
+    connection,
+    "SELECT COUNT(*) AS invalidated_count
+       FROM cycling_platform_admin.activity_achievement_evaluation_state
+      WHERE calculation_version = ?
+        AND evaluation_status = 'INVALIDATED'",
+    params = list(calculation_version)
+  )$invalidated_count[[1]])
+}
+
 get_achievement_evaluation_debt_ids <- function(
   connection,
   calculation_version

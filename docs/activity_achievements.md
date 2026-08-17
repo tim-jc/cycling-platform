@@ -146,21 +146,49 @@ DAILY retains conservative selection and does not infer or create state from
 sparse fact presence. A no-change trusted daily context then selects only missing,
 invalidated or fact-count-inconsistent state; normally this is zero activities.
 
-REPAIR compares signatures, source versions and fact counts. Any repair debt uses
-a full conservative history evaluation until Phase 3 implements date-forward
-dependency invalidation. Likewise, any changed or untrusted daily context uses
-the conservative full-history path so a historical correction cannot leave later
-record truth incorrectly current. Calculation-version changes require an explicit
-backfill rather than an implicit expensive DAILY rebuild. REPAIR cannot initialize
-an entirely empty state table: the first initialization must be an explicit
-backfill, which recalculates every activity rather than inferring state from sparse
-facts.
+DAILY distinguishes three dependency paths. No relevant change selects no work.
+A pure insertion after the current `(start_date_local, activity_id)` history
+boundary evaluates only the appended activity. A historical insertion or material
+summary, best-effort, date, or enumerated power-eligibility change invalidates
+every state row from the earliest affected local date and reevaluates that
+inclusive date-forward closure. All same-date activities are included, preserving
+the existing activity-ID tie-break.
+
+The input signature proves only that one activity's own inputs are current; it
+does not encode prior historical context. Durable closure invalidation provides
+that dependency guarantee. The whole closure is marked `INVALIDATED` before the
+first evaluation batch, and each successful fact/state transaction restores its
+activities to `CURRENT`. REPAIR resumes from the earliest missing, invalidated,
+signature-stale, source-version-stale, or fact-count-inconsistent activity.
+
+Calculation-version changes require explicit backfill rather than an implicit
+expensive DAILY rebuild. Global classification changes and non-authoritative
+deletion/exclusion events require explicit REPAIR/REBUILD. REPAIR cannot initialize
+an entirely empty state table: initial state still requires explicit backfill.
 
 Audit candidate selection without publishing changes:
 
 ```sh
 Rscript scripts/gold/audit_activity_achievement_evaluation_state.R
 ```
+
+Preview a proposed historical closure without changing data:
+
+```sh
+Rscript scripts/gold/audit_activity_achievement_invalidation.R 2025-06-14
+```
+
+Durable historical invalidation reasons are controlled operational values:
+`HISTORICAL_ACTIVITY_CHANGE`, `HISTORICAL_INSERT`, `BEST_EFFORT_CHANGE`,
+`POWER_ELIGIBILITY_CHANGE`, `DATE_CHANGE`, and `REPAIR`. The legacy
+`explicit_backfill` value remains valid for full rebuild recovery state.
+
+Phase 3 rollout should first confirm a no-change run remains empty, then observe a
+natural latest append. Use the read-only closure audit and deterministic fixtures
+before deploying historical publication. After the first natural
+historical correction, capture semantic facts with the evaluation-state audit,
+compare them with an explicit full backfill, and require zero semantic differences.
+Do not manufacture or mutate a production activity for rollout testing.
 
 This reports the old conservative candidate count alongside state-driven repair
 debt. Canonical deletion/exclusion propagation remains unresolved; orphan facts

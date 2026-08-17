@@ -43,10 +43,14 @@ run_gold_transformations <- function(
     activity_ids = best_effort_activity_ids
   )
 
+  best_effort_metadata <- attr(best_effort_result, "gold_best_effort_result")
+
   achievement_result <- rebuild_gold_activity_achievements(
     connection = connection,
     config = config,
     gold_change_context = gold_change_context,
+    best_effort_changed_activity_ids =
+      best_effort_metadata$output_changed_activity_ids,
     mode = mode
   )
 
@@ -54,7 +58,6 @@ run_gold_transformations <- function(
       best_effort_result,
       "gold_transform_timing"
   )
-  best_effort_metadata <- attr(best_effort_result, "gold_best_effort_result")
   best_effort_timing$discovery_mode <- best_effort_metadata$discovery_mode
   best_effort_timing$upstream_affected_count <- best_effort_metadata$upstream_affected_count
   best_effort_timing$output_changed_activity_count <- length(

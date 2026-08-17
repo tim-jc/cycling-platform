@@ -822,6 +822,13 @@ gold_activity_achievements_publication_checks <- function(
                    OR achievement_count < 0
                    OR (evaluation_status = 'CURRENT'
                        AND (evaluated_at IS NULL OR input_signature IS NULL OR input_signature = ''))
+                   OR (evaluation_status = 'INVALIDATED' AND (
+                         invalidation_reason IS NULL OR invalidation_reason NOT IN (
+                           'HISTORICAL_ACTIVITY_CHANGE', 'HISTORICAL_INSERT',
+                           'BEST_EFFORT_CHANGE', 'POWER_ELIGIBILITY_CHANGE',
+                           'DATE_CHANGE', 'REPAIR', 'explicit_backfill'
+                         )
+                      ))
                 LIMIT 1000",
       per_check_timeout_seconds = per_check_timeout_seconds,
       deadline = deadline

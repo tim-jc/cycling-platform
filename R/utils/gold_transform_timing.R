@@ -157,6 +157,30 @@ format_gold_transform_summary_line <- function(
   }
 
   if (identical(entity_name, "activity_achievements") && !is.null(timing)) {
+    if (!is.null(timing$direct_affected_count) &&
+        !is.na(timing$direct_affected_count) &&
+        timing$direct_affected_count > 0L) {
+      parts <- append(
+        parts,
+        paste0("direct affected ", timing$direct_affected_count),
+        after = 1L
+      )
+    }
+    if (identical(timing$invalidation_action, "latest_append")) {
+      parts <- append(parts, "latest append", after = 1L)
+    } else if (identical(timing$invalidation_action, "historical_closure")) {
+      parts <- append(
+        parts,
+        paste0(
+          "historical invalidation from ",
+          as.character(timing$dependency_start_date),
+          " · closure ", timing$closure_activity_count
+        ),
+        after = 1L
+      )
+    } else {
+      parts <- append(parts, "invalidation none", after = 1L)
+    }
     if (!is.null(timing$evaluation_debt_count) && !is.na(timing$evaluation_debt_count)) {
       parts <- append(
         parts,
@@ -179,6 +203,14 @@ format_gold_transform_summary_line <- function(
       parts <- c(
         parts,
         paste0("state CURRENT ", timing$evaluation_state_rows_written)
+      )
+    }
+    if (!is.null(timing$remaining_invalidated_count) &&
+        !is.na(timing$remaining_invalidated_count) &&
+        timing$remaining_invalidated_count > 0L) {
+      parts <- c(
+        parts,
+        paste0("remaining INVALIDATED ", timing$remaining_invalidated_count)
       )
     }
   }

@@ -66,8 +66,12 @@ Evaluation completeness is owned by Admin in
 `activity_achievement_evaluation_state`. A missing sparse achievement fact is not
 evidence that an activity has never been evaluated. Activities producing zero
 facts have a `CURRENT` state row with `achievement_count = 0` after initialization.
-Historical date-forward invalidation is not yet implemented; changed historical
-inputs temporarily use conservative full-history evaluation.
+Historical material input changes invalidate the inclusive closure from the
+earliest affected `start_date_local` before reevaluation. Pure latest appends
+evaluate only the appended activities. This deliberately broad dependency model
+preserves all-time and calendar-year correctness without metric-specific rules.
+Global version/classification changes and non-authoritative deletions still
+require explicit repair or rebuild.
 
 ## Generated metadata
 
