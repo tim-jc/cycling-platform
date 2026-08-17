@@ -159,6 +159,26 @@ Existing entity, transform, validation, achievement, backup, phase, and error
 details follow the context header. Failure details use a separate `Error:`
 section so they remain readable on mobile devices.
 
+Daily automation notification detail is state-sensitive. A healthy routine run
+collapses expected zero-state detail: routine Google Health refreshes are
+summarised, zero pending-child counts are omitted, routine `FULL` gear
+publication does not make Silver verbose, and zero-candidate Gold work is shown
+as `no candidates · no evaluation debt`. Zero achievement delivery activity is
+shown as `Achievement notifications: none`, and successful phase timings are
+grouped into a single Raw/Silver/Gold/checks line.
+
+Sections expand independently when their structured counters show meaningful
+work or attention is required. Raw changes, selective repairs, pending child
+data, Silver activity processing, Gold candidates/output changes, historical
+invalidation, evaluation debt, notification delivery, and non-success states
+retain their detailed lines. Failed automation never uses the quiet rendering.
+This conditional formatting affects ntfy only: complete counters and timings
+remain in logs, Admin metadata, and transform result objects.
+
+Backup health remains visible on every automation notification. Healthy backup
+age and retention are concise; stale, critical, missing, or unreconciled state
+retains the existing diagnostic wording and thresholds.
+
 The host is collected at delivery time by one shared helper. In a container it
 first uses `CYCLING_PLATFORM_EXECUTION_HOST`, which must be propagated by the
 deployment. Otherwise it uses the operating-system nodename from
@@ -200,11 +220,12 @@ expected sample counts with existing Silver rows and rebuilds only missing or
 incomplete activities. This keeps normal daily automation idempotent and avoids
 the historical full-table stream rebuild path.
 
-The single final automation notification includes the Silver stream run's
-elapsed time, inserted rows, average rows-per-second throughput, completed
-batches, and failed-batch count when those metrics are available. Rebuild
-progress is terminal/Admin observability only; it never produces intermediate
-ntfy notifications. Failed Silver phases attempt to include the current partial
+When Silver stream work is non-routine, the single final automation
+notification includes its elapsed time, inserted rows, average rows-per-second
+throughput, completed batches, and failed-batch count when those metrics are
+available. Routine zero-work Silver runs are collapsed. Rebuild progress is
+terminal/Admin observability only; it never produces intermediate ntfy
+notifications. Failed Silver phases attempt to include the current partial
 transform-run summary rather than silently substituting a previous success.
 
 ## Gold Behaviour

@@ -160,13 +160,22 @@ get_raw_ingestion_summary <- function(previous_run_id) {
         params = list(run$run_id[[1]])
       )
       reconciliation <- normalise_activity_reconciliation_counts(reconciliation)
+      reconciliation_totals <- stats::setNames(
+        rep(0L, 4L),
+        c("NEW", "CHANGED", "UNCHANGED", "MISSING")
+      )
+      repair_totals <- c(details = 0L, streams = 0L, laps = 0L)
       reconciliation_lines <- if (nrow(reconciliation)) {
-        totals <- stats::setNames(rep(0L, 4L), c("NEW", "CHANGED", "UNCHANGED", "MISSING"))
         grouped <- stats::aggregate(activity_count ~ reconciliation_status, reconciliation, sum)
-        totals[grouped$reconciliation_status] <- grouped$activity_count
+        reconciliation_totals[grouped$reconciliation_status] <- grouped$activity_count
+        repair_totals <- c(
+          details = sum(reconciliation$details_repair_required),
+          streams = sum(reconciliation$streams_repair_required),
+          laps = sum(reconciliation$laps_repair_required)
+        )
         c(
-          glue::glue("Reconciliation: examined {sum(reconciliation$activity_count[reconciliation$reconciliation_status != 'MISSING'])} · new/recovered {totals[['NEW']]} · changed {totals[['CHANGED']]} · unchanged {totals[['UNCHANGED']]} · missing from source {totals[['MISSING']]}"),
-          glue::glue("Selective repairs requested: details {sum(reconciliation$details_repair_required)} · streams {sum(reconciliation$streams_repair_required)} · laps {sum(reconciliation$laps_repair_required)}")
+          glue::glue("Reconciliation: examined {sum(reconciliation$activity_count[reconciliation$reconciliation_status != 'MISSING'])} · new/recovered {reconciliation_totals[['NEW']]} · changed {reconciliation_totals[['CHANGED']]} · unchanged {reconciliation_totals[['UNCHANGED']]} · missing from source {reconciliation_totals[['MISSING']]}"),
+          glue::glue("Selective repairs requested: details {repair_totals[['details']]} · streams {repair_totals[['streams']]} · laps {repair_totals[['laps']]}")
         )
       } else character()
 
@@ -203,8 +212,18 @@ get_raw_ingestion_summary <- function(previous_run_id) {
         ),
         entity_lines = entity_lines,
         reconciliation_lines = reconciliation_lines,
+        run_status = run$run_status[[1]],
+        duration_seconds = run$duration_seconds[[1]],
+        entity_summary = entity_summary,
+        reconciliation_totals = reconciliation_totals,
+        repair_totals = repair_totals,
         affected_activity_ids = affected$activity_id,
         run_id = run$run_id[[1]],
+        pending_counts = c(
+          streams = pending_summary$streams_remaining[[1]],
+          details = pending_summary$details_remaining[[1]],
+          laps = pending_summary$laps_remaining[[1]]
+        ),
         pending_line = glue::glue(
           "Pending: streams {pending_summary$streams_remaining[[1]]} · ",
           "details {pending_summary$details_remaining[[1]]} · ",
@@ -631,7 +650,8 @@ get_latest_silver_transform_summary <- function() {
               " · {format_platform_duration(duration_seconds)}"
             )
           }
-        )
+        ),
+        runs = latest_runs
       )
     },
     finally = {
@@ -767,6 +787,8 @@ get_latest_gold_transform_summary <- function(
             )
           }
         ),
+        runs = latest_runs,
+        transform_timings = transform_timings,
         orchestration_lines = if (is.null(orchestration_timing)) {
           character()
         } else {
@@ -1076,7 +1098,9 @@ tryCatch(
                   "failed {delivery_result$failed} · ",
                   "retry {delivery_result$retry}"
                 )
-              )
+              ),
+              queue_result = queue_result,
+              delivery_result = delivery_result
             )
 
             if (delivery_result$failed > 0) {
