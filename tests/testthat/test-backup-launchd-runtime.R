@@ -22,6 +22,18 @@ write_fake_macos_command <- function(directory, name) {
   path
 }
 
+write_fake_caffeinate <- function(directory) {
+  path <- file.path(directory, "caffeinate")
+  writeLines(c(
+    "#!/usr/bin/env bash",
+    "while [[ $# -gt 0 && \"$1\" != \"--\" ]]; do shift; done",
+    "[[ \"${1:-}\" == \"--\" ]] && shift",
+    "exec \"$@\""
+  ), path)
+  Sys.chmod(path, "0755")
+  path
+}
+
 backup_launchd_fixture <- function() {
   root <- tempfile("backup-launchd-")
   dir.create(root, recursive = TRUE)
@@ -35,6 +47,7 @@ backup_launchd_fixture <- function() {
   dir.create(legacy_dir)
   write_fake_macos_command(fake_bin, "launchctl")
   write_fake_macos_command(fake_bin, "plutil")
+  caffeinate <- write_fake_caffeinate(fake_bin)
   config <- file.path(config_dir, "backup.env")
   writeLines(c(
     "MARIADB_HOST=fixture-host",
@@ -55,6 +68,7 @@ backup_launchd_fixture <- function() {
     logs = file.path(root, "Library", "Logs", "cycling-platform"),
     agents = file.path(root, "LaunchAgents"),
     legacy = legacy_dir,
+    caffeinate = caffeinate,
     path = paste(fake_bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
 }
@@ -74,6 +88,7 @@ backup_launchd_env <- function(fixture, extra = character()) {
     setting("BACKUP_LOG_DIR", fixture$logs),
     setting("BACKUP_LAUNCHD_AGENT_DIR", fixture$agents),
     setting("BACKUP_LEGACY_DATA_DIR", fixture$legacy),
+    setting("CAFFEINATE_BIN", fixture$caffeinate),
     "BACKUP_SKIP_CRON_MIGRATION=1",
     extra
   )
@@ -126,6 +141,7 @@ direct_runtime_env <- function(fixture, extra = character()) {
   c(
     paste0("HOME=", shQuote(fixture$root)),
     paste0("PATH=", shQuote(fixture$path)),
+    paste0("CAFFEINATE_BIN=", shQuote(fixture$caffeinate)),
     extra
   )
 }

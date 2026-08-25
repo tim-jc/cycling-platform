@@ -64,6 +64,17 @@ same TCC-safe code and configuration as launchd:
 "$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" backup
 ```
 
+The canonical `backup` entry point re-executes the complete physical workflow
+through `/usr/bin/caffeinate -s -i`. The `-s` assertion prevents system sleep
+while on AC power, which is the condition under which the scheduled Mac enters
+Maintenance Sleep; `-i` also prevents idle system sleep when the controlled
+command runs on battery. Neither flag keeps the display or disk awake
+independently. The assertion starts before connectivity/dumping, remains active
+across all five databases, retries, verification and physical finalisation, and
+ends automatically with the workflow process. Direct and launchd invocations
+therefore use the same protected path. A missing `caffeinate` is a hard failure,
+not a fallback to an unprotected dump.
+
 The script reads MariaDB connection settings from the protected backup-specific
 `backup.env`. Repository `.Renviron` is consulted only by the installer during
 the first manual deployment and is never accessed by scheduled jobs.
@@ -134,6 +145,11 @@ The same successful run is recorded append-only in:
 
 Backup metadata is deliberately retained beyond the 30-day file window. It is
 small operational history and is not deleted when physical dumps expire.
+
+Failed physical attempts are currently authoritative only in
+`backup-launchd.log` and ntfy; they do not create failed rows in the Admin
+backup-run tables. Those tables continue to describe successful complete sets.
+Durable failed-attempt Admin history is a separate future observability change.
 
 ## Verification and Cleanup
 
@@ -277,8 +293,15 @@ verify, and missing, malformed, incomplete, stale or critical
 named by the artefact still exists and is non-empty (five for current artefacts,
 or four for a retained historical artefact); it does not repeatedly decompress
 the large dumps.
-Messages contain only host, fixed failure class, freshness/age and prefix—not
-credentials, dumps or arbitrary errors. Fingerprints in
+Physical failures distinguish, where evidence is reliable, initial
+connectivity, authentication, a connection lost during a dump, unavailable
+commands, disk/write failure, gzip verification, and an incomplete set. The
+message includes the failing database, attempt count, operation, a short
+sanitised terminal error and `backup-launchd.log`; unknown errors retain a broad
+fallback. `Complete verified set` means all five files passed and were
+published. `Partial verified files` may include individually valid dumps, but
+never describes a recoverable complete set. Messages never include credentials
+or dump contents. Fingerprints in
 `backups/.alert-state` suppress unchanged alerts. Notification failure never
 replaces the backup exit status, and no success notification is sent.
 
@@ -313,7 +336,10 @@ scripts/install_backup_launchd.sh status
 scripts/install_backup_launchd.sh health
 ```
 
-The 05:00 calendar job is coalesced by launchd after ordinary sleep/wake. An
+The 05:00 calendar job is coalesced by launchd after ordinary sleep/wake.
+`launchd` does not itself keep a Mac awake after starting work, so the installed
+workflow holds the process-bound `caffeinate -s -i` assertion described above.
+An
 hourly, run-at-load health agent checks the authoritative Mac artefact, so a
 missed run can alert even though no backup process failed. Existing locks
 prevent overlap.
@@ -371,11 +397,51 @@ scripts/install_backup_launchd.sh verify
 scripts/install_backup_launchd.sh status
 ```
 
+While it is running, inspect the process-bound assertion in another Terminal:
+
+```sh
+pmset -g assertions
+pgrep -fl 'caffeinate.*run_backup_workflow.sh'
+```
+
+The output must show an active system/idle sleep assertion and the installed
+backup workflow as the controlled utility. Allow the Mac to remain normally
+idle; do not force sleep during a live dump. Confirm the assertion disappears
+after success or failure. A manually awake success is necessary but not the
+final acceptance test: observe a subsequent 05:00 launchd run beginning while
+the Mac would otherwise be asleep. It must remain awake, verify five
+same-prefix dumps, exit `0`, advance `latest_success.json`, and leave the hourly
+health check green.
+
 Confirm five same-prefix `.sql.gz` files, successful gzip verification in the
 log, an advanced `latest_success.json`, healthy retention reconciliation in
 Admin, expected ntfy behaviour, and LaunchAgent last exit status `0`. Retain
 the old repository backup directory until this completes and the owner approves
 its later disposition; the installer never deletes it.
+
+After that protected scheduled run succeeds, reconcile the retained files and
+review the two known incomplete incident prefixes, which each contain only an
+individually verified Admin dump:
+
+```sh
+BACKUP_DATA_DIR="$HOME/Library/Application Support/cycling-platform/backup/data"
+ls -l "$BACKUP_DATA_DIR"/2026-08-20_050233_*.sql.gz \
+      "$BACKUP_DATA_DIR"/2026-08-21_050002_*.sql.gz
+gzip -t "$BACKUP_DATA_DIR/2026-08-20_050233_cycling_platform_admin.sql.gz"
+gzip -t "$BACKUP_DATA_DIR/2026-08-21_050002_cycling_platform_admin.sql.gz"
+```
+
+Only after confirming a newer complete protected set and reviewing the
+reconciliation finding, remove those two exact orphan files deliberately:
+
+```sh
+rm -- \
+  "$BACKUP_DATA_DIR/2026-08-20_050233_cycling_platform_admin.sql.gz" \
+  "$BACKUP_DATA_DIR/2026-08-21_050002_cycling_platform_admin.sql.gz"
+```
+
+Installation never performs this cleanup automatically, and retention must not
+be weakened to conceal the incomplete prefixes.
 
 ### Recovery and rollback
 
@@ -414,26 +480,35 @@ legitimately omit the Reference dump.
 Example restore from compressed dumps:
 
 ```sh
-gunzip -c backups/2026-06-23_230000_cycling_platform_admin.sql.gz \
+BACKUP_DATA_DIR="$HOME/Library/Application Support/cycling-platform/backup/data"
+BACKUP_PREFIX="2026-06-23_230000"
+
+gunzip -c "$BACKUP_DATA_DIR/${BACKUP_PREFIX}_cycling_platform_admin.sql.gz" \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_admin
 
-gunzip -c backups/2026-06-23_230000_cycling_platform_raw.sql.gz \
+gunzip -c "$BACKUP_DATA_DIR/${BACKUP_PREFIX}_cycling_platform_raw.sql.gz" \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_raw
 
-gunzip -c backups/2026-06-23_230000_cycling_platform_reference.sql.gz \
+gunzip -c "$BACKUP_DATA_DIR/${BACKUP_PREFIX}_cycling_platform_reference.sql.gz" \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_reference
 
-gunzip -c backups/2026-06-23_230000_cycling_platform_silver.sql.gz \
+gunzip -c "$BACKUP_DATA_DIR/${BACKUP_PREFIX}_cycling_platform_silver.sql.gz" \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_silver
 
-gunzip -c backups/2026-06-23_230000_cycling_platform_gold.sql.gz \
+gunzip -c "$BACKUP_DATA_DIR/${BACKUP_PREFIX}_cycling_platform_gold.sql.gz" \
   | mariadb --host="$MARIADB_HOST" --port="$MARIADB_PORT" \
       --user="$MARIADB_USER" --password cycling_platform_gold
 ```
+
+Choose `BACKUP_PREFIX` from a complete verified set in the canonical data
+directory. Confirm the same prefix exists for every durable database expected
+for that backup generation before beginning the restore. Historical sets made
+before Reference was introduced legitimately contain four files; current sets
+must contain all five.
 
 Use the same credential approach as backups: `.Renviron`, environment
 variables, or a MariaDB option file such as `.my.cnf`.

@@ -28,6 +28,7 @@ run_physical_backup_fixture <- function(
     c(paste("exit", as.integer(nc_status)))
   )
   log <- file.path(directory, "backup.log")
+  failure_context <- file.path(directory, "failure-context.tsv")
   status <- system2(
     "bash",
     file.path(backup_workflow_root, "scripts/backup_mariadb.sh"),
@@ -37,6 +38,7 @@ run_physical_backup_fixture <- function(
       paste0("BACKUP_DIR=", file.path(directory, "backups")),
       paste0("BACKUP_LOCK_DIR=", lock_directory),
       paste0("BACKUP_DUMP_MAX_ATTEMPTS=", attempts),
+      paste0("BACKUP_FAILURE_CONTEXT_FILE=", failure_context),
       "BACKUP_DUMP_RETRY_SLEEP_SECONDS=1",
       "MARIADB_HOST=fixture-host",
       "MARIADB_PORT=3306",
@@ -46,7 +48,76 @@ run_physical_backup_fixture <- function(
     stdout = log,
     stderr = log
   )
-  list(status = status, log = readLines(log, warn = FALSE))
+  list(
+    status = status,
+    log = readLines(log, warn = FALSE),
+    failure_context = if (file.exists(failure_context)) {
+      readLines(failure_context, warn = FALSE)
+    } else character()
+  )
+}
+
+write_fake_caffeinate_command <- function(directory) {
+  write_executable(
+    file.path(directory, "caffeinate"),
+    c(
+      "printf '%s\\n' \"$*\" > \"$TEST_CAFFEINATE_ARGS\"",
+      "printf 'active\\n' > \"$TEST_CAFFEINATE_ACTIVE_FILE\"",
+      "export TEST_CAFFEINATE_ACTIVE_FILE",
+      "while [[ $# -gt 0 && \"$1\" != \"--\" ]]; do shift; done",
+      "[[ \"${1:-}\" == \"--\" ]] && shift",
+      "\"$@\"",
+      "status=$?",
+      "rm -f \"$TEST_CAFFEINATE_ACTIVE_FILE\"",
+      "printf 'released:%s\\n' \"$status\" > \"$TEST_CAFFEINATE_RELEASED\"",
+      "exit \"$status\""
+    )
+  )
+}
+
+run_sleep_protected_workflow_fixture <- function(directory, backup_status = 0L) {
+  artifact <- file.path(directory, "latest_success.json")
+  write_backup_health_artifact(
+    artifact,
+    format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  )
+  caffeinate <- write_fake_caffeinate_command(directory)
+  active <- file.path(directory, "caffeinate-active")
+  released <- file.path(directory, "caffeinate-released")
+  args <- file.path(directory, "caffeinate-args")
+  backup_command <- write_executable(
+    file.path(directory, "backup-command"),
+    c(
+      "[[ -f \"$TEST_CAFFEINATE_ACTIVE_FILE\" ]] || exit 88",
+      if (backup_status == 0L) {
+        "printf '%s\\n' '2026-08-11_050000' > \"$BACKUP_PHYSICAL_SUCCESS_MARKER\""
+      } else character(),
+      paste("exit", as.integer(backup_status))
+    )
+  )
+  output <- suppressWarnings(system2(
+    "bash",
+    c(file.path(backup_workflow_root, "scripts/run_backup_workflow.sh"), "backup"),
+    env = c(
+      paste0("CAFFEINATE_BIN=", caffeinate),
+      paste0("TEST_CAFFEINATE_ACTIVE_FILE=", active),
+      paste0("TEST_CAFFEINATE_RELEASED=", released),
+      paste0("TEST_CAFFEINATE_ARGS=", args),
+      paste0("BACKUP_COMMAND=", backup_command),
+      paste0("BACKUP_STATUS_FILE=", artifact),
+      paste0("BACKUP_ALERT_STATE_DIR=", file.path(directory, "state")),
+      "NTFY_TOPIC="
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  list(
+    status = attr(output, "status") %||% 0L,
+    output = output,
+    active = active,
+    released = readLines(released, warn = FALSE),
+    args = readLines(args, warn = FALSE)
+  )
 }
 
 write_backup_health_artifact <- function(path, completed_at) {
@@ -111,6 +182,58 @@ testthat::test_that("physical health uses Mac artefact authority", {
   )
 })
 
+testthat::test_that("backup workflow is process-bound to the complete caffeinate lifecycle", {
+  success_directory <- tempfile("backup-caffeinate-success-")
+  dir.create(success_directory)
+  success <- run_sleep_protected_workflow_fixture(success_directory, 0L)
+
+  testthat::expect_equal(success$status, 0L)
+  testthat::expect_match(success$args, "^-s -i -- ")
+  testthat::expect_equal(success$released, "released:0")
+  testthat::expect_false(file.exists(success$active))
+  testthat::expect_true(any(grepl(
+    "Sleep prevention active for complete physical backup",
+    success$output,
+    fixed = TRUE
+  )))
+
+  failure_directory <- tempfile("backup-caffeinate-failure-")
+  dir.create(failure_directory)
+  failure <- run_sleep_protected_workflow_fixture(failure_directory, 7L)
+
+  testthat::expect_equal(failure$status, 7L)
+  testthat::expect_equal(failure$released, "released:7")
+  testthat::expect_false(file.exists(failure$active))
+})
+
+testthat::test_that("missing caffeinate fails rather than running unprotected", {
+  directory <- tempfile("backup-caffeinate-missing-")
+  dir.create(directory)
+  marker <- file.path(directory, "backup-ran")
+  backup_command <- write_executable(
+    file.path(directory, "backup-command"),
+    c(paste0("touch ", shQuote(marker)), "exit 0")
+  )
+  output <- suppressWarnings(system2(
+    "bash",
+    c(file.path(backup_workflow_root, "scripts/run_backup_workflow.sh"), "backup"),
+    env = c(
+      paste0("CAFFEINATE_BIN=", file.path(directory, "missing-caffeinate")),
+      paste0("BACKUP_COMMAND=", backup_command)
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+
+  testthat::expect_equal(attr(output, "status"), 69L)
+  testthat::expect_true(any(grepl(
+    "required sleep-prevention command is unavailable",
+    output,
+    fixed = TRUE
+  )))
+  testthat::expect_false(file.exists(marker))
+})
+
 testthat::test_that("physical health rejects an artefact whose dumps are absent", {
   directory <- tempfile("backup-health-")
   dir.create(directory)
@@ -160,6 +283,7 @@ testthat::test_that("workflow preserves backup failure when notification fails",
       "scripts/run_backup_workflow.sh"
     ), "backup"),
     env = c(
+      "CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED=1",
       paste0("BACKUP_COMMAND=", backup_command),
       paste0("CURL_BIN=", curl_command),
       paste0("BACKUP_STATUS_FILE=", artifact),
@@ -200,6 +324,7 @@ testthat::test_that("verified dumps followed by finalizer failure are identified
       "scripts/run_backup_workflow.sh"
     ), "backup"),
     env = c(
+      "CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED=1",
       paste0("BACKUP_COMMAND=", backup_command),
       paste0("CURL_BIN=", curl_command),
       paste0("TEST_DELIVERY=", delivery),
@@ -216,6 +341,61 @@ testthat::test_that("verified dumps followed by finalizer failure are identified
     readLines(delivery, warn = FALSE),
     fixed = TRUE
   )))
+})
+
+testthat::test_that("physical failure notification reports database attempts and complete-set state", {
+  directory <- tempfile("backup-workflow-context-")
+  dir.create(directory)
+  artifact <- file.path(directory, "latest_success.json")
+  write_backup_health_artifact(
+    artifact,
+    format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  )
+  backup_command <- write_executable(
+    file.path(directory, "backup.sh"),
+    c(
+      "cat > \"$BACKUP_FAILURE_CONTEXT_FILE\" <<'EOF'",
+      "failure_class\tmariadb_connection_lost",
+      "database_name\tcycling_platform_raw",
+      "attempt\t3",
+      "max_attempts\t3",
+      "operation\tdatabase_dump",
+      "error_summary\tLost connection to MySQL server during query.",
+      "verified_database_count\t1",
+      "expected_database_count\t5",
+      "EOF",
+      "exit 7"
+    )
+  )
+  delivery <- file.path(directory, "delivery")
+  curl_command <- write_executable(
+    file.path(directory, "curl.sh"),
+    c("printf '%s\\n' \"$@\" > \"$TEST_DELIVERY\"", "exit 0")
+  )
+
+  status <- system2(
+    "bash",
+    c(file.path(backup_workflow_root, "scripts/run_backup_workflow.sh"), "backup"),
+    env = c(
+      "CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED=1",
+      paste0("BACKUP_COMMAND=", backup_command),
+      paste0("CURL_BIN=", curl_command),
+      paste0("TEST_DELIVERY=", delivery),
+      paste0("BACKUP_STATUS_FILE=", artifact),
+      paste0("BACKUP_ALERT_STATE_DIR=", file.path(directory, "state")),
+      "NTFY_TOPIC=fixture-topic"
+    ),
+    stdout = FALSE,
+    stderr = FALSE
+  )
+  notification <- paste(readLines(delivery, warn = FALSE), collapse = "\n")
+
+  testthat::expect_equal(status, 7L)
+  testthat::expect_match(notification, "Failure class: mariadb_connection_lost", fixed = TRUE)
+  testthat::expect_match(notification, "Database: cycling_platform_raw", fixed = TRUE)
+  testthat::expect_match(notification, "Attempts: 3/3", fixed = TRUE)
+  testthat::expect_match(notification, "Complete verified set: none", fixed = TRUE)
+  testthat::expect_match(notification, "Partial verified files: 1/5", fixed = TRUE)
 })
 
 testthat::test_that("physical backup respects active and removes stale locks", {
@@ -264,6 +444,11 @@ testthat::test_that("source and dump failures preserve retry safety", {
     "TCP connectivity check failed",
     unreachable$log
   )))
+  testthat::expect_true(any(grepl(
+    "failure_class\tinitial_connectivity_failure",
+    unreachable$failure_context,
+    fixed = TRUE
+  )))
 
   retry_directory <- tempfile("backup-physical-")
   dir.create(retry_directory)
@@ -280,6 +465,62 @@ testthat::test_that("source and dump failures preserve retry safety", {
   testthat::expect_equal(failed_dump$status, 1L)
   testthat::expect_length(readLines(attempts_file), 2L)
   testthat::expect_true(any(grepl("after 2 attempt", failed_dump$log)))
+  testthat::expect_true(any(grepl(
+    "failure_class\tunknown_physical_failure",
+    failed_dump$failure_context,
+    fixed = TRUE
+  )))
+})
+
+testthat::test_that("authentication failures are classified conservatively", {
+  directory <- tempfile("backup-physical-authentication-")
+  dir.create(directory)
+  result <- run_physical_backup_fixture(
+    directory,
+    c(
+      "if [[ \"${1:-}\" == \"--help\" ]]; then exit 0; fi",
+      "printf '%s\\n' 'mysqldump: Access denied for user' >&2",
+      "exit 2"
+    )
+  )
+
+  testthat::expect_equal(result$status, 1L)
+  testthat::expect_true(any(grepl(
+    "failure_class\tauthentication_failure",
+    result$failure_context,
+    fixed = TRUE
+  )))
+})
+
+testthat::test_that("lost MariaDB connection records actionable physical context", {
+  directory <- tempfile("backup-physical-lost-connection-")
+  dir.create(directory)
+  result <- run_physical_backup_fixture(
+    directory,
+    c(
+      "if [[ \"${1:-}\" == \"--help\" ]]; then exit 0; fi",
+      "printf '%s\\n' 'mysqldump: Error 2013: Lost connection to MySQL server during query' >&2",
+      "exit 1"
+    ),
+    attempts = 3L
+  )
+
+  testthat::expect_equal(result$status, 1L)
+  testthat::expect_true(any(grepl(
+    "failure_class\tmariadb_connection_lost",
+    result$failure_context,
+    fixed = TRUE
+  )))
+  testthat::expect_true(any(grepl(
+    "attempt\t3",
+    result$failure_context,
+    fixed = TRUE
+  )))
+  testthat::expect_true(any(grepl(
+    "database_name\tcycling_platform_admin",
+    result$failure_context,
+    fixed = TRUE
+  )))
 })
 
 testthat::test_that("empty dump is rejected before publication", {
@@ -326,6 +567,7 @@ testthat::test_that("successful backup must advance latest-success authority", {
       "scripts/run_backup_workflow.sh"
     ), "backup"),
     env = c(
+      "CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED=1",
       paste0("BACKUP_COMMAND=", backup_command),
       paste0("CURL_BIN=", curl_command),
       paste0("BACKUP_STATUS_FILE=", artifact),
@@ -361,6 +603,7 @@ testthat::test_that("successful backup accepts a matching latest-success prefix"
       "scripts/run_backup_workflow.sh"
     ), "backup"),
     env = c(
+      "CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED=1",
       paste0("BACKUP_COMMAND=", backup_command),
       paste0("BACKUP_STATUS_FILE=", artifact),
       paste0("BACKUP_ALERT_STATE_DIR=", file.path(directory, "state")),

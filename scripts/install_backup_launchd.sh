@@ -13,6 +13,7 @@ AGENT_DIR="${BACKUP_LAUNCHD_AGENT_DIR:-$HOME/Library/LaunchAgents}"
 SOURCE_PLIST_DIR="$PROJECT_DIR/config/launchd"
 MODE="${1:-install}"
 RENDER_TARGET="${2:-}"
+CAFFEINATE_BIN="${CAFFEINATE_BIN:-/usr/bin/caffeinate}"
 LABELS=(
   com.tim-jc.cycling-platform-backup
   com.tim-jc.cycling-platform-backup-health
@@ -273,6 +274,7 @@ remove_legacy_backup_cron() {
 verify_runtime() {
   local label plist permissions direct_paths expected_backup_root
   [[ -d "$RUNTIME_DIR" ]] || { log "Runtime is not installed: $RUNTIME_DIR"; return 1; }
+  [[ -x "$CAFFEINATE_BIN" ]] || { log "Required sleep-prevention command is unavailable: $CAFFEINATE_BIN"; return 1; }
   [[ -f "$RUNTIME_DIR/runtime-manifest.json" ]] || { log "Runtime manifest is missing."; return 1; }
   [[ -f "$RUNTIME_DIR/runtime-manifest.sha256" ]] || { log "Runtime hash manifest is missing."; return 1; }
   (cd "$RUNTIME_DIR" && shasum -a 256 -c runtime-manifest.sha256 >/dev/null) || {
@@ -300,6 +302,13 @@ verify_runtime() {
     log "Installed runtime contains a source-checkout path."
     return 1
   fi
+  grep -Fq 'CYCLING_PLATFORM_BACKUP_SLEEP_PROTECTED' \
+    "$RUNTIME_DIR/scripts/run_backup_workflow.sh" &&
+    grep -Fq '"$CAFFEINATE_BIN" -s -i -- "$0" "$@"' \
+      "$RUNTIME_DIR/scripts/run_backup_workflow.sh" || {
+    log "Installed backup workflow does not contain the required process-bound sleep assertion."
+    return 1
+  }
   [[ ! -e "$RUNTIME_DIR/backup.env" && ! -e "$RUNTIME_DIR/backups" && ! -e "$RUNTIME_DIR/data" ]] || {
     log "Mutable backup config/data was found beneath the runtime directory."
     return 1

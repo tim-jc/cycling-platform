@@ -56,4 +56,6 @@ established `backup_mariadb.sh` dump implementation, while
 Admin history. `install_backup_launchd.sh` renders, installs, inspects and
 removes the two user launch agents from the version-controlled templates in
 `config/launchd/`. See `docs/backup_and_recovery.md` before changing the live
-Mac schedule.
+Mac schedule. Physical `backup` execution is process-bound to
+`/usr/bin/caffeinate -s -i` for its complete lifetime; `check` and `health`
+remain unprotected because they are short, read-only operations.

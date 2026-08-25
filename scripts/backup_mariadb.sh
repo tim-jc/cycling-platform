@@ -16,6 +16,7 @@ BACKUP_DUMP_MAX_ATTEMPTS="${BACKUP_DUMP_MAX_ATTEMPTS:-}"
 BACKUP_DUMP_RETRY_SLEEP_SECONDS="${BACKUP_DUMP_RETRY_SLEEP_SECONDS:-}"
 BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-}"
 BACKUP_PHYSICAL_SUCCESS_MARKER="${BACKUP_PHYSICAL_SUCCESS_MARKER:-}"
+BACKUP_FAILURE_CONTEXT_FILE="${BACKUP_FAILURE_CONTEXT_FILE:-}"
 MYSQLDUMP="${MYSQLDUMP:-}"
 NC="${NC_BIN:-}"
 MYSQLDUMP_CANDIDATES=()
@@ -28,6 +29,7 @@ RUNTIME_MANIFEST_FILE=""
 RUNTIME_INVENTORY_FILE=""
 RUNTIME_STATUS_FILE=""
 RUNTIME_FINALIZER_SCRIPT=""
+VERIFIED_DATABASE_COUNT=0
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export LANG="${LANG:-en_GB.UTF-8}"
@@ -39,6 +41,30 @@ timestamp() {
 
 log() {
   printf '[%s] %s\n' "$(date +"%Y-%m-%d %H:%M:%S")" "$*"
+}
+
+failure_context_text() {
+  printf '%s' "$1" | tr '\t\r\n' '   ' | cut -c1-240
+}
+
+write_failure_context() {
+  local failure_class="$1"
+  local database_name="${2:-}"
+  local attempt="${3:-}"
+  local operation="${4:-}"
+  local error_summary="${5:-}"
+
+  [[ -n "$BACKUP_FAILURE_CONTEXT_FILE" ]] || return 0
+  {
+    printf 'failure_class\t%s\n' "$(failure_context_text "$failure_class")"
+    printf 'database_name\t%s\n' "$(failure_context_text "$database_name")"
+    printf 'attempt\t%s\n' "$(failure_context_text "$attempt")"
+    printf 'max_attempts\t%s\n' "${BACKUP_DUMP_MAX_ATTEMPTS:-}"
+    printf 'operation\t%s\n' "$(failure_context_text "$operation")"
+    printf 'error_summary\t%s\n' "$(failure_context_text "$error_summary")"
+    printf 'verified_database_count\t%s\n' "$VERIFIED_DATABASE_COUNT"
+    printf 'expected_database_count\t%s\n' "${#DATABASES[@]}"
+  } > "$BACKUP_FAILURE_CONTEXT_FILE"
 }
 
 read_config_value() {
@@ -193,6 +219,8 @@ load_script_config() {
     done <<< "$configured_databases"
   else
     log "No durable backup databases found in config/platform_databases.tsv."
+    write_failure_context "incomplete_physical_set" "" "" "database_inventory" \
+      "No durable backup databases were configured."
     exit 1
   fi
 
@@ -374,6 +402,8 @@ check_mariadb_connectivity() {
 
     log "MariaDB TCP connectivity check failed: cannot reach $MARIADB_HOST:$MARIADB_PORT."
     log "Check that the Raspberry Pi is online, the IP address is current, MariaDB is running, and port 3306 is reachable."
+    write_failure_context "initial_connectivity_failure" "" "" "tcp_preflight" \
+      "Cannot reach configured MariaDB host and port."
     exit 1
   fi
 
@@ -387,6 +417,8 @@ resolve_mysqldump() {
     fi
 
     log "Configured MYSQLDUMP is not executable: $MYSQLDUMP"
+    write_failure_context "command_unavailable" "" "" "dump_command_resolution" \
+      "Configured dump command is not executable."
     exit 1
   fi
 
@@ -409,6 +441,8 @@ resolve_mysqldump() {
 
   log "Required command not found: mysqldump or mariadb-dump"
   log "Install MariaDB/MySQL client tools or set MYSQLDUMP to the dump binary path."
+  write_failure_context "command_unavailable" "" "" "dump_command_resolution" \
+    "MariaDB dump command is unavailable."
   exit 1
 }
 
@@ -462,6 +496,10 @@ RUN_TIMESTAMP="$(timestamp)"
 BACKUP_STARTED_EPOCH="$(date +%s)"
 BACKUP_HOST="$(hostname)"
 MANIFEST_FILE="$BACKUP_DIR/.${RUN_TIMESTAMP}_manifest.tsv.tmp"
+
+if [[ -n "$BACKUP_FAILURE_CONTEXT_FILE" ]]; then
+  : > "$BACKUP_FAILURE_CONTEXT_FILE"
+fi
 
 acquire_lock
 
@@ -522,15 +560,41 @@ for database in "${DATABASES[@]}"; do
       log "Dump attempt $dump_attempt/$BACKUP_DUMP_MAX_ATTEMPTS for $database"
     fi
 
-    if MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${dump_args[@]}" |
-      gzip > "$temporary_output_file"; then
+    dump_error_file="$(mktemp -t cycling-platform-mysqldump-error.XXXXXX)"
+    set +e
+    MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${dump_args[@]}" \
+      2> "$dump_error_file" |
+      gzip > "$temporary_output_file"
+    pipeline_status=("${PIPESTATUS[@]}")
+    set -e
+
+    if ((pipeline_status[0] == 0 && pipeline_status[1] == 0)); then
+      rm -f "$dump_error_file"
       break
+    fi
+
+    dump_error="$(tail -1 "$dump_error_file" 2>/dev/null || true)"
+    if [[ -n "$dump_error" ]]; then
+      log "Dump error for $database: $(failure_context_text "$dump_error")"
+    fi
+    rm -f "$dump_error_file"
+
+    if grep -Eqi 'Error 2013|Lost connection to (MySQL|MariaDB) server' <<< "$dump_error"; then
+      dump_failure_class="mariadb_connection_lost"
+    elif grep -Eqi 'Access denied|authentication|using password' <<< "$dump_error"; then
+      dump_failure_class="authentication_failure"
+    elif ((pipeline_status[1] != 0)); then
+      dump_failure_class="disk_or_write_failure"
+    else
+      dump_failure_class="unknown_physical_failure"
     fi
 
     rm -f "$temporary_output_file"
 
     if ((dump_attempt >= BACKUP_DUMP_MAX_ATTEMPTS)); then
       log "Backup failed for $database after $dump_attempt attempt(s)"
+      write_failure_context "$dump_failure_class" "$database" "$dump_attempt" \
+        "database_dump" "${dump_error:-Dump command failed without an error message.}"
       exit 1
     fi
 
@@ -542,12 +606,16 @@ for database in "${DATABASES[@]}"; do
   if [[ ! -s "$temporary_output_file" ]]; then
     rm -f "$temporary_output_file"
     log "Backup verification failed for $database: dump file is empty."
+    write_failure_context "disk_or_write_failure" "$database" "$dump_attempt" \
+      "dump_output_verification" "Dump output file is empty."
     exit 1
   fi
 
   if ! gzip -t "$temporary_output_file"; then
     rm -f "$temporary_output_file"
     log "Backup verification failed for $database: gzip integrity check failed."
+    write_failure_context "gzip_verification_failure" "$database" "$dump_attempt" \
+      "gzip_verification" "gzip integrity verification failed."
     exit 1
   fi
 
@@ -558,6 +626,8 @@ for database in "${DATABASES[@]}"; do
   if [[ ! "$uncompressed_bytes" =~ ^[0-9]+$ ]] || ((uncompressed_bytes <= 0)); then
     rm -f "$temporary_output_file"
     log "Backup verification failed for $database: uncompressed dump is empty."
+    write_failure_context "gzip_verification_failure" "$database" "$dump_attempt" \
+      "gzip_verification" "Uncompressed dump is empty."
     exit 1
   fi
 
@@ -576,6 +646,7 @@ for database in "${DATABASES[@]}"; do
     "$verified_at" >> "$MANIFEST_FILE"
 
   log "Wrote and verified $output_file (${uncompressed_bytes} uncompressed bytes)"
+  VERIFIED_DATABASE_COUNT=$((VERIFIED_DATABASE_COUNT + 1))
 done
 
 if [[ -n "$BACKUP_PHYSICAL_SUCCESS_MARKER" ]]; then
