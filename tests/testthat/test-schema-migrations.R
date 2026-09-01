@@ -90,6 +90,100 @@ testthat::test_that("migration 006 removes only the obsolete Silver staging tabl
   ))
 })
 
+testthat::test_that("migration 009 owns historical power column upgrades", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "009_add_power_source_classification_columns.sql"
+  )
+  migration_sql <- paste(readLines(migration_file), collapse = "\n")
+  expected_columns <- c(
+    "derived_supporting_gear_id",
+    "power_source_type",
+    "power_source_status",
+    "is_measured_power",
+    "is_power_record_eligible",
+    "power_record_exclusion_reason",
+    "power_classification_rule",
+    "power_classification_method",
+    "power_classification_version",
+    "power_meter_cutover_at",
+    "is_record_eligible",
+    "record_exclusion_reason",
+    "source_classification"
+  )
+
+  testthat::expect_true(all(vapply(
+    expected_columns,
+    grepl,
+    logical(1),
+    x = migration_sql,
+    fixed = TRUE
+  )))
+  testthat::expect_equal(
+    lengths(gregexpr("ADD COLUMN IF NOT EXISTS", migration_sql, fixed = TRUE)),
+    14L
+  )
+})
+
+testthat::test_that("fresh DDL already contains migrated power columns", {
+  project_root <- find_migration_project_root()
+  ddl_files <- file.path(
+    project_root,
+    c(
+      "sql/admin/070_create_power_source_classification.sql",
+      "sql/silver/010_create_activities.sql",
+      "sql/gold/010_create_activity_best_efforts.sql"
+    )
+  )
+  ddl_sql <- paste(
+    unlist(lapply(ddl_files, readLines, warn = FALSE)),
+    collapse = "\n"
+  )
+  expected_columns <- c(
+    "derived_supporting_gear_id",
+    "power_source_type",
+    "power_source_status",
+    "is_measured_power",
+    "is_power_record_eligible",
+    "power_record_exclusion_reason",
+    "power_classification_rule",
+    "power_classification_method",
+    "power_classification_version",
+    "power_meter_cutover_at",
+    "is_record_eligible",
+    "record_exclusion_reason",
+    "source_classification"
+  )
+
+  testthat::expect_true(all(vapply(
+    expected_columns,
+    grepl,
+    logical(1),
+    x = ddl_sql,
+    fixed = TRUE
+  )))
+})
+
+testthat::test_that("application power schema ensure no longer alters tables", {
+  project_root <- find_migration_project_root()
+  runtime_file <- file.path(
+    project_root,
+    "R/admin/ensure_power_source_classification.R"
+  )
+  runtime_sql <- paste(readLines(runtime_file), collapse = "\n")
+
+  testthat::expect_false(grepl("ALTER TABLE", runtime_sql, fixed = TRUE))
+  testthat::expect_false(grepl("ensure_table_column", runtime_sql, fixed = TRUE))
+  testthat::expect_match(
+    runtime_sql,
+    "070_create_power_source_classification.sql",
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("duplicate migration versions fail before execution", {
   migration_dir <- tempfile("migrations-")
   dir.create(migration_dir)

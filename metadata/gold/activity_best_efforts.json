@@ -228,7 +228,11 @@
         "unique": false
       }
     ],
-    "primary_key": ["activity_id", "metric_name", "duration_seconds"],
+    "primary_key": [
+      "activity_id",
+      "metric_name",
+      "duration_seconds"
+    ],
     "unique_constraints": []
   },
   "lineage": {

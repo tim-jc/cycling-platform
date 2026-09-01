@@ -461,7 +461,9 @@
         "unique": false
       }
     ],
-    "primary_key": "activity_id",
+    "primary_key": [
+      "activity_id"
+    ],
     "unique_constraints": []
   },
   "lineage": {

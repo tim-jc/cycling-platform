@@ -50,8 +50,8 @@ Configured databases:
 `cycling_platform_stage` is deliberately excluded because stage objects are
 temporary ETL workspace and safe to delete.
 
-Reference is durable and included even while it contains no objects. New backup
-runs require all five durable dumps. Retention reconciliation continues to
+Reference is durable and includes curated planned events and optional stages.
+New backup runs require all five durable dumps. Retention reconciliation continues to
 recognise historical four-file sets—Admin, Raw, Silver and Gold—that predate
 Reference. Restore orchestration remains owned by `cycling-infrastructure`.
 

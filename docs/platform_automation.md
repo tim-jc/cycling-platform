@@ -231,19 +231,21 @@ transform-run summary rather than silently substituting a previous success.
 ## Gold Behaviour
 
 `gold.activity_best_efforts` runs in daily incremental mode after Silver
-publication checks pass. The daily mode processes only activities whose Gold
-rows are missing, incomplete, calculated with an old `calculation_version`, or
-older than their Silver stream inputs.
+publication checks pass. With a trusted complete Silver change context, DAILY
+skips historical discovery for an empty affected set and directly processes
+only affected activities whose Gold inputs materially changed. Missing or
+untrusted context falls back safely to global discovery. REPAIR retains global
+completeness discovery for missing, incomplete, stale-version, or missed work.
 
 `gold.activity_achievements` runs after best efforts. It detects all-time and
-calendar-year achievements from Gold best efforts and Silver activities.
-Historical backfills populate Gold history but do not queue old notifications
-by default.
-
-On no-op days, the transform first compares Admin transform metadata. If the
-latest successful Gold run is newer than the latest successful Silver stream
-transform, it records a zero-row successful Gold run and skips the expensive
-candidate discovery query.
+calendar-year achievements from Gold best efforts and Silver activities. Dense
+Admin evaluation state distinguishes previously evaluated zero-achievement
+activities from missing work. Trusted latest appends evaluate only appended
+activities; historical material changes invalidate and reevaluate the inclusive
+date-forward closure from the earliest affected local date. Interrupted closure
+debt remains `INVALIDATED` for REPAIR. Full backfill reconstructs state and
+remains the semantic correctness oracle. Historical backfills do not queue old
+notifications by default.
 
 Manual repair/backfill remains available:
 
@@ -347,9 +349,12 @@ Deep validation preserves the full rule set:
 * Gold best-effort keys, peak values, sample counts, ordering, and location
   provenance must be coherent.
 
-Deep validation is asynchronous. A failed, stalled, or timed-out deep validation
-run should be investigated, but it does not roll back or hide a successful daily
-publication.
+Deep validation is asynchronous and observational with respect to publication.
+A failed, stalled, or timed-out diagnostic job should be investigated, but it
+does not roll back, hide, or retroactively fail a successful daily publication.
+Critical findings and validation-machinery execution errors both make the
+separate diagnostic job non-zero; only the latter means the checks themselves
+could not complete reliably.
 
 Deep-validation results are written to the same admin tables with
 `validation_scope = 'DEEP'`.

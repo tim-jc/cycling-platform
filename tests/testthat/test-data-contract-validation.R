@@ -12,12 +12,16 @@ make_contract_fixture <- function() {
   writeLines("fixture <- function() NULL", file.path(root, "R/transforms/widget.R"))
   writeLines(fixture_contract(), file.path(root, "docs/data-contracts/silver/widget.md"))
   writeLines('{"objects":[],"supporting_contract_documents":[]}', file.path(root, "metadata/exclusions.json"))
-  writeLines('{}', file.path(root, "metadata/schema/data-contract.schema.json"))
+  file.copy(
+    file.path(contract_project_root, "metadata/schema/data-contract.schema.json"),
+    file.path(root, "metadata/schema/data-contract.schema.json"),
+    overwrite = TRUE
+  )
   writeLines('{"standards":[]}', file.path(root, "metadata/standards/shared-columns.json"))
   metadata <- list(
     metadata_version="1.0.0", object=list(schema="silver",database_schema="cycling_platform_silver",name="widget",type="table",ddl_path="sql/silver/010_create_widget.sql"),
     governance=list(owner="fixture",lifecycle="implemented",contract_path="docs/data-contracts/silver/widget.md",semantic_review_status="in_review",last_verified_date="2026-08-01"),
-    physical_schema=c(list(authority="repository_ddl"),parse_contract_ddl(ddl_path)),
+    physical_schema=contract_physical_schema_metadata(ddl_path),
     lineage=list(source_objects=list(),source_columns=list(),transformation_files=list("R/transforms/widget.R"),transformation_functions=list("fixture"),transformation_description="Fixture",authorship="generated",confidence="high",review_required=FALSE),
     data_quality=list(uniqueness_expectations=list("widget_id"),not_null_expectations=list("widget_id"),referential_integrity_expectations=list(),accepted_values=list(),implemented_validations=list()), human_todos=list())
   metadata_path <- file.path(root,"metadata/silver/widget.json")
@@ -38,7 +42,7 @@ make_reference_contract_fixture <- function() {
   metadata <- list(
     metadata_version="1.0.0", object=list(schema="reference",database_schema="cycling_platform_reference",name="widget",type="table",ddl_path="sql/reference/010_create_widget.sql"),
     governance=list(owner="fixture",lifecycle="implemented",contract_path="docs/data-contracts/reference/widget.md",semantic_review_status="in_review",last_verified_date="2026-08-05"),
-    physical_schema=c(list(authority="repository_ddl"),parse_contract_ddl(ddl_path)),
+    physical_schema=contract_physical_schema_metadata(ddl_path),
     lineage=list(source_objects=list(),source_columns=list(),transformation_files=list("R/transforms/widget.R"),transformation_functions=list("fixture"),transformation_description="Curated fixture",authorship="human_authored",confidence="high",review_required=FALSE),
     data_quality=list(uniqueness_expectations=list("widget_id"),not_null_expectations=list("widget_id"),referential_integrity_expectations=list(),accepted_values=list(),implemented_validations=list()),
     human_todos=list(list(id="REFERENCE-WIDGET-001",field="curation",severity="future",status="open",text="Review curation process.",resolution=NULL))
@@ -125,4 +129,82 @@ testthat::test_that("accepted and open future enhancements do not block certific
   )
   jsonlite::write_json(m,f$metadata_path,auto_unbox=TRUE,null="null")
   testthat::expect_true(validate_data_contract_project(f$root,FALSE)$passed)
+})
+
+testthat::test_that("singleton column collections remain JSON arrays", {
+  f <- make_contract_fixture()
+  metadata <- read_contract_json(f$metadata_path)
+
+  testthat::expect_type(metadata$physical_schema$primary_key, "list")
+  testthat::expect_equal(
+    unlist(metadata$physical_schema$primary_key, use.names = FALSE),
+    "widget_id"
+  )
+
+  ddl <- c(
+    "CREATE TABLE IF NOT EXISTS cycling_platform_silver.unique_widget (",
+    "  widget_id BIGINT NOT NULL,",
+    "  event_key VARCHAR(50) NOT NULL,",
+    "  PRIMARY KEY (widget_id),",
+    "  UNIQUE KEY uq_event_key (event_key)",
+    ") ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;"
+  )
+  ddl_path <- tempfile(fileext = ".sql")
+  writeLines(ddl, ddl_path)
+  physical <- contract_physical_schema_metadata(ddl_path)
+
+  testthat::expect_type(physical$unique_constraints[[1]]$columns, "list")
+  testthat::expect_equal(
+    unlist(
+      physical$unique_constraints[[1]]$columns,
+      use.names = FALSE
+    ),
+    "event_key"
+  )
+})
+
+testthat::test_that("declared JSON Schema rejects scalar column collections", {
+  f <- make_contract_fixture()
+  metadata <- read_contract_json(f$metadata_path)
+  metadata$physical_schema$primary_key <- "widget_id"
+  jsonlite::write_json(
+    metadata,
+    f$metadata_path,
+    auto_unbox = TRUE,
+    null = "null"
+  )
+
+  result <- validate_data_contract_project(f$root, FALSE)
+
+  testthat::expect_false(result$passed)
+  testthat::expect_true("json_schema_violation" %in% error_codes(result))
+})
+
+testthat::test_that("unsupported schema keywords fail visibly", {
+  f <- make_contract_fixture()
+  schema_path <- file.path(
+    f$root,
+    "metadata/schema/data-contract.schema.json"
+  )
+  schema <- read_contract_json(schema_path)
+  schema$properties$metadata_version$future_keyword <- TRUE
+  jsonlite::write_json(
+    schema,
+    schema_path,
+    auto_unbox = TRUE,
+    null = "null"
+  )
+
+  result <- validate_data_contract_project(f$root, FALSE)
+
+  testthat::expect_false(result$passed)
+  testthat::expect_true("unsupported_json_schema" %in% error_codes(result))
+})
+
+testthat::test_that("physical metadata generation is stable", {
+  f <- make_contract_fixture()
+  first <- contract_physical_schema_metadata(f$ddl_path)
+  second <- contract_physical_schema_metadata(f$ddl_path)
+
+  testthat::expect_identical(first, second)
 })

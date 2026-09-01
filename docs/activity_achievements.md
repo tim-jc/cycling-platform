@@ -183,12 +183,13 @@ Durable historical invalidation reasons are controlled operational values:
 `POWER_ELIGIBILITY_CHANGE`, `DATE_CHANGE`, and `REPAIR`. The legacy
 `explicit_backfill` value remains valid for full rebuild recovery state.
 
-Phase 3 rollout should first confirm a no-change run remains empty, then observe a
-natural latest append. Use the read-only closure audit and deterministic fixtures
-before deploying historical publication. After the first natural
-historical correction, capture semantic facts with the evaluation-state audit,
-compare them with an explicit full backfill, and require zero semantic differences.
-Do not manufacture or mutate a production activity for rollout testing.
+Phase 3 date-forward invalidation is implemented. No-change runs remain empty,
+pure latest appends evaluate only the appended activities, and historical
+changes invalidate the inclusive closure from the earliest affected local date.
+The read-only closure and evaluation-state audits remain the supported way to
+inspect this behaviour. An explicit full backfill remains the semantic oracle;
+comparisons must have zero semantic differences. Do not manufacture or mutate a
+production activity for testing.
 
 This reports the old conservative candidate count alongside state-driven repair
 debt. Canonical deletion/exclusion propagation remains unresolved; orphan facts

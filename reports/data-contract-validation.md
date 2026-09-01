@@ -1,6 +1,6 @@
 # Data contract validation
 
-- Validation timestamp: 2026-08-11 18:55:08 BST
+- Validation timestamp: 2026-09-01 19:28:09 BST
 - Overall result: **PASSED**
 - Managed Silver objects: 4
 - Managed Gold objects: 2

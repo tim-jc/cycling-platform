@@ -131,11 +131,16 @@
         "unique": false
       }
     ],
-    "primary_key": "planned_event_stage_id",
+    "primary_key": [
+      "planned_event_stage_id"
+    ],
     "unique_constraints": [
       {
         "name": "uq_reference_planned_event_stages_key",
-        "columns": ["planned_event_id", "stage_key"]
+        "columns": [
+          "planned_event_id",
+          "stage_key"
+        ]
       }
     ]
   },

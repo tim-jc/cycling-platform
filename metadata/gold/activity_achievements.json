@@ -248,11 +248,21 @@
         "unique": false
       }
     ],
-    "primary_key": "activity_achievement_key",
+    "primary_key": [
+      "activity_achievement_key"
+    ],
     "unique_constraints": [
       {
         "name": "uq_gold_activity_achievements_business_key\n        activity_id,\n        achievement_type,\n        metric_name,\n        duration_seconds,\n        comparison_scope,\n        comparison_period_start,\n        comparison_period_end\n    )",
-        "columns": ["activity_id", "achievement_type", "metric_name", "duration_seconds", "comparison_scope", "comparison_period_start", "comparison_period_end"]
+        "columns": [
+          "activity_id",
+          "achievement_type",
+          "metric_name",
+          "duration_seconds",
+          "comparison_scope",
+          "comparison_period_start",
+          "comparison_period_end"
+        ]
       }
     ]
   },

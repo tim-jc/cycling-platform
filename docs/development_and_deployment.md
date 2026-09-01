@@ -176,9 +176,8 @@ scheduler while preserving the prior published Silver data.
 
 ## Production Scheduling
 
-Production ingestion and deep-validation scheduling is moving from Mac cron to
-cron on `cycling-prod`. Cron should invoke Compose jobs from the production
-Compose project directory.
+Production ingestion and deep validation run from cron on `cycling-prod`. Cron
+invokes ephemeral Compose jobs from the production Compose project directory.
 
 Conceptual entries:
 
@@ -210,7 +209,7 @@ Create an ignored project `.Renviron` from `.Renviron.example`. Required groups:
 * `NTFY_TOPIC`.
 
 The Mac connects remotely to MariaDB on `cycling-prod`. No local MariaDB system
-database is required. Application connections select one of the five platform
+database is required. Application connections select one of the six platform
 databases, normally `cycling_platform_admin` for control/cross-schema work.
 
 ### Docker / Compose

@@ -4,44 +4,11 @@ fail <- function(message) {
 
 message("Checking R syntax...")
 
-r_files <- list.files(
-  "R",
-  pattern = "[.][Rr]$",
-  recursive = TRUE,
-  full.names = TRUE
-)
+source(file.path("tests", "helpers", "smoke_inventory.R"))
 
-r_files <- c(
-  r_files,
-  "bootstrap.R",
-  "bootstrap_platform.R",
-  "run_raw_ingestion.R",
-  "scripts/google_health/check_authentication.R",
-  "scripts/google_health/probe_capabilities.R",
-  "scripts/google_health/run_daily_resting_heart_rate.R",
-  "scripts/google_health/run_daily_heart_rate_variability.R",
-  "scripts/google_health/run_daily_respiratory_rate.R",
-  "scripts/google_health/run_heart_rate.R",
-  "scripts/google_health/run_sleep.R",
-  "scripts/google_health/run_exercise.R",
-  "run_daily_platform.R",
-  "scripts/gold/run_activity_achievements.R",
-  "scripts/gold/run_activity_best_efforts.R",
-  "scripts/audits/audit_power_source_classification.R",
-  "scripts/operations/run_notifications.R",
-  file.path("scripts", "strava", "bootstrap_oauth.R"),
-  file.path("scripts", "audits", "audit_silver_activity_population.R"),
-  file.path("scripts", "contracts", "generate_metadata.R"),
-  file.path("scripts", "operations", "show_job_status.R"),
-  file.path("scripts", "contracts", "validate.R"),
-  file.path("scripts", "reference", "publish_planned_events.R"),
-  file.path("scripts", "reference", "publish_reference_data.R"),
-  file.path("scripts", "reference", "validate_planned_events.R"),
-  file.path("scripts", "check_backup_physical_health.R"),
-  file.path("scripts", "plan_backup_retention.R"),
-  "run_silver.R",
-  "run_platform_validation.R"
-)
+# Syntax coverage follows the repository-owned executable inventory. Tests,
+# retained exploration and renv internals are outside this smoke-check scope.
+r_files <- discover_smoke_r_files(".")
 
 parse_failures <- lapply(
   r_files,

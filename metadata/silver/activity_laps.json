@@ -291,11 +291,16 @@
         "unique": false
       }
     ],
-    "primary_key": "lap_id",
+    "primary_key": [
+      "lap_id"
+    ],
     "unique_constraints": [
       {
         "name": "uq_silver_activity_laps_activity_index",
-        "columns": ["activity_id", "lap_index"]
+        "columns": [
+          "activity_id",
+          "lap_index"
+        ]
       }
     ]
   },

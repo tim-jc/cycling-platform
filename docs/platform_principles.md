@@ -62,7 +62,10 @@ only in curated layers.
 
 ### Curated Data
 
-Dashboards, analytics, coaching workflows, and MCP integrations consume data from the `silver` and `gold` layers only.
+Dashboards and analytical consumers use governed `silver` and `gold` objects.
+Consumers may also read governed `reference` objects directly when they need
+curated platform knowledge such as planned events. They must not treat Raw or
+Stage as published data products.
 
 The `raw` layer exists to support ingestion, auditability, and reprocessing.
 

@@ -198,7 +198,10 @@
         "unique": false
       }
     ],
-    "primary_key": ["activity_id", "sample_index"],
+    "primary_key": [
+      "activity_id",
+      "sample_index"
+    ],
     "unique_constraints": []
   },
   "lineage": {

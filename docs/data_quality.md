@@ -248,7 +248,9 @@ If these checks fail, daily automation exits non-zero.
 
 ### Deep Validation
 
-Deep validation is asynchronous and should be scheduled separately:
+Deep validation is observational with respect to publication: it runs as a
+separate scheduled diagnostic job and cannot roll back, hide, or retroactively
+fail a completed daily publication. It should be scheduled separately:
 
 ```sh
 Rscript run_platform_validation.R
@@ -298,10 +300,13 @@ not disappear unexpectedly across layer boundaries:
 * Gold best-effort keys, peak values, sample counts, window ordering, and GPS
   provenance are validated.
 
-Critical publication-gate failures cause `run_daily_platform.R` to exit with a
-non-zero status. Critical deep-validation failures cause
-`run_platform_validation.R` to exit non-zero, but they do not roll back or hide a
-successful Silver transform.
+Critical publication-check failures cause `run_daily_platform.R` to exit with a
+non-zero status before unsafe downstream progression. Critical deep-validation
+findings cause the separate `run_platform_validation.R` diagnostic job to exit
+non-zero so the finding is operationally visible, but they do not change the
+status or publication produced by `run_daily_platform.R`. An execution error in
+the validation machinery is reported separately from a data finding and also
+fails the diagnostic job.
 
 Deep-validation warnings do not make the scheduled validation process fail.
 Instead, the validation outcome is recorded as `PASSED_WITH_WARNINGS` and an

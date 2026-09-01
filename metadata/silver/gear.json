@@ -208,7 +208,9 @@
         "unique": false
       }
     ],
-    "primary_key": "gear_id",
+    "primary_key": [
+      "gear_id"
+    ],
     "unique_constraints": []
   },
   "lineage": {

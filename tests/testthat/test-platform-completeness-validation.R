@@ -88,6 +88,54 @@ testthat::test_that("critical validation helper detects failed critical checks",
   )
 })
 
+testthat::test_that("daily publication gates and deep diagnostics remain separate", {
+  project_root <- if (file.exists("run_daily_platform.R")) "." else file.path("..", "..")
+  daily_text <- paste(
+    readLines(file.path(project_root, "run_daily_platform.R"), warn = FALSE),
+    collapse = "\n"
+  )
+
+  silver_gate <- regexpr('run_phase\\(\\n      "silver_publication_checks"', daily_text)
+  gold_transform <- regexpr('run_phase\\(\\n      "gold_transforms"', daily_text)
+  gold_gate <- regexpr('run_phase\\(\\n      "gold_publication_checks"', daily_text)
+
+  testthat::expect_gt(silver_gate[[1]], 0L)
+  testthat::expect_gt(gold_transform[[1]], silver_gate[[1]])
+  testthat::expect_gt(gold_gate[[1]], gold_transform[[1]])
+  testthat::expect_match(
+    daily_text,
+    'phase_name = "deep_validation",\\n      phase_status = "NOT_RUN"'
+  )
+  testthat::expect_match(
+    daily_text,
+    "Run separately with Rscript run_platform_validation.R",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("validation execution errors are distinct from findings", {
+  project_root <- if (file.exists("R/quality/run_platform_validation.R")) "." else file.path("..", "..")
+  runner_text <- paste(
+    readLines(
+      file.path(project_root, "R/quality/run_platform_validation.R"),
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+
+  testthat::expect_match(
+    runner_text,
+    "if (!is.null(validation_error))",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    runner_text,
+    "validation_failed <- platform_validation_has_critical_failures",
+    fixed = TRUE
+  )
+  testthat::expect_match(runner_text, "stop(validation_error)", fixed = TRUE)
+})
+
 testthat::test_that("validation results retain check timing for slowest summary", {
   validation_file <- file.path(
     "R",

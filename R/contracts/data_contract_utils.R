@@ -148,6 +148,20 @@ parse_contract_ddl <- function(path) {
   )
 }
 
+contract_physical_schema_metadata <- function(ddl_path) {
+  physical_schema <- parse_contract_ddl(ddl_path)
+  physical_schema$primary_key <- as.list(physical_schema$primary_key)
+  physical_schema$unique_constraints <- lapply(
+    physical_schema$unique_constraints,
+    function(constraint) {
+      constraint$columns <- as.list(constraint$columns)
+      constraint
+    }
+  )
+
+  c(list(authority = "repository_ddl"), physical_schema)
+}
+
 discover_managed_objects <- function(root) {
   result <- list()
   domains <- contract_managed_domains(root)
@@ -179,6 +193,163 @@ contract_issue <- function(code, message, object = NULL) {
 
 read_contract_json <- function(path) {
   jsonlite::fromJSON(path, simplifyVector = FALSE)
+}
+
+json_schema_value_type <- function(value) {
+  if (is.null(value)) return("null")
+  if (is.list(value) && !is.null(names(value))) return("object")
+  if (is.list(value)) return("array")
+  if (is.character(value) && length(value) == 1L) return("string")
+  if (is.logical(value) && length(value) == 1L) return("boolean")
+  if (is.integer(value) && length(value) == 1L) return("integer")
+  if (is.numeric(value) && length(value) == 1L) {
+    if (is.finite(value) && value == floor(value)) return("integer")
+    return("number")
+  }
+  "unknown"
+}
+
+json_schema_type_matches <- function(value, expected_types) {
+  actual_type <- json_schema_value_type(value)
+  expected_types <- unlist(expected_types, use.names = FALSE)
+
+  actual_type %in% expected_types ||
+    (identical(actual_type, "integer") && "number" %in% expected_types)
+}
+
+validate_json_schema_value <- function(value, schema, path = "$") {
+  findings <- character()
+
+  if (!is.null(schema$type) && !json_schema_type_matches(value, schema$type)) {
+    return(paste0(
+      path,
+      ": expected ",
+      paste(unlist(schema$type, use.names = FALSE), collapse = " or "),
+      ", found ",
+      json_schema_value_type(value)
+    ))
+  }
+
+  if (!is.null(schema$enum)) {
+    permitted <- unlist(schema$enum, use.names = FALSE)
+    if (length(value) != 1L || !as.character(value) %in% as.character(permitted)) {
+      findings <- c(findings, paste0(path, ": value is not in the declared enum"))
+    }
+  }
+
+  if (!is.null(schema$const) && !identical(value, schema$const)) {
+    findings <- c(findings, paste0(path, ": value does not match the declared const"))
+  }
+
+  if (identical(json_schema_value_type(value), "string")) {
+    if (!is.null(schema$minLength) && nchar(value) < schema$minLength) {
+      findings <- c(findings, paste0(path, ": string is shorter than minLength"))
+    }
+    if (!is.null(schema$pattern) && !grepl(schema$pattern, value, perl = TRUE)) {
+      findings <- c(findings, paste0(path, ": string does not match pattern"))
+    }
+    if (!is.null(schema$format) && identical(schema$format, "date")) {
+      valid_date <- grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", value) &&
+        !is.na(suppressWarnings(as.Date(value)))
+      if (!valid_date) {
+        findings <- c(findings, paste0(path, ": string is not a valid date"))
+      }
+    }
+  }
+
+  if (json_schema_value_type(value) %in% c("integer", "number")) {
+    if (!is.null(schema$minimum) && value < schema$minimum) {
+      findings <- c(findings, paste0(path, ": value is below minimum"))
+    }
+  }
+
+  if (identical(json_schema_value_type(value), "array") && !is.null(schema$items)) {
+    for (index in seq_along(value)) {
+      findings <- c(
+        findings,
+        validate_json_schema_value(
+          value[[index]],
+          schema$items,
+          paste0(path, "[", index, "]")
+        )
+      )
+    }
+  }
+
+  if (identical(json_schema_value_type(value), "object")) {
+    required <- unlist(schema$required, use.names = FALSE)
+    missing <- setdiff(required, names(value))
+    if (length(missing) > 0L) {
+      findings <- c(
+        findings,
+        paste0(path, ": missing required property ", missing)
+      )
+    }
+
+    properties <- schema$properties
+    if (!is.null(properties)) {
+      for (name in intersect(names(value), names(properties))) {
+        findings <- c(
+          findings,
+          validate_json_schema_value(
+            value[[name]],
+            properties[[name]],
+            paste0(path, ".", name)
+          )
+        )
+      }
+    }
+
+    if (identical(schema$additionalProperties, FALSE)) {
+      unexpected <- setdiff(names(value), names(properties))
+      if (length(unexpected) > 0L) {
+        findings <- c(
+          findings,
+          paste0(path, ": unexpected property ", unexpected)
+        )
+      }
+    }
+  }
+
+  findings
+}
+
+validate_metadata_against_json_schema <- function(metadata, schema) {
+  validate_json_schema_value(metadata, schema)
+}
+
+unsupported_json_schema_keywords <- function(schema, path = "$schema") {
+  supported <- c(
+    "$schema", "$id", "title", "type", "additionalProperties",
+    "required", "properties", "enum", "const", "pattern", "minLength",
+    "minimum", "items", "format"
+  )
+  unexpected <- setdiff(names(schema), supported)
+  findings <- if (length(unexpected) == 0L) {
+    character()
+  } else {
+    paste0(path, ": unsupported JSON Schema keyword ", unexpected)
+  }
+
+  if (!is.null(schema$properties)) {
+    for (name in names(schema$properties)) {
+      findings <- c(
+        findings,
+        unsupported_json_schema_keywords(
+          schema$properties[[name]],
+          paste0(path, ".properties.", name)
+        )
+      )
+    }
+  }
+  if (!is.null(schema$items)) {
+    findings <- c(
+      findings,
+      unsupported_json_schema_keywords(schema$items, paste0(path, ".items"))
+    )
+  }
+
+  findings[nzchar(findings)]
 }
 
 validate_metadata_structure <- function(metadata, path) {
@@ -225,7 +396,27 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
   add_warning <- function(code, message, object = NULL) warnings <<- c(warnings, list(contract_issue(code, message, object)))
   managed <- discover_managed_objects(root)
   schema_path <- file.path(root, "metadata", "schema", "data-contract.schema.json")
-  if (!file.exists(schema_path)) add_error("missing_json_schema", "Missing metadata/schema/data-contract.schema.json") else tryCatch(read_contract_json(schema_path), error = function(e) add_error("invalid_json_schema", conditionMessage(e)))
+  metadata_schema <- NULL
+  if (!file.exists(schema_path)) {
+    add_error(
+      "missing_json_schema",
+      "Missing metadata/schema/data-contract.schema.json"
+    )
+  } else {
+    metadata_schema <- tryCatch(
+      read_contract_json(schema_path),
+      error = function(e) {
+        add_error("invalid_json_schema", conditionMessage(e))
+        NULL
+      }
+    )
+    if (!is.null(metadata_schema)) {
+      unsupported_keywords <- unsupported_json_schema_keywords(metadata_schema)
+      for (finding in unsupported_keywords) {
+        add_error("unsupported_json_schema", finding)
+      }
+    }
+  }
   exclusions_path <- file.path(root, "metadata", "exclusions.json")
   exclusions <- if (file.exists(exclusions_path)) read_contract_json(exclusions_path) else list(objects = list(), supporting_contract_documents = list())
   excluded_objects <- vapply(exclusions$objects, function(x) x$object, character(1))
@@ -242,6 +433,18 @@ validate_data_contract_project <- function(root = ".", write_report = TRUE) {
   for (path in metadata_paths) {
     metadata <- tryCatch(read_contract_json(path), error = function(e) e)
     if (inherits(metadata, "error")) { add_error("invalid_json", paste(rel(path), conditionMessage(metadata))); next }
+    if (!is.null(metadata_schema)) {
+      schema_findings <- validate_metadata_against_json_schema(
+        metadata,
+        metadata_schema
+      )
+      for (finding in schema_findings) {
+        add_error(
+          "json_schema_violation",
+          paste0(rel(path), ": ", finding)
+        )
+      }
+    }
     errors <- c(errors, validate_metadata_structure(metadata, rel(path)))
     if (is.null(metadata$object$schema) || is.null(metadata$object$name)) next
     key <- paste0(metadata$object$schema, ".", metadata$object$name)

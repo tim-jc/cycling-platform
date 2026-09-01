@@ -5,7 +5,11 @@
 #' @param connection DBI connection.
 #' @param config Platform configuration.
 #' @param include_gold Whether to include Gold completeness checks.
-#' @param validation_scope Validation scope: publication or deep.
+#' @param validation_scope Validation scope: publication or deep. Publication
+#'   checks are bounded safety gates used by daily orchestration. Deep validation
+#'   runs separately; its findings do not roll back or change daily publication,
+#'   although a critical finding gives the standalone diagnostic process a
+#'   non-zero exit status.
 #' @param run_mode Run mode recorded in admin metadata.
 #' @param per_check_timeout_seconds Optional per-check timeout in seconds.
 #' @param overall_timeout_seconds Optional overall timeout in seconds.

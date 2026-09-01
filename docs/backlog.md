@@ -4,16 +4,16 @@
 
 Planning is organised around outcome-based milestones.
 
-The current product goal is to automate the stable platform foundation, build
-the first reusable gold analytical objects, and prepare `cycling-analytics` to
-replace the frozen legacy scraper project. MCP work is deliberately paused
-until the cycling platform is stable, automated, and no longer needs immediate
-revisiting.
+The stable platform foundation, first reusable Gold analytical objects, and
+replacement of the frozen legacy scraper are established. Further work should
+extend this baseline through explicit governed products rather than reopening
+the core architecture.
 
-`cycling-platform` owns ingestion, raw, silver, gold, operational automation,
-monitoring, and data quality. `cycling-analytics` owns dashboards, reports,
-exploratory analysis, reusable analytical functions, MCP server work, AI
-coaching, and replacement of the legacy scraper project.
+`cycling-platform` owns ingestion, Raw, Reference, Silver, Gold, operational
+automation, monitoring, and data quality. `cycling-analytics` owns dashboards,
+reports, exploratory analysis, and reusable analytical functions.
+`cycling-mcp` is a separate peer read-only consumer and owns MCP/coaching
+behaviour rather than embedding it in this repository.
 
 The scraper is frozen. It is now a reference implementation and migration
 source only.

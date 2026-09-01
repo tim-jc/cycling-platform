@@ -8,23 +8,21 @@ Source APIs
   - Google Health / Fitbit
     ↓
     Raw
-    ↓
-  Stage  ← operational workspace only
-    ↓
- Validate
-    ↓
- Bulk merge
-    ↓
- Silver / Gold
-    ↓
- cycling-analytics / other consumers
+    ├──────────────→ Silver ──→ Gold
+    │                   ↑
+    └─ historical ──→ Stage
+       recovery         (disposable workspace)
+
+Curated repository data ──→ Reference
+
+Silver / Gold / Reference ──→ peer consumers
 ```
 
 ### Consumers
 
 * `cycling-analytics`
 * `coastal`
-* future MCP server
+* `cycling-mcp`
 
 Consumers connect independently to production MariaDB. Their database access
 does not depend on whether ingestion was launched from native R, Docker, or a
@@ -43,12 +41,13 @@ The platform is organised into six MariaDB databases:
 
 Silver layer design is documented in `docs/silver_layer_design.md`.
 
-`cycling-platform` is responsible for ingestion, raw data, silver conformed
-data, gold analytical objects, operational automation, monitoring, and data
-quality.
+`cycling-platform` is responsible for ingestion, Raw data, curated Reference
+knowledge, Silver canonical data, Gold analytical objects, operational
+automation, monitoring, and data quality.
 `cycling-analytics` is responsible for dashboards, reports, exploratory
-analysis, reusable analytical functions, MCP server work, AI coaching, and
-replacing the legacy scraper project.
+analysis, reusable analytical functions, and replacing the legacy scraper
+project. `cycling-mcp` is a separate peer read-only consumer; MCP and coaching
+logic do not belong in this repository.
 
 The `stage` schema is not part of the medallion architecture. It is temporary
 ETL workspace only.
@@ -85,8 +84,9 @@ application data, unrelated constants, or consumer-specific output.
 `cycling-infrastructure` owns physical database creation, database defaults,
 grants, production reconciliation, restore orchestration and recovery
 rehearsals. This repository owns objects inside Reference, their migrations,
-contracts, metadata, loaders, validation and Gold consumption. No Reference
-objects currently exist.
+contracts, metadata, loaders and validation. Reference currently publishes
+`planned_events` and optional `planned_event_stages` from version-controlled
+YAML; consumers may read those governed objects directly.
 
 ### Canonical character encoding
 
@@ -102,8 +102,9 @@ including `utf8mb4_uca1400_ai_ci`, must not determine platform DDL. Restoring an
 older backup and then adding tables under a different server default can
 otherwise make text-key joins fail with an illegal mix of collations.
 
-All database and table DDL specifies the standard explicitly. Text columns
-added by dynamic `ALTER TABLE` helpers do too. MariaDB implements `JSON` as
+All database and table DDL specifies the standard explicitly. Historical
+schema evolution is applied by immutable ledgered migrations rather than
+runtime transforms. MariaDB implements `JSON` as
 validated `LONGTEXT` with `utf8mb4_bin`; declared JSON columns are the sole
 expected binary-collation exception and are not platform join keys.
 
@@ -136,23 +137,27 @@ Current status:
 * `silver.gear` provides current canonical Strava gear identity and resolves
   activity `gear_id` values where the API permits.
 * Google Health/Fitbit Raw ingestion exists for heart-rate responses, sleep
-  logs, daily resting heart rate, daily heart-rate variability, and daily
-  respiratory rate. These objects are in Raw observation; health Silver and Gold
-  transforms remain future work.
+  logs, Exercise, daily resting heart rate, daily heart-rate variability, and
+  daily respiratory rate. These objects are in Raw observation; health Silver
+  and Gold transforms remain future work.
+* Reference planned events and optional stages are published atomically from
+  version-controlled YAML for direct governed consumption.
 * `silver.activities` is complete.
 * `silver.activity_streams` is complete following local repair/backfill.
 * Coastal project is fully migrated to `cycling-platform`, complete, and no
   longer depends on the legacy scraper database.
 * `cycling-analytics` is the replacement project for the frozen legacy scraper.
-* Platform automation v1 is in place for raw ingestion, Silver transforms,
-  publication-gate validation, and notification.
+* Platform automation v1 is in place for Raw ingestion, Silver transforms,
+  trusted affected-set Gold processing, blocking publication checks, and
+  notification. Deep validation runs as a separate diagnostic job.
 
 The legacy scraper is frozen. It is now a reference implementation and
 migration source only, not the target architecture. Scraper tables should not
 be recreated one-for-one unless they represent reusable analytical concepts.
 
-MCP development is deliberately paused until the cycling platform is stable,
-automated, and no longer needs immediate revisiting.
+`cycling-mcp` may consume governed Reference, Silver and Gold objects as a peer
+read-only project. It must not trigger ingestion or move consumer/coaching logic
+into `cycling-platform`.
 
 ## Bootstrap and Derived Layers
 
@@ -363,7 +368,7 @@ Notify
 
 ## Execution Modes
 
-The platform currently supports four execution modes:
+Raw ingestion currently supports six execution modes:
 
 * `manual`: refreshes the routine activity window using
   `ingestion.activity_refresh_days`.
@@ -371,14 +376,17 @@ The platform currently supports four execution modes:
   the Raw ETL run as `SCHEDULED` for unattended automation.
 * `backfill`: refreshes the historical activity window using
   `ingestion.activity_backfill_days`.
+* `hygiene`: refreshes the configured annual reconciliation window and repairs
+  only affected downstream entities.
+* `activity_backfill`: refreshes the configured full activity-history window
+  and suppresses historical achievement notifications.
 * `streams_only`: recovery mode that creates an ETL run, skips activities,
   details, and laps, then attempts pending stream ingestion only.
 
-For `manual`, `scheduled`, and `backfill`, execution mode controls the activity
-refresh window. Stream, detail, and lap ingestion are state-driven across the full
-`raw.activities` table: all activities with `PENDING` or `FAILED` child-entity
-status are selected, regardless of whether they were included in the current
-activity refresh window.
+For `manual`, `scheduled`, `hygiene`, `activity_backfill`, and `backfill`, mode
+controls the activity refresh window. Stream, detail, and lap ingestion remains
+state-driven across `raw.activities`: activities with incomplete child state are
+selected regardless of whether they were in the current summary window.
 
 `streams_only` exists for recovery after stream-specific issues. It caps the
 number of attempted activities using `ingestion.streams_only_activity_limit`
