@@ -181,15 +181,28 @@ files independently. It:
 
 After cleanup, the Mac compares physical `*.sql.gz` files with successful
 backup metadata and appends a result to
-`cycling_platform_admin.backup_reconciliation_run`. Reconciliation detects:
+`cycling_platform_admin.backup_reconciliation_run`. The notification counts
+have these grains:
 
-* missing files for successful runs still inside the retention window
-* successful retained runs that do not match their recognised format: the
-  historical four-database set or the current five-database set including
-  Reference
-* retained files without managed backup metadata
-* files older than the configured retention threshold
-* malformed filenames and unexpected schemas, including Stage
+* `missing`: individual files recorded for successful runs inside the
+  retention window but absent from disk
+* `incomplete`: successful retained backup runs that do not match their
+  recognised format: the historical four-database set or the current
+  five-database set including Reference
+* `orphan`: individual managed backup files on disk without corresponding
+  successful-run file metadata
+* `expired`: individual files whose modification time is older than the
+  configured retention threshold
+* `unexpected`: individual files with malformed managed names or unexpected
+  schemas, including Stage
+
+Retention deletion remains deliberately set-aware even though `expired` is a
+per-file reconciliation count. Files in one prefix finish at different times,
+so the first dump can briefly be reported as expired while the prefix's newest
+file is still inside the 30-day window. The next successful backup removes the
+whole prefix after its newest file crosses the threshold. This short boundary
+window is normal pending cleanup; a file that remains expired after the next
+successful retention pass requires investigation.
 
 Metadata older than the retention window is not treated as missing when its
 physical files have expired normally. Files predating the first observability
@@ -419,9 +432,12 @@ Admin, expected ntfy behaviour, and LaunchAgent last exit status `0`. Retain
 the old repository backup directory until this completes and the owner approves
 its later disposition; the installer never deletes it.
 
-After that protected scheduled run succeeds, reconcile the retained files and
-review the two known incomplete incident prefixes, which each contain only an
-individually verified Admin dump:
+After a protected scheduled run succeeds, reconcile retained files and review
+any incomplete incident prefix. Confirm every reported orphan's exact prefix,
+database, size and timestamp; verify its gzip stream; prove that no other files
+exist for the prefix; and confirm that `latest_success.json` points to a newer,
+complete set before deletion. For the 20 and 21 August 2026 sleep incidents,
+the reviewed files were:
 
 ```sh
 BACKUP_DATA_DIR="$HOME/Library/Application Support/cycling-platform/backup/data"
@@ -432,7 +448,8 @@ gzip -t "$BACKUP_DATA_DIR/2026-08-21_050002_cycling_platform_admin.sql.gz"
 ```
 
 Only after confirming a newer complete protected set and reviewing the
-reconciliation finding, remove those two exact orphan files deliberately:
+reconciliation finding should the exact orphan files be removed deliberately.
+The following reviewed cleanup was completed on 2 September 2026:
 
 ```sh
 rm -- \
