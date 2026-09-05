@@ -79,8 +79,6 @@ CREATE TABLE IF NOT EXISTS cycling_platform_silver.activities (
 
     is_manual BOOLEAN NULL,
 
-    is_trainer BOOLEAN NULL,
-
     has_streams BOOLEAN NOT NULL,
 
     has_details BOOLEAN NOT NULL,

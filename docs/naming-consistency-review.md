@@ -165,7 +165,6 @@ Use positive boolean names:
 
 * `is_device_watts`
 * `is_manual`
-* `is_trainer`
 * `is_moving`
 * `has_streams`
 * `has_details`
@@ -292,7 +291,8 @@ refer back to Raw, for example `raw_stream_retrieved_at`.
 | `run_status`, `entity_status`, `batch_status`, `check_status` | Admin tables/R | Admin | Operational statuses | No | Preserve | High | Preserve |
 | `stream_status`, `details_status`, `laps_status` | Raw activities | Raw | Child endpoint ingestion statuses | No | Preserve | High | Preserve |
 | `has_streams`, `has_details`, `has_laps` | Silver activities | Silver | Child-data availability flags | No | Preserve | High | Preserve |
-| `is_device_watts`, `is_manual`, `is_trainer`, `is_moving` | Raw/Silver | Raw/Silver | Positive boolean flags | Mixed | Preserve | High | Preserve |
+| `is_device_watts`, `is_manual`, `is_moving` | Raw/Silver | Raw/Silver | Positive boolean flags | Mixed | Preserve | High | Preserve |
+| source `trainer` | Raw activity payload | Raw | Strava source/platform-handling attribute; not a canonical indoor or virtual classification | Yes | Retain in Raw; do not promote to Silver | High | Remove Silver promotion |
 
 ## Layer-Specific Assessment
 

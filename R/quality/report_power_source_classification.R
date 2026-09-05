@@ -12,7 +12,10 @@ report_power_source_classification <- function(
         activities.start_date_local,
         activities.activity_name,
         activities.sport_type,
-        activities.is_trainer,
+        JSON_UNQUOTE(COALESCE(
+          JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+          JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+        )) AS source_trainer,
         activities.is_device_watts,
         activities.gear_id,
         JSON_UNQUOTE(JSON_EXTRACT(raw.raw_payload, '$.external_id'))
@@ -62,7 +65,10 @@ report_power_source_classification <- function(
               'Handcycle'
             )
             AND activities.sport_type <> 'VirtualRide'
-            AND COALESCE(activities.is_trainer, 0) = 0
+            AND LOWER(COALESCE(JSON_UNQUOTE(COALESCE(
+              JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+              JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+            )), 'false')) NOT IN ('true', '1')
             AND EXISTS (
               SELECT 1
               FROM cycling_platform_raw.activity_streams streams
@@ -94,7 +100,10 @@ report_power_source_classification <- function(
               'Handcycle'
             )
             AND activities.sport_type <> 'VirtualRide'
-            AND COALESCE(activities.is_trainer, 0) = 0
+            AND LOWER(COALESCE(JSON_UNQUOTE(COALESCE(
+              JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+              JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+            )), 'false')) NOT IN ('true', '1')
             AND EXISTS (
               SELECT 1
               FROM cycling_platform_raw.activity_streams streams
@@ -121,7 +130,10 @@ report_power_source_classification <- function(
               'Handcycle'
             )
             AND activities.sport_type <> 'VirtualRide'
-            AND COALESCE(activities.is_trainer, 0) = 0
+            AND LOWER(COALESCE(JSON_UNQUOTE(COALESCE(
+              JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+              JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+            )), 'false')) NOT IN ('true', '1')
             AND EXISTS (
               SELECT 1
               FROM cycling_platform_raw.activity_streams streams
@@ -148,7 +160,10 @@ report_power_source_classification <- function(
               'Handcycle'
             )
             AND activities.sport_type <> 'VirtualRide'
-            AND COALESCE(activities.is_trainer, 0) = 0
+            AND LOWER(COALESCE(JSON_UNQUOTE(COALESCE(
+              JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+              JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+            )), 'false')) NOT IN ('true', '1')
             AND EXISTS (
               SELECT 1
               FROM cycling_platform_raw.activity_streams streams

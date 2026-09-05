@@ -695,7 +695,10 @@ gold_activity_best_efforts_publication_checks <- function(
             'Handcycle'
           )
           AND activities.sport_type <> 'VirtualRide'
-          AND COALESCE(activities.is_trainer, 0) = 0
+          AND LOWER(COALESCE(JSON_UNQUOTE(COALESCE(
+            JSON_EXTRACT(raw.raw_payload, '$.trainer'),
+            JSON_EXTRACT(raw.raw_payload, '$[0].trainer')
+          )), 'false')) NOT IN ('true', '1')
           AND LOWER(CONCAT_WS(
             ' ',
             COALESCE(activities.activity_name, ''),

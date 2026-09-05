@@ -3,8 +3,7 @@ report_silver_activity_population <- function(connection) {
   raw_columns <- DBI::dbGetQuery(connection, "SELECT column_name FROM information_schema.columns WHERE table_schema='cycling_platform_raw' AND table_name='activities'")$column_name
   total <- DBI::dbGetQuery(connection, "SELECT COUNT(*) AS n FROM cycling_platform_silver.activities")$n[[1]]
   json_source <- c(
-    is_manual = "CASE WHEN LOWER(JSON_UNQUOTE(COALESCE(JSON_EXTRACT(raw_payload, '$.manual'), JSON_EXTRACT(raw_payload, '$[0].manual')))) IN ('true','false','1','0') THEN 1 END",
-    is_trainer = "CASE WHEN LOWER(JSON_UNQUOTE(COALESCE(JSON_EXTRACT(raw_payload, '$.trainer'), JSON_EXTRACT(raw_payload, '$[0].trainer')))) IN ('true','false','1','0') THEN 1 END"
+    is_manual = "CASE WHEN LOWER(JSON_UNQUOTE(COALESCE(JSON_EXTRACT(raw_payload, '$.manual'), JSON_EXTRACT(raw_payload, '$[0].manual')))) IN ('true','false','1','0') THEN 1 END"
   )
   derived <- c("activity_type", "start_date_local", "start_time_local", "distance_kilometres", "distance_miles", "average_speed_kilometres_per_hour", "average_speed_miles_per_hour", "power_source_type", "power_source_status", "is_measured_power", "is_power_record_eligible", "power_record_exclusion_reason", "power_classification_rule", "power_classification_method", "power_classification_version", "power_meter_cutover_at", "has_streams", "has_details", "has_laps", "raw_detail_retrieved_at", "transformed_at")
 

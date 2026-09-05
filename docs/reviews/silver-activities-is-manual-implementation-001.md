@@ -9,7 +9,7 @@ Scope: source-faithful manual status and focused Silver population audit
 
 ## Implementation
 
-The Silver transform now reads both `$.manual` and historical `$[0].manual`, accepts boolean encodings `true`/`false` and `1`/`0`, and otherwise returns NULL. It never consults streams, GPS, device metadata, activity type, or another proxy. The equally clear `trainer` boolean mapping received the same backward-compatible path correction.
+The Silver transform now reads both `$.manual` and historical `$[0].manual`, accepts boolean encodings `true`/`false` and `1`/`0`, and otherwise returns NULL. It never consults streams, GPS, device metadata, activity type, or another proxy. At the time of this review, the source `trainer` boolean received the same path correction; that later Silver promotion was removed after semantic review, while the source value remains preserved in Raw.
 
 No schema or Gold logic changed. Existing Raw payloads remain immutable and can be corrected by an ordinary Silver rebuild.
 
@@ -34,7 +34,7 @@ and retain the `is_manual` row as rollout evidence. Every Raw row with a definit
 | silver_column | raw_source | silver_non_null_count | silver_distinct_values | raw_non_null_count | suspected_issue | recommended_action |
 |---|---|---:|---|---:|---|---|
 | `is_manual` | `raw_payload.manual` | 0 (owner-observed before rebuild) | NULL | production count pending | Defective historical JSON path | Fixed; rebuild and verify alignment check |
-| `is_trainer` | `raw_payload.trainer` | production count pending | pending | production count pending | Same array/object path defect is structurally present | Fixed with the same source-faithful mapping; verify after rebuild |
+| historical `is_trainer` promotion | `raw_payload.trainer` | not applicable | not applicable | source retained in Raw | The source flag was later found not to represent a canonical indoor or virtual classification | Silver promotion removed; retain Raw provenance only |
 | `activity_type` | Raw `sport_type` | production count pending | pending | production count pending | Intentional current alias, not an absent mapping | Retain pending separate classification research |
 | `has_streams` | Silver stream existence | production count pending | expected 0/1 | not applicable | Contract/implementation meaning remains unresolved | Keep `SILVER-ACTIVITIES-004` open |
 | power classification fields | published power plus stream/source evidence | production count pending | pending | not directly comparable | Defaults/constants require runtime population review | Keep `SILVER-ACTIVITIES-007` open; inspect audit output |

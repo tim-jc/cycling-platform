@@ -179,7 +179,6 @@ cycling_platform_silver.activities.gear_id
 Names are not duplicated into every activity. Consumer presentation uses a
 join so Strava renames propagate predictably.
 * `is_manual`, derived from raw/details payload where available
-* `is_trainer`, derived from raw/details payload where available
 * `has_streams`
 * `has_details`
 
@@ -188,6 +187,10 @@ Lineage:
 * `raw_activity_retrieved_at`
 * `raw_detail_retrieved_at`
 * `transformed_at`
+
+Strava's source `trainer` attribute remains preserved in the Raw activity
+payload but is deliberately not promoted to Silver. It is neither a canonical
+indoor-cycling flag nor equivalent to `sport_type = 'VirtualRide'`.
 
 ### Notes
 

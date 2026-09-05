@@ -6,6 +6,12 @@ Status: semantically reviewed; implementation alignment required before certific
 
 `silver.activities` represents every activity returned by the connected Strava account, regardless of activity type or analytical significance. Filtering for training activities, significant rides, or other consumer contexts belongs downstream and must not affect admission to this object. `is_manual` is the canonical Silver representation of Strava's published `manual` flag.
 
+Strava's source `trainer` attribute is retained in Raw for provenance but is
+not promoted into Silver because it does not represent a sufficiently
+well-defined canonical cycling-platform classification. It is not
+interchangeable with Strava `sport_type = 'VirtualRide'`. A future broader
+concept such as indoor cycling requires its own explicit semantic design.
+
 ## Business definition
 
 The latest activity state known to this single-user platform for one activity returned by the connected Strava account. Manual activities are valid activities and may legitimately lack streams or sensor measurements.
@@ -95,7 +101,7 @@ Validation observes, reports, and recommends. Validation never silently modifies
 
 ## Transformations and business rules
 
-The transform merges Raw summary/detail observations, preserves published measurements, produces explicit unit conversions, and applies versioned power-source eligibility classification. It maps `is_manual` only from Strava's published `manual` boolean, reading both historical one-element-array and object Raw payload shapes; source absence remains `NULL`. Routine publication stages only IDs affected by reconciliation or incomplete children; explicit full rebuild remains available.
+The transform merges Raw summary/detail observations, preserves published measurements, produces explicit unit conversions, and applies versioned power-source eligibility classification. It maps `is_manual` only from Strava's published `manual` boolean, reading both historical one-element-array and object Raw payload shapes; source absence remains `NULL`. Raw `trainer` may remain internal evidence for narrowly documented source safeguards, but is not published as a Silver field or interpreted as indoor/virtual classification. Routine publication stages only IDs affected by reconciliation or incomplete children; explicit full rebuild remains available.
 
 Agreed semantics take precedence over current implementation behaviour. Known mismatches are represented as implementation-alignment TODOs rather than being normalised away in this contract.
 

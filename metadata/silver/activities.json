@@ -391,18 +391,8 @@
         "unique": false
       },
       {
-        "name": "is_trainer",
-        "ordinal_position": 38,
-        "data_type": "boolean",
-        "raw_data_type": "BOOLEAN",
-        "nullable": true,
-        "default": null,
-        "primary_key": false,
-        "unique": false
-      },
-      {
         "name": "has_streams",
-        "ordinal_position": 39,
+        "ordinal_position": 38,
         "data_type": "boolean",
         "raw_data_type": "BOOLEAN",
         "nullable": false,
@@ -412,7 +402,7 @@
       },
       {
         "name": "has_details",
-        "ordinal_position": 40,
+        "ordinal_position": 39,
         "data_type": "boolean",
         "raw_data_type": "BOOLEAN",
         "nullable": false,
@@ -422,7 +412,7 @@
       },
       {
         "name": "has_laps",
-        "ordinal_position": 41,
+        "ordinal_position": 40,
         "data_type": "boolean",
         "raw_data_type": "BOOLEAN",
         "nullable": false,
@@ -432,7 +422,7 @@
       },
       {
         "name": "raw_activity_retrieved_at",
-        "ordinal_position": 42,
+        "ordinal_position": 41,
         "data_type": "datetime",
         "raw_data_type": "DATETIME",
         "nullable": false,
@@ -442,7 +432,7 @@
       },
       {
         "name": "raw_detail_retrieved_at",
-        "ordinal_position": 43,
+        "ordinal_position": 42,
         "data_type": "datetime",
         "raw_data_type": "DATETIME",
         "nullable": true,
@@ -452,7 +442,7 @@
       },
       {
         "name": "transformed_at",
-        "ordinal_position": 44,
+        "ordinal_position": 43,
         "data_type": "datetime",
         "raw_data_type": "DATETIME",
         "nullable": false,
@@ -481,7 +471,7 @@
       "rebuild_silver_activities",
       "run_silver_transformations"
     ],
-    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations, maps source manual/trainer booleans from historical array or object payloads, and classifies power eligibility. The activity-grain power decision governs associated summaries, streams, laps, efforts and downstream analytical objects.",
+    "transformation_description": "Rebuilds canonical activity rows from Raw activity/detail observations, maps the source manual boolean from historical array or object payloads, and classifies power eligibility. Strava's trainer attribute remains Raw source evidence and is not promoted as a canonical Silver classification. The activity-grain power decision governs associated summaries, streams, laps, efforts and downstream analytical objects.",
     "authorship": "generated_and_human_reviewed",
     "confidence": "high",
     "review_required": true
@@ -503,6 +493,7 @@
       "Published measurements are retained independently of analytical eligibility."
     ],
     "implemented_validations": [
+      "silver_activity_trainer_contract_shape",
       "silver_activity_uniqueness",
       "activity_gear_ids_unresolved",
       "silver_activity_manual_source_alignment"

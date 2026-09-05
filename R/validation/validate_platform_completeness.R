@@ -1109,6 +1109,45 @@ validate_platform_completeness <- function(
     checks,
     run_validation_query(
       connection = connection,
+      check_name = "silver_activity_trainer_contract_shape",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT
+          'forbidden_column_present' AS issue,
+          columns.column_name
+        FROM information_schema.columns columns
+        WHERE columns.table_schema = 'cycling_platform_silver'
+          AND columns.table_name = 'activities'
+          AND columns.column_name = 'is_trainer'
+
+        UNION ALL
+
+        SELECT
+          'required_neighbouring_column_missing' AS issue,
+          required.column_name
+        FROM (
+          SELECT 'is_manual' AS column_name
+          UNION ALL SELECT 'has_streams'
+          UNION ALL SELECT 'has_details'
+          UNION ALL SELECT 'has_laps'
+        ) required
+        LEFT JOIN information_schema.columns columns
+          ON columns.table_schema = 'cycling_platform_silver'
+         AND columns.table_name = 'activities'
+         AND columns.column_name = required.column_name
+        WHERE columns.column_name IS NULL
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
       check_name = "silver_activity_manual_source_alignment",
       check_scope = "publication",
       severity = "CRITICAL",
