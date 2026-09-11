@@ -52,14 +52,22 @@ snapshots_identical <- function(before, after) {
   )
 }
 
-latest_silver_transform_run_ids <- function(connection) {
+latest_silver_transform_run_ids <- function(connection, pipeline_run_id = NULL) {
+  pipeline_filter <- if (is.null(pipeline_run_id)) {
+    ""
+  } else {
+    paste0("\n        AND pipeline_run_id = ", as.character(as.integer(pipeline_run_id)))
+  }
   runs <- DBI::dbGetQuery(
     connection,
-    "SELECT entity_name, MAX(transform_run_id) AS transform_run_id
+    paste0(
+      "SELECT entity_name, MAX(transform_run_id) AS transform_run_id
        FROM cycling_platform_admin.transform_run
       WHERE layer_name = 'silver'
-        AND entity_name IN ('activities', 'gear', 'activity_streams', 'activity_laps')
-      GROUP BY entity_name"
+        AND entity_name IN ('activities', 'gear', 'activity_streams', 'activity_laps')",
+      pipeline_filter,
+      "\n      GROUP BY entity_name"
+    )
   )
   if (nrow(runs) == 0L) return(integer())
   stats::setNames(runs$transform_run_id, runs$entity_name)
@@ -130,7 +138,8 @@ run_silver_transformations <- function(
   stream_rebuild_mode = "full",
   activity_ids = NULL,
   raw_run_id = NA_integer_,
-  status_callback = NULL
+  status_callback = NULL,
+  pipeline_run_id = NULL
 ) {
   emit_status <- function(event = list(), force = FALSE) {
     if (!is.null(status_callback)) status_callback(event, force = force)
@@ -197,14 +206,16 @@ run_silver_transformations <- function(
     connection = connection,
     sql_dir = sql_dir,
     mode = if (is.null(activity_ids)) "full" else "incremental",
-    activity_ids = activity_ids
+    activity_ids = activity_ids,
+    pipeline_run_id = pipeline_run_id
   )
 
   emit_status(list(current_phase = "silver_transforms", current_entity = "gear"), force = TRUE)
   rebuild_silver_gear(
     connection = connection,
     sql_dir = sql_dir,
-    mode = "full"
+    mode = "full",
+    pipeline_run_id = pipeline_run_id
   )
 
   emit_status(list(current_phase = "silver_transforms", current_entity = "activity_streams"), force = TRUE)
@@ -218,7 +229,8 @@ run_silver_transformations <- function(
     log_level = log_level,
     status_callback = status_callback,
     activity_ids = explicit_activity_ids,
-    mode = stream_rebuild_mode
+    mode = stream_rebuild_mode,
+    pipeline_run_id = pipeline_run_id
   )
 
   emit_status(list(current_phase = "silver_transforms", current_entity = "activity_laps"), force = TRUE)
@@ -226,7 +238,8 @@ run_silver_transformations <- function(
     connection = connection,
     sql_dir = sql_dir,
     mode = if (!is.null(activity_ids)) "incremental" else stream_rebuild_mode,
-    activity_ids = activity_ids
+    activity_ids = activity_ids,
+    pipeline_run_id = pipeline_run_id
   )
 
   if (is.null(explicit_activity_ids)) {
@@ -257,7 +270,10 @@ run_silver_transformations <- function(
     status = context_status,
     activities = change_rows,
     raw_run_id = raw_run_id,
-    silver_transform_run_ids = latest_silver_transform_run_ids(connection),
+    silver_transform_run_ids = latest_silver_transform_run_ids(
+      connection,
+      pipeline_run_id = pipeline_run_id
+    ),
     reason = context_reason
   )
   message(

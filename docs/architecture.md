@@ -573,3 +573,34 @@ current activity refresh window.
 - Store the payload in `lap_payload`.
 - Preserve lap order using `lap_index`.
 - Keep raw lap data available for future silver/gold modelling.
+
+## Durable operational execution hierarchy
+
+The Admin schema records each orchestrated platform execution as a
+`pipeline_run`, with one singular `pipeline_phase_run` for each domain phase:
+Raw ingestion, Silver transforms and publication checks, Gold transforms and
+publication checks, achievement notification processing, and the deliberately
+separate deep-validation decision. Backup-health lookup and final ntfy delivery
+are post-pipeline enrichment/delivery, not data-processing phases.
+
+Raw `etl_run`, Silver/Gold `transform_run`, and `validation_run` records retain
+their detailed authority and carry an explicit nullable `pipeline_run_id`.
+Standalone manual, repair, validation, and rebuild commands therefore remain
+valid with no pipeline parent. Once a parent exists, membership must never be
+inferred from timestamps or “latest run” queries.
+
+New operational telemetry timestamps are UTC by contract. Database connections
+set their MariaDB session time zone to `+00:00`; presentation may convert them
+to Europe/London. Historical `DATETIME` values created before this cutover may
+have depended on the earlier session time zone and are not reinterpreted or
+backfilled.
+
+`backup_run` continues to mean one complete, verified recovery point.
+`backup_attempt` separately records physical workflow success or failure,
+including partial verification and the failing database/operation where known.
+
+The execution ledger begins at the Phase 1A deployment. Earlier child runs keep
+null parent lineage. Failures before Admin can be reached, and abrupt process or
+host termination that leaves a row `RUNNING`, remain explicit limitations;
+Phase 1A does not add heartbeats. Detailed workload metrics, freshness/debt
+history, dashboard views, and Grafana remain deferred to Phases 1B, 1C, and 2.

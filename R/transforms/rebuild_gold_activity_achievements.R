@@ -876,6 +876,7 @@ rebuild_gold_activity_achievements <- function(
   durations = NULL,
   batch_size = NULL,
   max_activities = NULL,
+  pipeline_run_id = NULL,
   mode = c(
     "daily",
     "repair",
@@ -1303,7 +1304,8 @@ rebuild_gold_activity_achievements <- function(
     activities_planned = candidate_activity_count,
     expected_rows_planned = 0L,
     max_batch_activities = batch_size,
-    max_batch_expected_rows = NA_integer_
+    max_batch_expected_rows = NA_integer_,
+    pipeline_run_id = pipeline_run_id
   )
 
   completed_batches <- 0L

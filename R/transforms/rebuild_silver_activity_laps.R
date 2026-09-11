@@ -205,7 +205,8 @@ rebuild_silver_activity_laps <- function(
   connection,
   sql_dir = file.path("sql", "silver"),
   mode = c("full", "repair", "incremental"),
-  activity_ids = NULL
+  activity_ids = NULL,
+  pipeline_run_id = NULL
 ) {
   mode <- match.arg(mode)
   started_at <- Sys.time()
@@ -221,7 +222,8 @@ rebuild_silver_activity_laps <- function(
     activities_planned = planned_activities,
     expected_rows_planned = nrow(raw),
     max_batch_activities = planned_activities,
-    max_batch_expected_rows = nrow(raw)
+    max_batch_expected_rows = nrow(raw),
+    pipeline_run_id = pipeline_run_id
   )
 
   outcome <- tryCatch({

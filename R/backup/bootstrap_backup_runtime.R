@@ -5,6 +5,7 @@ required_files <- c(
   file.path("R", "config", "platform_database_inventory.R"),
   file.path("R", "database", "get_connection.R"),
   file.path("R", "database", "execute_sql_file.R"),
+  file.path("R", "admin", "operational_telemetry.R"),
   file.path("R", "utils", "backup_observability.R")
 )
 

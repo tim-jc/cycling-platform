@@ -14,7 +14,8 @@ create_validation_run <- function(
   validation_scope,
   run_mode,
   per_check_timeout_seconds = NULL,
-  overall_timeout_seconds = NULL
+  overall_timeout_seconds = NULL,
+  pipeline_run_id = NULL
 ) {
   if (is.null(per_check_timeout_seconds)) {
     per_check_timeout_seconds <- NA_integer_
@@ -28,15 +29,17 @@ create_validation_run <- function(
     conn = connection,
     statement = "
       INSERT INTO cycling_platform_admin.validation_run (
+        pipeline_run_id,
         validation_scope,
         run_mode,
         run_status,
         per_check_timeout_seconds,
         overall_timeout_seconds
       )
-      VALUES (?, ?, 'RUNNING', ?, ?)
+      VALUES (?, ?, ?, 'RUNNING', ?, ?)
     ",
     params = list(
+      if (is.null(pipeline_run_id)) NA else pipeline_run_id,
       toupper(validation_scope),
       toupper(run_mode),
       per_check_timeout_seconds,

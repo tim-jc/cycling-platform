@@ -373,7 +373,8 @@ ensure_backup_observability_tables <- function(
       c(
         "080_create_backup_run.sql",
         "081_create_backup_run_file.sql",
-        "082_create_backup_reconciliation_run.sql"
+        "082_create_backup_reconciliation_run.sql",
+        "083_create_backup_attempt.sql"
       )
     ),
     execute_sql_file,
@@ -383,7 +384,79 @@ ensure_backup_observability_tables <- function(
   invisible(NULL)
 }
 
-record_successful_backup_run <- function(connection, manifest) {
+create_backup_attempt <- function(
+  connection,
+  backup_host,
+  source_host,
+  run_prefix,
+  started_at
+) {
+  DBI::dbExecute(
+    connection,
+    "INSERT INTO cycling_platform_admin.backup_attempt (
+       backup_host, source_host, run_prefix, attempt_status, started_at
+     ) VALUES (?, ?, ?, 'RUNNING', ?)",
+    params = list(backup_host, source_host, run_prefix, started_at)
+  )
+  DBI::dbGetQuery(
+    connection,
+    "SELECT LAST_INSERT_ID() AS backup_attempt_id"
+  )$backup_attempt_id[[1]]
+}
+
+finish_backup_attempt_success <- function(
+  connection,
+  backup_attempt_id,
+  backup_run_id
+) {
+  DBI::dbExecute(
+    connection,
+    "UPDATE cycling_platform_admin.backup_attempt
+        SET attempt_status = 'SUCCESS', completed_at = UTC_TIMESTAMP(),
+            duration_seconds = TIMESTAMPDIFF(MICROSECOND, started_at, UTC_TIMESTAMP()) / 1000000,
+            complete_set_created = 1, backup_run_id = ?,
+            failure_class = NULL, failing_database = NULL,
+            failing_operation = NULL, failure_summary = NULL
+      WHERE backup_attempt_id = ? AND attempt_status = 'RUNNING'",
+    params = list(backup_run_id, backup_attempt_id)
+  )
+}
+
+finish_backup_attempt_failure <- function(
+  connection,
+  backup_attempt_id,
+  failure_class,
+  failing_database = NULL,
+  failing_operation = NULL,
+  final_attempt_number = NULL,
+  max_attempts = NULL,
+  partial_verified_file_count = 0L,
+  failure_summary = NULL
+) {
+  DBI::dbExecute(
+    connection,
+    "UPDATE cycling_platform_admin.backup_attempt
+        SET attempt_status = 'FAILED', completed_at = UTC_TIMESTAMP(),
+            duration_seconds = TIMESTAMPDIFF(MICROSECOND, started_at, UTC_TIMESTAMP()) / 1000000,
+            complete_set_created = 0, backup_run_id = NULL,
+            failure_class = ?, failing_database = ?, failing_operation = ?,
+            final_attempt_number = ?, max_attempts = ?,
+            partial_verified_file_count = ?, failure_summary = ?
+      WHERE backup_attempt_id = ? AND attempt_status = 'RUNNING'",
+    params = list(
+      sanitize_operational_text(failure_class, 100L),
+      if (is.null(failing_database) || !nzchar(failing_database)) NA_character_ else failing_database,
+      if (is.null(failing_operation) || !nzchar(failing_operation)) NA_character_ else failing_operation,
+      if (is.null(final_attempt_number) || is.na(final_attempt_number)) NA_integer_ else as.integer(final_attempt_number),
+      if (is.null(max_attempts) || is.na(max_attempts)) NA_integer_ else as.integer(max_attempts),
+      as.integer(partial_verified_file_count),
+      sanitize_operational_text(failure_summary),
+      backup_attempt_id
+    )
+  )
+}
+
+record_successful_backup_run <- function(connection, manifest, backup_attempt_id = NULL) {
   run <- backup_run_metadata(manifest)
 
   DBI::dbWithTransaction(
@@ -457,6 +530,14 @@ record_successful_backup_run <- function(connection, manifest) {
           )
         }
       )
+
+      if (!is.null(backup_attempt_id)) {
+        finish_backup_attempt_success(
+          connection = connection,
+          backup_attempt_id = backup_attempt_id,
+          backup_run_id = backup_run_id
+        )
+      }
 
       backup_run_id
     }

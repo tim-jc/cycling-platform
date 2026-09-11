@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.validation_run (
 
     validation_run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
+    pipeline_run_id BIGINT NULL,
+
     validation_scope VARCHAR(30) NOT NULL,
 
     run_mode VARCHAR(30) NOT NULL,
@@ -46,7 +48,13 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.validation_run (
 
     KEY idx_validation_run_outcome (validation_outcome),
 
-    KEY idx_validation_run_started_at (started_at)
+    KEY idx_validation_run_started_at (started_at),
+
+    KEY idx_validation_run_pipeline (pipeline_run_id),
+
+    CONSTRAINT fk_validation_run_pipeline
+        FOREIGN KEY (pipeline_run_id)
+        REFERENCES cycling_platform_admin.pipeline_run (pipeline_run_id)
 
 ) ENGINE=InnoDB
   DEFAULT CHARACTER SET utf8mb4

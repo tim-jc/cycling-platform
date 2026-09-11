@@ -2,13 +2,14 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) != 9L) {
+if (!length(args) %in% c(9L, 10L)) {
   stop(
     paste(
       "Usage: finalize_backup_observability.R",
       "<manifest.tsv> <inventory.tsv> <status_file> <backup_dir>",
       "<retention_days>",
-      "<run_prefix> <started_epoch> <source_host> <backup_host>"
+      "<run_prefix> <started_epoch> <source_host> <backup_host>",
+      "[backup_attempt_id]"
     ),
     call. = FALSE
   )
@@ -40,6 +41,11 @@ run_prefix <- args[[6]]
 started_epoch <- as.numeric(args[[7]])
 source_host <- args[[8]]
 backup_host <- args[[9]]
+backup_attempt_id <- if (length(args) == 10L) {
+  bit64::as.integer64(args[[10]])
+} else {
+  NULL
+}
 
 files <- utils::read.delim(
   manifest_path,
@@ -106,7 +112,8 @@ tryCatch(
 
     backup_run_id <- record_successful_backup_run(
       connection = connection,
-      manifest = manifest
+      manifest = manifest,
+      backup_attempt_id = backup_attempt_id
     )
 
     reconciliation <- record_backup_reconciliation(

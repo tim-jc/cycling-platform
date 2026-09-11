@@ -604,3 +604,18 @@ Near-term migration rules:
 * back up before `ALTER TABLE`
 * document every manual schema change
 * avoid destructive bootstrap unless the restore path has been tested
+
+## Backup attempts and recovery points
+
+Admin distinguishes a physical workflow attempt from a valid recovery point.
+`cycling_platform_admin.backup_attempt` is created near the start of the
+protected backup workflow and retains terminal failures, partial verified-file
+counts, retry summary, and a sanitised failure description. A successful
+attempt references `cycling_platform_admin.backup_run`.
+
+`backup_run` has not changed meaning: it contains complete, verified database
+sets only. A failed or partial attempt never becomes a recovery point and never
+advances `latest_success.json`. If the production MariaDB/Admin service cannot
+be reached at all, the attempt cannot be made durable until connectivity is
+available; the local backup log and ntfy remain the evidence for that narrow
+pre-Admin failure class.

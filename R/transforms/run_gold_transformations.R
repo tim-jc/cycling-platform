@@ -12,6 +12,7 @@ run_gold_transformations <- function(
   connection,
   config = list(),
   gold_change_context = NULL,
+  pipeline_run_id = NULL,
   mode = c(
     "daily",
     "repair"
@@ -40,7 +41,8 @@ run_gold_transformations <- function(
     connection = connection,
     config = config,
     mode = mode,
-    activity_ids = best_effort_activity_ids
+    activity_ids = best_effort_activity_ids,
+    pipeline_run_id = pipeline_run_id
   )
 
   best_effort_metadata <- attr(best_effort_result, "gold_best_effort_result")
@@ -51,7 +53,8 @@ run_gold_transformations <- function(
     gold_change_context = gold_change_context,
     best_effort_changed_activity_ids =
       best_effort_metadata$output_changed_activity_ids,
-    mode = mode
+    mode = mode,
+    pipeline_run_id = pipeline_run_id
   )
 
   best_effort_timing <- attr(

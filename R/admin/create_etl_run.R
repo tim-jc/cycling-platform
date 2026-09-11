@@ -9,19 +9,22 @@
 create_etl_run <- function(
   connection,
   source_id,
-  run_mode
+  run_mode,
+  pipeline_run_id = NULL
 ) {
   DBI::dbExecute(
     conn = connection,
     statement = "
       INSERT INTO cycling_platform_admin.etl_run (
+        pipeline_run_id,
         source_id,
         run_mode,
         run_status
       )
-      VALUES (?, ?, 'RUNNING')
+      VALUES (?, ?, ?, 'RUNNING')
     ",
     params = list(
+      if (is.null(pipeline_run_id)) NA else pipeline_run_id,
       source_id,
       run_mode
     )

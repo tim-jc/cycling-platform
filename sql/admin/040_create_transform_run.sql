@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.transform_run (
 
     transform_run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
+    pipeline_run_id BIGINT NULL,
+
     layer_name VARCHAR(50) NOT NULL,
 
     entity_name VARCHAR(100) NOT NULL,
@@ -44,7 +46,13 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.transform_run (
 
     KEY idx_transform_run_status (run_status),
 
-    KEY idx_transform_run_started_at (started_at)
+    KEY idx_transform_run_started_at (started_at),
+
+    KEY idx_transform_run_pipeline (pipeline_run_id),
+
+    CONSTRAINT fk_transform_run_pipeline
+        FOREIGN KEY (pipeline_run_id)
+        REFERENCES cycling_platform_admin.pipeline_run (pipeline_run_id)
 
 ) ENGINE=InnoDB
   DEFAULT CHARACTER SET utf8mb4

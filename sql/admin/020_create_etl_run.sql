@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run (
 
     run_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
+    pipeline_run_id BIGINT NULL,
+
     source_id INT NOT NULL,
 
     run_mode VARCHAR(20) NOT NULL,
@@ -20,7 +22,13 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run (
 
     CONSTRAINT fk_etl_run_source
         FOREIGN KEY (source_id)
-        REFERENCES cycling_platform_admin.data_source (source_id)
+        REFERENCES cycling_platform_admin.data_source (source_id),
+
+    CONSTRAINT fk_etl_run_pipeline
+        FOREIGN KEY (pipeline_run_id)
+        REFERENCES cycling_platform_admin.pipeline_run (pipeline_run_id),
+
+    KEY idx_etl_run_pipeline (pipeline_run_id)
 
 ) ENGINE=InnoDB
   DEFAULT CHARACTER SET utf8mb4

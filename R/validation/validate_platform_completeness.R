@@ -538,10 +538,10 @@ count_platform_completeness_checks <- function(
   gold_metrics
 ) {
   if (identical(validation_scope, "publication")) {
-    return(14L)
+    return(19L)
   }
 
-  check_count <- 56L
+  check_count <- 61L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -908,6 +908,115 @@ validate_platform_completeness <- function(
       check_scope = "publication",
       severity = "CRITICAL",
       query = platform_collation_validation_query(),
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_pipeline_terminal_state_consistent",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT pipeline_run_id, run_status, completed_at, duration_seconds
+        FROM cycling_platform_admin.pipeline_run
+        WHERE (run_status IN ('SUCCESS', 'FAILED')
+               AND (completed_at IS NULL OR duration_seconds IS NULL OR duration_seconds < 0))
+           OR (run_status = 'RUNNING' AND completed_at IS NOT NULL)
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_pipeline_phase_set_consistent",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT pipeline.pipeline_run_id,
+               COUNT(phases.pipeline_phase_run_id) AS phase_count,
+               SUM(phases.phase_status = 'RUNNING') AS running_phase_count
+        FROM cycling_platform_admin.pipeline_run pipeline
+        LEFT JOIN cycling_platform_admin.pipeline_phase_run phases
+          ON phases.pipeline_run_id = pipeline.pipeline_run_id
+        GROUP BY pipeline.pipeline_run_id, pipeline.run_status
+        HAVING phase_count <> 7
+            OR (pipeline.run_status <> 'RUNNING' AND running_phase_count <> 0)
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_pipeline_child_lineage_valid",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT 'etl_run' AS child_type, etl.run_id AS child_id
+        FROM cycling_platform_admin.etl_run etl
+        LEFT JOIN cycling_platform_admin.pipeline_run pipeline
+          ON pipeline.pipeline_run_id = etl.pipeline_run_id
+        WHERE etl.pipeline_run_id IS NOT NULL AND pipeline.pipeline_run_id IS NULL
+        UNION ALL
+        SELECT 'transform_run', transform.transform_run_id
+        FROM cycling_platform_admin.transform_run transform
+        LEFT JOIN cycling_platform_admin.pipeline_run pipeline
+          ON pipeline.pipeline_run_id = transform.pipeline_run_id
+        WHERE transform.pipeline_run_id IS NOT NULL AND pipeline.pipeline_run_id IS NULL
+        UNION ALL
+        SELECT 'validation_run', validation.validation_run_id
+        FROM cycling_platform_admin.validation_run validation
+        LEFT JOIN cycling_platform_admin.pipeline_run pipeline
+          ON pipeline.pipeline_run_id = validation.pipeline_run_id
+        WHERE validation.pipeline_run_id IS NOT NULL AND pipeline.pipeline_run_id IS NULL
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_backup_attempt_recovery_point_consistent",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT attempt.backup_attempt_id, attempt.attempt_status,
+               attempt.complete_set_created, attempt.backup_run_id
+        FROM cycling_platform_admin.backup_attempt attempt
+        LEFT JOIN cycling_platform_admin.backup_run backup
+          ON backup.backup_run_id = attempt.backup_run_id
+        WHERE (attempt.attempt_status = 'SUCCESS'
+               AND (attempt.complete_set_created <> 1 OR backup.backup_run_id IS NULL))
+           OR (attempt.attempt_status = 'FAILED'
+               AND (attempt.complete_set_created <> 0 OR attempt.backup_run_id IS NOT NULL))
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_operational_session_timezone_utc",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "SELECT @@session.time_zone AS session_time_zone WHERE @@session.time_zone <> '+00:00'",
       per_check_timeout_seconds = per_check_timeout_seconds,
       deadline = deadline
     )
@@ -1302,6 +1411,19 @@ validate_platform_completeness <- function(
       deadline = deadline
     )
   )
+
+  if (identical(validation_scope, "publication") && isTRUE(include_gold)) {
+    checks <- append_validation_result(
+      checks,
+      gold_publication_checks(
+        connection = connection,
+        config = config,
+        check_scope = "gold_publication",
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+  }
 
   if (identical(validation_scope, "deep")) {
     checks <- append_validation_result(

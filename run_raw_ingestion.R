@@ -8,6 +8,7 @@ args <- commandArgs(
 )
 
 send_run_notification <- TRUE
+pipeline_run_id <- NULL
 
 if ("--no-notification" %in% args) {
   send_run_notification <- FALSE
@@ -15,6 +16,19 @@ if ("--no-notification" %in% args) {
     args,
     "--no-notification"
   )
+}
+
+pipeline_argument <- grep("^--pipeline-run-id=", args, value = TRUE)
+if (length(pipeline_argument) > 1L) {
+  stop("Only one --pipeline-run-id argument may be supplied.", call. = FALSE)
+}
+if (length(pipeline_argument) == 1L) {
+  pipeline_value <- sub("^--pipeline-run-id=", "", pipeline_argument[[1]])
+  if (!grepl("^[0-9]+$", pipeline_value)) {
+    stop("--pipeline-run-id must contain digits only.", call. = FALSE)
+  }
+  pipeline_run_id <- bit64::as.integer64(pipeline_value)
+  args <- setdiff(args, pipeline_argument)
 }
 
 execution_mode <- "manual"
@@ -60,7 +74,8 @@ connection <- get_connection(
 run_id <- create_etl_run(
   connection = connection,
   source_id = 1L,
-  run_mode = run_mode
+  run_mode = run_mode,
+  pipeline_run_id = pipeline_run_id
 )
 
 platform_error <- NULL

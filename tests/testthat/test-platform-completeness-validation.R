@@ -228,7 +228,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    14L
+    19L
   )
 
   testthat::expect_equal(
@@ -242,7 +242,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    78L
+    83L
   )
 })
 

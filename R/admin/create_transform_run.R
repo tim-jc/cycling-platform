@@ -22,7 +22,8 @@ create_transform_run <- function(
   activities_planned = 0L,
   expected_rows_planned = 0L,
   max_batch_activities = NULL,
-  max_batch_expected_rows = NULL
+  max_batch_expected_rows = NULL,
+  pipeline_run_id = NULL
 ) {
   if (is.null(max_batch_activities)) {
     max_batch_activities <- NA_integer_
@@ -36,6 +37,7 @@ create_transform_run <- function(
     conn = connection,
     statement = "
       INSERT INTO cycling_platform_admin.transform_run (
+        pipeline_run_id,
         layer_name,
         entity_name,
         run_mode,
@@ -46,9 +48,10 @@ create_transform_run <- function(
         max_batch_activities,
         max_batch_expected_rows
       )
-      VALUES (?, ?, ?, 'RUNNING', ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, 'RUNNING', ?, ?, ?, ?, ?)
     ",
     params = list(
+      if (is.null(pipeline_run_id)) NA else pipeline_run_id,
       layer_name,
       entity_name,
       toupper(run_mode),

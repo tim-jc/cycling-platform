@@ -631,6 +631,7 @@ rebuild_silver_activity_streams <- function(
   log_level = "INFO",
   status_callback = NULL,
   activity_ids = NULL,
+  pipeline_run_id = NULL,
   mode = c(
     "full",
     "repair"
@@ -697,7 +698,8 @@ rebuild_silver_activity_streams <- function(
     activities_planned = nrow(activity_plan),
     expected_rows_planned = sum(activity_plan$expected_row_count),
     max_batch_activities = batch_size,
-    max_batch_expected_rows = max_expected_rows
+    max_batch_expected_rows = max_expected_rows,
+    pipeline_run_id = pipeline_run_id
   )
 
   if (!is.null(status_callback)) {

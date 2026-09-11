@@ -48,7 +48,8 @@ rebuild_silver_activities <- function(
   connection,
   sql_dir = file.path("sql", "silver"),
   mode = "full",
-  activity_ids = NULL
+  activity_ids = NULL,
+  pipeline_run_id = NULL
 ) {
   ensure_transform_logging_tables(
     connection = connection
@@ -92,7 +93,8 @@ rebuild_silver_activities <- function(
     activities_planned = expected_row_count,
     expected_rows_planned = expected_row_count,
     max_batch_activities = expected_row_count,
-    max_batch_expected_rows = expected_row_count
+    max_batch_expected_rows = expected_row_count,
+    pipeline_run_id = pipeline_run_id
   )
 
   transform_run_batch_id <- create_transform_run_batch(

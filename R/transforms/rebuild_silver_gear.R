@@ -1,7 +1,8 @@
 rebuild_silver_gear <- function(
   connection,
   sql_dir = file.path("sql", "silver"),
-  mode = "full"
+  mode = "full",
+  pipeline_run_id = NULL
 ) {
   ensure_transform_logging_tables(connection)
   execute_sql_file(file.path(sql_dir, "040_create_gear.sql"), connection)
@@ -21,7 +22,8 @@ rebuild_silver_gear <- function(
     activities_planned = 0L,
     expected_rows_planned = expected,
     max_batch_activities = 0L,
-    max_batch_expected_rows = expected
+    max_batch_expected_rows = expected,
+    pipeline_run_id = pipeline_run_id
   )
 
   error <- tryCatch(

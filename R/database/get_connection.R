@@ -69,7 +69,7 @@ get_connection <- function(
 
   tryCatch(
     {
-      DBI::dbConnect(
+      connection <- DBI::dbConnect(
         drv = RMariaDB::MariaDB(),
 
         host = connection_config$host,
@@ -82,6 +82,20 @@ get_connection <- function(
 
         password = connection_config$password
       )
+
+      tryCatch(
+        DBI::dbExecute(connection, "SET time_zone = '+00:00'"),
+        error = function(e) {
+          try(DBI::dbDisconnect(connection), silent = TRUE)
+          stop(
+            "MariaDB connection established but UTC session setup failed: ",
+            conditionMessage(e),
+            call. = FALSE
+          )
+        }
+      )
+
+      connection
     },
     error = function(e) {
       stop(

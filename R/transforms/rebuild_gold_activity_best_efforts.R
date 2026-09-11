@@ -960,6 +960,7 @@ rebuild_gold_activity_best_efforts <- function(
   durations = NULL,
   batch_size = NULL,
   max_activities = NULL,
+  pipeline_run_id = NULL,
   mode = c(
     "daily",
     "repair",
@@ -1112,7 +1113,8 @@ rebuild_gold_activity_best_efforts <- function(
       activities_planned = 0L,
       expected_rows_planned = 0L,
       max_batch_activities = batch_size,
-      max_batch_expected_rows = batch_size * length(metrics) * length(durations)
+      max_batch_expected_rows = batch_size * length(metrics) * length(durations),
+      pipeline_run_id = pipeline_run_id
     )
 
     update_transform_run(
@@ -1185,7 +1187,8 @@ rebuild_gold_activity_best_efforts <- function(
     activities_planned = nrow(activity_plan),
     expected_rows_planned = nrow(activity_plan) * length(metrics) * length(durations),
     max_batch_activities = batch_size,
-    max_batch_expected_rows = batch_size * length(metrics) * length(durations)
+    max_batch_expected_rows = batch_size * length(metrics) * length(durations),
+    pipeline_run_id = pipeline_run_id
   )
 
   completed_batches <- 0L

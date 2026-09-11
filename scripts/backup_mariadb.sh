@@ -17,6 +17,7 @@ BACKUP_DUMP_RETRY_SLEEP_SECONDS="${BACKUP_DUMP_RETRY_SLEEP_SECONDS:-}"
 BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-}"
 BACKUP_PHYSICAL_SUCCESS_MARKER="${BACKUP_PHYSICAL_SUCCESS_MARKER:-}"
 BACKUP_FAILURE_CONTEXT_FILE="${BACKUP_FAILURE_CONTEXT_FILE:-}"
+BACKUP_ATTEMPT_ID_FILE="${BACKUP_ATTEMPT_ID_FILE:-}"
 MYSQLDUMP="${MYSQLDUMP:-}"
 NC="${NC_BIN:-}"
 MYSQLDUMP_CANDIDATES=()
@@ -380,6 +381,8 @@ load_backup_environment() {
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     log "Required command not found: $1"
+    write_failure_context "command_unavailable" "" "" "command_resolution" \
+      "Required backup command is unavailable: $1."
     exit 1
   fi
 }
@@ -463,14 +466,7 @@ configure_mysqldump_extra_args() {
 load_backup_environment
 load_script_config
 
-resolve_mysqldump
-configure_mysqldump_extra_args
-require_command gzip
-require_command find
 require_command Rscript
-require_command stat
-
-mkdir -p "$BACKUP_DIR"
 
 if [[ -z "${MARIADB_HOST:-}" ]]; then
   log "MARIADB_HOST is not set."
@@ -500,6 +496,28 @@ MANIFEST_FILE="$BACKUP_DIR/.${RUN_TIMESTAMP}_manifest.tsv.tmp"
 if [[ -n "$BACKUP_FAILURE_CONTEXT_FILE" ]]; then
   : > "$BACKUP_FAILURE_CONTEXT_FILE"
 fi
+
+if [[ -n "$BACKUP_ATTEMPT_ID_FILE" ]]; then
+  (
+    cd "$RUNTIME_DIR" &&
+      Rscript --vanilla scripts/manage_backup_attempt.R start \
+        "$BACKUP_HOST" "$MARIADB_HOST" "$RUN_TIMESTAMP" \
+        "$BACKUP_STARTED_EPOCH" "$BACKUP_ATTEMPT_ID_FILE"
+  ) || {
+    log "Unable to create mandatory durable backup-attempt telemetry."
+    write_failure_context "observability_attempt_creation_failure" "" "" \
+      "backup_attempt_start" "Unable to create durable backup attempt."
+    exit 1
+  }
+fi
+
+resolve_mysqldump
+configure_mysqldump_extra_args
+require_command gzip
+require_command find
+require_command stat
+
+mkdir -p "$BACKUP_DIR"
 
 acquire_lock
 
@@ -697,19 +715,25 @@ log "Recording backup success and reconciling retained files."
 
 prepare_observability_runtime
 
+FINALIZER_ARGS=(
+  "$RUNTIME_MANIFEST_FILE"
+  "$RUNTIME_INVENTORY_FILE"
+  "$RUNTIME_STATUS_FILE"
+  "$BACKUP_DIR"
+  "$RETENTION_DAYS"
+  "$RUN_TIMESTAMP"
+  "$BACKUP_STARTED_EPOCH"
+  "$MARIADB_HOST"
+  "$BACKUP_HOST"
+)
+if [[ -n "$BACKUP_ATTEMPT_ID_FILE" && -s "$BACKUP_ATTEMPT_ID_FILE" ]]; then
+  FINALIZER_ARGS+=("$(sed -n '1p' "$BACKUP_ATTEMPT_ID_FILE")")
+fi
+
 set +e
 (
   cd "$RUNTIME_DIR" &&
-    Rscript --vanilla scripts/finalize_backup_observability.R \
-      "$RUNTIME_MANIFEST_FILE" \
-      "$RUNTIME_INVENTORY_FILE" \
-      "$RUNTIME_STATUS_FILE" \
-      "$BACKUP_DIR" \
-      "$RETENTION_DAYS" \
-      "$RUN_TIMESTAMP" \
-      "$BACKUP_STARTED_EPOCH" \
-      "$MARIADB_HOST" \
-      "$BACKUP_HOST"
+    Rscript --vanilla scripts/finalize_backup_observability.R "${FINALIZER_ARGS[@]}"
 )
 observability_status=$?
 set -e

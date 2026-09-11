@@ -25,6 +25,35 @@ automation_lock_connection <- get_connection("cycling_platform_admin")
 acquire_platform_run_lock(automation_lock_connection, raw_execution_mode)
 Sys.setenv(CYCLING_PLATFORM_PARENT_LOCK = "1")
 
+pipeline_name <- switch(
+  raw_execution_mode,
+  hygiene = "activity-hygiene",
+  activity_backfill = "annual-backfill",
+  "daily-platform"
+)
+pipeline_trigger_type <- if (raw_execution_mode %in% c("manual", "streams_only")) {
+  "MANUAL"
+} else {
+  "SCHEDULED"
+}
+pipeline_window_days <- switch(
+  raw_execution_mode,
+  hygiene = config$ingestion$activity_hygiene_days,
+  activity_backfill = config$ingestion$activity_backfill_days,
+  streams_only = NULL,
+  config$ingestion$activity_refresh_days
+)
+pipeline_run_id <- create_pipeline_run(
+  connection = automation_lock_connection,
+  pipeline_name = pipeline_name,
+  execution_mode = raw_execution_mode,
+  trigger_type = pipeline_trigger_type,
+  execution_host = platform_execution_host(),
+  requested_window_start = if (is.null(pipeline_window_days)) NULL else Sys.Date() - as.integer(pipeline_window_days),
+  requested_window_end = if (is.null(pipeline_window_days)) NULL else Sys.Date()
+)
+message("Durable pipeline execution: #", pipeline_run_id, ".")
+
 phase_results <- data.frame(
   phase_name = character(),
   phase_status = character(),
@@ -39,65 +68,21 @@ gold_change_context <- unavailable_gold_change_context(
   "Daily Silver phase has not produced change context."
 )
 
-get_latest_etl_run_id <- function() {
+get_raw_ingestion_summary <- function(pipeline_run_id) {
   connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
     {
-      latest_run <- DBI::dbGetQuery(
+      run <- DBI::dbGetQuery(
         conn = connection,
         statement = "
-          SELECT COALESCE(MAX(run_id), 0) AS run_id
+          SELECT run_id, run_mode, run_status, duration_seconds
           FROM cycling_platform_admin.etl_run
-        "
+          WHERE pipeline_run_id = ?
+          ORDER BY run_id
+        ",
+        params = list(pipeline_run_id)
       )
-
-      latest_run$run_id[[1]]
-    },
-    finally = {
-      if (DBI::dbIsValid(connection)) {
-        DBI::dbDisconnect(connection)
-      }
-    }
-  )
-}
-
-get_raw_ingestion_summary <- function(previous_run_id) {
-  connection <- get_connection("cycling_platform_admin")
-
-  tryCatch(
-    {
-      if (is.na(previous_run_id)) {
-        run <- DBI::dbGetQuery(
-          conn = connection,
-          statement = "
-            SELECT
-              run_id,
-              run_mode,
-              run_status,
-              duration_seconds
-            FROM cycling_platform_admin.etl_run
-            ORDER BY run_id DESC
-            LIMIT 1
-          "
-        )
-      } else {
-        run <- DBI::dbGetQuery(
-          conn = connection,
-          statement = "
-            SELECT
-              run_id,
-              run_mode,
-              run_status,
-              duration_seconds
-            FROM cycling_platform_admin.etl_run
-            WHERE run_id > ?
-            ORDER BY run_id DESC
-            LIMIT 1
-          ",
-          params = list(previous_run_id)
-        )
-      }
 
       if (nrow(run) != 1) {
         return(NULL)
@@ -244,8 +229,29 @@ record_phase <- function(
   phase_status,
   started_at,
   completed_at,
-  error_message = ""
+  error_message = "",
+  error = NULL
 ) {
+  if (identical(phase_status, "NOT_RUN")) {
+    annotate_not_run_pipeline_phase(
+      automation_lock_connection,
+      pipeline_run_id,
+      phase_name,
+      error_message
+    )
+  } else {
+    if (identical(phase_status, "SKIPPED")) {
+      start_pipeline_phase(automation_lock_connection, pipeline_run_id, phase_name)
+    }
+    finish_pipeline_phase(
+      automation_lock_connection,
+      pipeline_run_id,
+      phase_name,
+      phase_status,
+      error = error,
+      failure_summary = error_message
+    )
+  }
   phase_results <<- rbind(
     phase_results,
     data.frame(
@@ -464,6 +470,12 @@ describe_automation_error <- function(e, phase_name = NULL) {
 run_phase <- function(phase_name, expr) {
   started_at <- Sys.time()
 
+  start_pipeline_phase(
+    automation_lock_connection,
+    pipeline_run_id,
+    phase_name
+  )
+
   message(glue::glue(
     "Starting automation phase: {phase_name}."
   ))
@@ -498,17 +510,15 @@ run_phase <- function(phase_name, expr) {
         phase_status = "FAILED",
         started_at = started_at,
         completed_at = completed_at,
-        error_message = error_message
+        error_message = error_message,
+        error = e
       )
 
       message(glue::glue(
         "Failed automation phase: {phase_name}: {error_message}"
       ))
 
-      stop(
-        error_message,
-        call. = FALSE
-      )
+      stop(e)
     }
   )
 }
@@ -521,7 +531,7 @@ gold_transform_summary <- NULL
 achievement_notification_summary <- NULL
 backup_health_summary <- NULL
 
-get_latest_silver_transform_summary <- function() {
+get_pipeline_silver_transform_summary <- function(pipeline_run_id) {
   connection <- get_connection("cycling_platform_admin")
 
   tryCatch(
@@ -556,6 +566,7 @@ get_latest_silver_transform_summary <- function() {
               ) AS entity_recency_rank
             FROM cycling_platform_admin.transform_run tr
             WHERE layer_name = 'silver'
+              AND pipeline_run_id = ?
               AND entity_name IN ('activities', 'gear', 'activity_streams', 'activity_laps')
           )
           SELECT
@@ -577,7 +588,7 @@ get_latest_silver_transform_summary <- function() {
           WHERE entity_recency_rank = 1
           ORDER BY FIELD(entity_name, 'activities', 'gear', 'activity_streams', 'activity_laps')
         "
-      )
+      , params = list(pipeline_run_id))
 
       if (nrow(latest_runs) == 0) {
         return(NULL)
@@ -662,7 +673,8 @@ get_latest_silver_transform_summary <- function() {
   )
 }
 
-get_latest_gold_transform_summary <- function(
+get_pipeline_gold_transform_summary <- function(
+  pipeline_run_id,
   transform_timings = NULL,
   orchestration_timing = NULL
 ) {
@@ -692,6 +704,7 @@ get_latest_gold_transform_summary <- function(
               ) AS entity_recency_rank
             FROM cycling_platform_admin.transform_run
             WHERE layer_name = 'gold'
+              AND pipeline_run_id = ?
               AND entity_name IN (
                 'activity_best_efforts',
                 'activity_achievements'
@@ -717,7 +730,7 @@ get_latest_gold_transform_summary <- function(
             'activity_achievements'
           )
         "
-      )
+      , params = list(pipeline_run_id))
 
       if (nrow(latest_runs) == 0) {
         return(NULL)
@@ -818,32 +831,19 @@ tryCatch(
     run_phase(
       "raw_ingestion",
       {
-        previous_etl_run_id <- tryCatch(
-          get_latest_etl_run_id(),
-          error = function(e) {
-            message(
-              "Unable to snapshot latest ETL run before raw ingestion: ",
-              conditionMessage(e)
-            )
-
-            NA_integer_
-          }
-        )
-
         run_child_rscript(
           script = "run_raw_ingestion.R",
           args = c(
             raw_execution_mode,
-            "--no-notification"
+            "--no-notification",
+            paste0("--pipeline-run-id=", pipeline_run_id)
           ),
           label = "Raw ingestion",
           tail_lines = 30L
         )
 
         raw_ingestion_summary <<- tryCatch(
-          get_raw_ingestion_summary(
-            previous_run_id = previous_etl_run_id
-          ),
+          get_raw_ingestion_summary(pipeline_run_id),
           error = function(e) {
             message(
               "Unable to build raw ingestion notification summary: ",
@@ -868,7 +868,8 @@ tryCatch(
               config = config,
               stream_rebuild_mode = "repair",
               activity_ids = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$affected_activity_ids else NULL,
-              raw_run_id = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$run_id else NA_integer_
+              raw_run_id = if (!is.null(raw_ingestion_summary)) raw_ingestion_summary$run_id else NA_integer_,
+              pipeline_run_id = pipeline_run_id
             )
           },
           finally = {
@@ -881,7 +882,7 @@ tryCatch(
     )
 
     silver_transform_summary <<- tryCatch(
-      get_latest_silver_transform_summary(),
+      get_pipeline_silver_transform_summary(pipeline_run_id),
       error = function(e) {
         message(
           "Unable to build Silver transform notification summary: ",
@@ -908,7 +909,8 @@ tryCatch(
               per_check_timeout_seconds =
                 config$validation$publication_gate_per_check_timeout_seconds,
               overall_timeout_seconds =
-                config$validation$publication_gate_overall_timeout_seconds
+                config$validation$publication_gate_overall_timeout_seconds,
+              pipeline_run_id = pipeline_run_id
             )
 
             print_platform_completeness_validation(
@@ -940,7 +942,8 @@ tryCatch(
               connection = connection,
               config = config,
               gold_change_context = gold_change_context,
-              mode = "daily"
+              mode = "daily",
+              pipeline_run_id = pipeline_run_id
             )
           },
           finally = {
@@ -956,7 +959,8 @@ tryCatch(
 
         gold_summary_started_at <- gold_timing_now()
         gold_transform_summary <<- tryCatch(
-          get_latest_gold_transform_summary(
+          get_pipeline_gold_transform_summary(
+            pipeline_run_id = pipeline_run_id,
             transform_timings = gold_transform_timings,
             orchestration_timing = list(
               connection_seconds = gold_connection_seconds +
@@ -998,18 +1002,18 @@ tryCatch(
 
         tryCatch(
           {
-            gold_publication_results <<-
-              gold_publication_checks(
-                connection = connection,
-                config = config,
-                check_scope = "gold_publication",
-                per_check_timeout_seconds =
-                  config$validation$publication_gate_per_check_timeout_seconds,
-                deadline = validation_deadline(
-                  overall_timeout_seconds =
-                    config$validation$publication_gate_overall_timeout_seconds
-                )
-              )
+            gold_publication_results <<- run_platform_validation(
+              connection = connection,
+              config = config,
+              include_gold = TRUE,
+              validation_scope = "publication",
+              run_mode = "automated_gold_publication_gate",
+              per_check_timeout_seconds =
+                config$validation$publication_gate_per_check_timeout_seconds,
+              overall_timeout_seconds =
+                config$validation$publication_gate_overall_timeout_seconds,
+              pipeline_run_id = pipeline_run_id
+            )
 
             print_platform_completeness_validation(
               gold_publication_results
@@ -1143,6 +1147,35 @@ run_status <- if (is.null(automation_error)) {
   "FAILED"
 }
 
+if (!is.null(automation_error)) {
+  annotate_remaining_not_run_pipeline_phases(
+    automation_lock_connection,
+    pipeline_run_id,
+    "Not run because the pipeline stopped after an earlier phase failure."
+  )
+}
+
+pipeline_finalisation_error <- tryCatch(
+  {
+    finish_pipeline_run(
+      connection = automation_lock_connection,
+      pipeline_run_id = pipeline_run_id,
+      run_status = run_status,
+      error = automation_error
+    )
+    NULL
+  },
+  error = function(e) e
+)
+if (!is.null(pipeline_finalisation_error)) {
+  if (is.null(automation_error)) automation_error <- pipeline_finalisation_error
+  run_status <- "FAILED"
+  message(
+    "Critical durable pipeline finalisation failed: ",
+    conditionMessage(pipeline_finalisation_error)
+  )
+}
+
 if (isTRUE(
   is.null(silver_transform_summary) &&
     any(
@@ -1151,7 +1184,7 @@ if (isTRUE(
     )
 )) {
   silver_transform_summary <- tryCatch(
-    get_latest_silver_transform_summary(),
+    get_pipeline_silver_transform_summary(pipeline_run_id),
     error = function(e) NULL
   )
 }

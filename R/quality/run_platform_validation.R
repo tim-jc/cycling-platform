@@ -95,7 +95,8 @@ run_platform_validation <- function(
   per_check_timeout_seconds = NULL,
   overall_timeout_seconds = NULL,
   record_admin = TRUE,
-  notify = FALSE
+  notify = FALSE,
+  pipeline_run_id = NULL
 ) {
   validation_scope <- match.arg(validation_scope)
 
@@ -111,7 +112,8 @@ run_platform_validation <- function(
       validation_scope = validation_scope,
       run_mode = run_mode,
       per_check_timeout_seconds = per_check_timeout_seconds,
-      overall_timeout_seconds = overall_timeout_seconds
+      overall_timeout_seconds = overall_timeout_seconds,
+      pipeline_run_id = pipeline_run_id
     )
   }
 

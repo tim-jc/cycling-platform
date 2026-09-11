@@ -23,16 +23,19 @@ RUNTIME_FILES=(
   scripts/backup_mariadb.sh
   scripts/check_backup_physical_health.R
   scripts/finalize_backup_observability.R
+  scripts/manage_backup_attempt.R
   scripts/plan_backup_retention.R
   scripts/report_backup_runtime_health.R
   R/backup/bootstrap_backup_runtime.R
   R/config/platform_database_inventory.R
   R/database/get_connection.R
   R/database/execute_sql_file.R
+  R/admin/operational_telemetry.R
   R/utils/backup_observability.R
   sql/admin/080_create_backup_run.sql
   sql/admin/081_create_backup_run_file.sql
   sql/admin/082_create_backup_reconciliation_run.sql
+  sql/admin/083_create_backup_attempt.sql
   config/platform_databases.tsv
 )
 SECRET_KEYS=(

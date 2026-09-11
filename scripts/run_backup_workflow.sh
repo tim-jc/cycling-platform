@@ -19,6 +19,7 @@ BACKUP_COMMAND="${BACKUP_COMMAND:-$DEFAULT_BACKUP_COMMAND}"
 CURL_BIN="${CURL_BIN:-curl}"
 PHYSICAL_MARKER=""
 FAILURE_CONTEXT=""
+BACKUP_ATTEMPT_ID_FILE=""
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
@@ -39,6 +40,7 @@ fi
 
 PHYSICAL_MARKER="$(mktemp -t cycling-platform-backup-physical.XXXXXX)"
 FAILURE_CONTEXT="$(mktemp -t cycling-platform-backup-failure.XXXXXX)"
+BACKUP_ATTEMPT_ID_FILE="$(mktemp -t cycling-platform-backup-attempt.XXXXXX)"
 
 read_backup_config() {
   local key="$1"
@@ -58,7 +60,7 @@ read_backup_config() {
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
-  rm -f -- "$PHYSICAL_MARKER" "$FAILURE_CONTEXT"
+  rm -f -- "$PHYSICAL_MARKER" "$FAILURE_CONTEXT" "$BACKUP_ATTEMPT_ID_FILE"
 }
 trap cleanup EXIT
 
@@ -124,6 +126,7 @@ if [[ "$MODE" == "backup" ]]; then
   log "Starting physical off-host backup."
   BACKUP_PHYSICAL_SUCCESS_MARKER="$PHYSICAL_MARKER" \
     BACKUP_FAILURE_CONTEXT_FILE="$FAILURE_CONTEXT" \
+    BACKUP_ATTEMPT_ID_FILE="$BACKUP_ATTEMPT_ID_FILE" \
     BACKUP_ROOT="$BACKUP_ROOT" \
     BACKUP_CONFIG_FILE="$BACKUP_CONFIG_FILE" \
     BACKUP_DIR="$BACKUP_DIR" \
@@ -144,6 +147,17 @@ if [[ "$MODE" == "backup" ]]; then
     error_summary="$(failure_context_value error_summary)"
     verified_count="$(failure_context_value verified_database_count)"
     expected_count="$(failure_context_value expected_database_count)"
+    backup_attempt_id="$(sed -n '1p' "$BACKUP_ATTEMPT_ID_FILE" 2>/dev/null || true)"
+    if [[ -n "$backup_attempt_id" ]]; then
+      (
+        cd "$RUNTIME_DIR" &&
+          Rscript --vanilla scripts/manage_backup_attempt.R fail \
+            "$backup_attempt_id" "$failure_class" "${failed_database:-}" \
+            "${failed_operation:-}" "${failed_attempt:-}" \
+            "${max_attempts:-}" "${verified_count:-0}" \
+            "${error_summary:-Physical backup workflow failed.}"
+      ) || log "Unable to finalise durable failed backup-attempt telemetry."
+    fi
     failure_details="Failure class: $failure_class
 Complete verified set: ${latest_prefix:-none}"
     if [[ -n "$failed_database" ]]; then
