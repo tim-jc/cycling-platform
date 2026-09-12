@@ -144,6 +144,80 @@ testthat::test_that("validation run modes describe invocation rather than public
   testthat::expect_identical(standalone_insert[[3]], "STANDALONE")
 })
 
+testthat::test_that("final notification delivery is outside the seven-phase ledger", {
+  source(pipeline_observability_path(
+    "R", "utils", "send_platform_automation_notification.R"
+  ))
+
+  delivered <- attempt_platform_automation_notification(function() TRUE)
+  unavailable <- attempt_platform_automation_notification(function() FALSE)
+  unexpected <- suppressMessages(attempt_platform_automation_notification(
+    function() stop("ntfy timeout", call. = FALSE)
+  ))
+
+  testthat::expect_true(delivered$sent)
+  testthat::expect_null(delivered$error)
+  testthat::expect_false(unavailable$sent)
+  testthat::expect_null(unavailable$error)
+  testthat::expect_false(unexpected$sent)
+  testthat::expect_s3_class(unexpected$error, "error")
+
+  daily <- paste(
+    readLines(pipeline_observability_path("run_daily_platform.R"), warn = FALSE),
+    collapse = "\n"
+  )
+  testthat::expect_false(grepl('phase_name = "notification"', daily, fixed = TRUE))
+  testthat::expect_false(grepl('record_phase("notification"', daily, fixed = TRUE))
+
+  finalise_position <- regexpr("finish_pipeline_run(", daily, fixed = TRUE)[[1]]
+  delivery_position <- regexpr(
+    "attempt_platform_automation_notification(", daily, fixed = TRUE
+  )[[1]]
+  disconnect_position <- regexpr(
+    "DBI::dbDisconnect(automation_lock_connection)", daily, fixed = TRUE
+  )[[1]]
+  testthat::expect_gt(finalise_position, 0L)
+  testthat::expect_gt(delivery_position, finalise_position)
+  testthat::expect_gt(disconnect_position, delivery_position)
+})
+
+testthat::test_that("ntfy outcome cannot replace pipeline execution truth", {
+  source(pipeline_observability_path(
+    "R", "utils", "send_platform_automation_notification.R"
+  ))
+
+  cases <- list(
+    success_sent = list(error = NULL, send = function() TRUE),
+    success_unavailable = list(error = NULL, send = function() FALSE),
+    failed_sent = list(
+      error = simpleError("original pipeline failure"),
+      send = function() TRUE
+    ),
+    failed_unavailable = list(
+      error = simpleError("original pipeline failure"),
+      send = function() FALSE
+    )
+  )
+
+  outcomes <- lapply(cases, function(case) {
+    delivery <- attempt_platform_automation_notification(case$send)
+    list(
+      pipeline_status = if (is.null(case$error)) "SUCCESS" else "FAILED",
+      pipeline_error = case$error,
+      notification_sent = delivery$sent
+    )
+  })
+
+  testthat::expect_identical(outcomes$success_sent$pipeline_status, "SUCCESS")
+  testthat::expect_identical(outcomes$success_unavailable$pipeline_status, "SUCCESS")
+  testthat::expect_identical(outcomes$failed_sent$pipeline_status, "FAILED")
+  testthat::expect_identical(outcomes$failed_unavailable$pipeline_status, "FAILED")
+  testthat::expect_identical(
+    conditionMessage(outcomes$failed_unavailable$pipeline_error),
+    "original pipeline failure"
+  )
+})
+
 testthat::test_that("connection setup establishes an explicit UTC session", {
   text <- paste(readLines(pipeline_observability_path("R", "database", "get_connection.R"), warn = FALSE), collapse = "\n")
   testthat::expect_match(text, "SET time_zone = '\\+00:00'", fixed = FALSE)

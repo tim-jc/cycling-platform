@@ -14,6 +14,19 @@
 #' @param error_message Optional error message.
 #'
 #' @return Invisibly returns TRUE when a notification was sent, otherwise FALSE.
+attempt_platform_automation_notification <- function(send_fn) {
+  tryCatch(
+    list(sent = isTRUE(send_fn()), error = NULL),
+    error = function(e) {
+      message(
+        "Automation notification delivery failed unexpectedly: ",
+        conditionMessage(e)
+      )
+      list(sent = FALSE, error = e)
+    }
+  )
+}
+
 notification_count <- function(value, default = 0) {
   if (is.null(value) || length(value) == 0L || is.na(value[[1]])) default else as.numeric(value[[1]])
 }

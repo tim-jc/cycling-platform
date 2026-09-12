@@ -1215,11 +1215,9 @@ backup_health_summary <- tryCatch(
   }
 )
 
-notification_started_at <- Sys.time()
-
-tryCatch(
-  {
-    notification_sent <- send_platform_automation_notification(
+notification_delivery <- attempt_platform_automation_notification(
+  send_fn = function() {
+    send_platform_automation_notification(
       config = config,
       run_status = run_status,
       phase_results = phase_results,
@@ -1237,33 +1235,20 @@ tryCatch(
         condition_message_safe(automation_error)
       }
     )
-
-    if (identical(run_status, "FAILED") && isTRUE(notification_sent)) {
-      message("CYCLING_PLATFORM_FAILURE_NOTIFICATION_SENT")
-    }
-
-    record_phase(
-      phase_name = "notification",
-      phase_status = if (isTRUE(notification_sent)) "SUCCESS" else "SKIPPED",
-      started_at = notification_started_at,
-      completed_at = Sys.time()
-    )
-  },
-  error = function(e) {
-    record_phase(
-      phase_name = "notification",
-      phase_status = "FAILED",
-      started_at = notification_started_at,
-      completed_at = Sys.time(),
-      error_message = conditionMessage(e)
-    )
-
-    message(
-      "Automation notification phase failed: ",
-      conditionMessage(e)
-    )
   }
 )
+
+if (identical(run_status, "FAILED") && isTRUE(notification_delivery$sent)) {
+  message("CYCLING_PLATFORM_FAILURE_NOTIFICATION_SENT")
+}
+
+if (!isTRUE(notification_delivery$sent)) {
+  message(
+    "Final automation notification was not delivered; durable pipeline status remains ",
+    run_status,
+    "."
+  )
+}
 
 message("Platform automation phase summary:")
 print(phase_results)

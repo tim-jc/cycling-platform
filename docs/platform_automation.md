@@ -154,6 +154,14 @@ The shared formatter is used by:
 * validation success, warning, failure, and timeout notifications;
 * activity-achievement notifications.
 
+The final platform ntfy delivery occurs after the seven durable pipeline phases
+and after `pipeline_run` has been terminally finalised. It is best-effort
+operational delivery, not an eighth pipeline phase. A delivery failure does not
+change durable pipeline execution truth: a successful pipeline remains
+`SUCCESS`, while an already failed pipeline retains its original failure and
+exit status. Delivery failure is reported in the process log; dedicated durable
+delivery-attempt telemetry is deferred.
+
 Duration is omitted where the event has no meaningful pipeline duration.
 Existing entity, transform, validation, achievement, backup, phase, and error
 details follow the context header. Failure details use a separate `Error:`
