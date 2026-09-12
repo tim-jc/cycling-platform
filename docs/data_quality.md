@@ -319,6 +319,11 @@ Both scopes record status and timing in:
 * `cycling_platform_admin.validation_run`
 * `cycling_platform_admin.validation_run_check`
 
+`validation_run.run_mode` records how validation was invoked, using the bounded
+vocabulary `MANUAL`, `AUTOMATED`, or `STANDALONE`. The validation target belongs
+in `validation_scope` and the recorded checks; Silver versus Gold publication
+must not be encoded by inventing increasingly specific run-mode strings.
+
 Use these tables to inspect validation freshness, failure status, timed-out
 checks, and the slowest checks from recent runs.
 

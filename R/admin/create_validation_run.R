@@ -9,6 +9,42 @@
 #' @param overall_timeout_seconds Optional overall timeout in seconds.
 #'
 #' @return Integer validation run identifier.
+validation_run_modes <- function() {
+  c("manual", "automated", "standalone")
+}
+
+normalise_validation_run_mode <- function(run_mode) {
+  if (length(run_mode) != 1L || is.na(run_mode)) {
+    stop("Validation run_mode must be one non-missing value.", call. = FALSE)
+  }
+
+  normalised <- tolower(trimws(as.character(run_mode)))
+  if (!normalised %in% validation_run_modes()) {
+    stop(
+      "Unsupported validation run_mode: ", run_mode, ". Expected one of: ",
+      paste(validation_run_modes(), collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  normalised
+}
+
+validation_run_insert_params <- function(
+  pipeline_run_id,
+  validation_scope,
+  run_mode,
+  per_check_timeout_seconds,
+  overall_timeout_seconds
+) {
+  list(
+    if (is.null(pipeline_run_id)) NA else pipeline_run_id,
+    toupper(validation_scope),
+    toupper(normalise_validation_run_mode(run_mode)),
+    per_check_timeout_seconds,
+    overall_timeout_seconds
+  )
+}
+
 create_validation_run <- function(
   connection,
   validation_scope,
@@ -38,12 +74,12 @@ create_validation_run <- function(
       )
       VALUES (?, ?, ?, 'RUNNING', ?, ?)
     ",
-    params = list(
-      if (is.null(pipeline_run_id)) NA else pipeline_run_id,
-      toupper(validation_scope),
-      toupper(run_mode),
-      per_check_timeout_seconds,
-      overall_timeout_seconds
+    params = validation_run_insert_params(
+      pipeline_run_id = pipeline_run_id,
+      validation_scope = validation_scope,
+      run_mode = run_mode,
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      overall_timeout_seconds = overall_timeout_seconds
     )
   )
 

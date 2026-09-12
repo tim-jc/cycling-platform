@@ -905,7 +905,7 @@ tryCatch(
               config = config,
               include_gold = FALSE,
               validation_scope = "publication",
-              run_mode = "automated_publication_gate",
+              run_mode = "automated",
               per_check_timeout_seconds =
                 config$validation$publication_gate_per_check_timeout_seconds,
               overall_timeout_seconds =
@@ -1007,7 +1007,7 @@ tryCatch(
               config = config,
               include_gold = TRUE,
               validation_scope = "publication",
-              run_mode = "automated_gold_publication_gate",
+              run_mode = "automated",
               per_check_timeout_seconds =
                 config$validation$publication_gate_per_check_timeout_seconds,
               overall_timeout_seconds =

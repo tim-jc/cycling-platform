@@ -71,6 +71,79 @@ testthat::test_that("standalone child execution lineage remains nullable", {
   }
 })
 
+testthat::test_that("validation run modes describe invocation rather than publication target", {
+  source(pipeline_observability_path("R", "admin", "create_validation_run.R"))
+
+  testthat::expect_equal(
+    validation_run_modes(),
+    c("manual", "automated", "standalone")
+  )
+  testthat::expect_equal(normalise_validation_run_mode("AUTOMATED"), "automated")
+  testthat::expect_error(
+    normalise_validation_run_mode("automated_gold_publication_gate"),
+    "Unsupported validation run_mode"
+  )
+
+  daily <- paste(
+    readLines(pipeline_observability_path("run_daily_platform.R"), warn = FALSE),
+    collapse = "\n"
+  )
+  testthat::expect_equal(
+    lengths(regmatches(daily, gregexpr('run_mode = "automated"', daily, fixed = TRUE))),
+    2L
+  )
+  testthat::expect_false(grepl("automated_publication_gate", daily, fixed = TRUE))
+  testthat::expect_false(grepl("automated_gold_publication_gate", daily, fixed = TRUE))
+
+  gold_publication_insert <- validation_run_insert_params(
+    pipeline_run_id = 225L,
+    validation_scope = "publication",
+    run_mode = "automated",
+    per_check_timeout_seconds = 30L,
+    overall_timeout_seconds = 300L
+  )
+  testthat::expect_identical(gold_publication_insert[[1]], 225L)
+  testthat::expect_identical(gold_publication_insert[[2]], "PUBLICATION")
+  testthat::expect_identical(gold_publication_insert[[3]], "AUTOMATED")
+  validation_run_ddl <- paste(
+    readLines(
+      pipeline_observability_path("sql", "admin", "050_create_validation_run.sql"),
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+  run_mode_width <- as.integer(sub(
+    ".*run_mode VARCHAR\\(([0-9]+)\\).*",
+    "\\1",
+    validation_run_ddl
+  ))
+  testthat::expect_identical(run_mode_width, 30L)
+  testthat::expect_lte(nchar(gold_publication_insert[[3]]), run_mode_width)
+
+  silver_publication_insert <- validation_run_insert_params(
+    pipeline_run_id = 225L,
+    validation_scope = "publication",
+    run_mode = "automated",
+    per_check_timeout_seconds = 30L,
+    overall_timeout_seconds = 300L
+  )
+  testthat::expect_identical(
+    silver_publication_insert[1:3],
+    gold_publication_insert[1:3]
+  )
+
+  standalone_insert <- validation_run_insert_params(
+    pipeline_run_id = NULL,
+    validation_scope = "deep",
+    run_mode = "standalone",
+    per_check_timeout_seconds = 30L,
+    overall_timeout_seconds = 300L
+  )
+  testthat::expect_true(is.na(standalone_insert[[1]]))
+  testthat::expect_identical(standalone_insert[[2]], "DEEP")
+  testthat::expect_identical(standalone_insert[[3]], "STANDALONE")
+})
+
 testthat::test_that("connection setup establishes an explicit UTC session", {
   text <- paste(readLines(pipeline_observability_path("R", "database", "get_connection.R"), warn = FALSE), collapse = "\n")
   testthat::expect_match(text, "SET time_zone = '\\+00:00'", fixed = FALSE)
