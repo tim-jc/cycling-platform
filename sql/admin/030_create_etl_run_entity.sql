@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run_entity (
 
     run_id BIGINT NOT NULL,
 
+    source_id INT NULL,
+
     entity_name VARCHAR(100) NOT NULL,
 
     entity_status VARCHAR(20) NOT NULL,
@@ -26,7 +28,11 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.etl_run_entity (
 
     CONSTRAINT fk_etl_run_entity
         FOREIGN KEY (run_id)
-        REFERENCES cycling_platform_admin.etl_run (run_id)
+        REFERENCES cycling_platform_admin.etl_run (run_id),
+
+    CONSTRAINT fk_etl_run_entity_source
+        FOREIGN KEY (source_id)
+        REFERENCES cycling_platform_admin.data_source (source_id)
 
 ) ENGINE=InnoDB
   DEFAULT CHARACTER SET utf8mb4

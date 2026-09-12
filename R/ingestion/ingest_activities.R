@@ -18,6 +18,7 @@ ingest_activities <- function(
   run_entity_id <- create_etl_run_entity(
     connection = connection,
     run_id = run_id,
+    source_id = source_id,
     entity_name = "activities"
   )
 

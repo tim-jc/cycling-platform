@@ -917,6 +917,71 @@ validate_platform_completeness <- function(
     checks,
     run_validation_query(
       connection = connection,
+      check_name = "admin_phase_1b_gold_telemetry_governed",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT metrics.transform_run_id, runs.entity_name, metrics.metric_name,
+               metrics.metric_value, metrics.metric_unit
+        FROM cycling_platform_admin.transform_run_metric metrics
+        INNER JOIN cycling_platform_admin.transform_run runs
+          ON runs.transform_run_id = metrics.transform_run_id
+        WHERE metrics.metric_value < 0
+           OR metrics.metric_unit <> 'COUNT'
+           OR (runs.entity_name = 'activity_best_efforts'
+               AND metrics.metric_name NOT IN (
+                 'upstream_affected_count', 'output_changed_activity_count',
+                 'repair_candidate_count'))
+           OR (runs.entity_name = 'activity_achievements'
+               AND metrics.metric_name NOT IN (
+                 'direct_affected_count', 'evaluation_debt_count',
+                 'closure_activity_count', 'zero_achievement_evaluations',
+                 'evaluation_state_rows_invalidated',
+                 'evaluation_state_rows_current', 'remaining_invalidated_count'))
+           OR runs.entity_name NOT IN ('activity_best_efforts', 'activity_achievements')
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_phase_1b_timing_non_negative",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT transform_run_id, entity_name
+        FROM cycling_platform_admin.transform_run
+        WHERE COALESCE(setup_seconds, 0) < 0
+           OR COALESCE(discovery_seconds, 0) < 0
+           OR COALESCE(source_preparation_seconds, 0) < 0
+           OR COALESCE(processing_seconds, 0) < 0
+           OR COALESCE(finalisation_seconds, 0) < 0
+           OR (discovery_mode IS NOT NULL AND discovery_mode NOT IN (
+                 'skipped', 'affected_set', 'repair_scan'))
+           OR (candidate_mode IS NOT NULL AND candidate_mode NOT IN (
+                 'conservative', 'evaluation_state', 'latest_append',
+                 'historical_closure', 'repair', 'repair_closure', 'rebuild',
+                 'conservative_fallback'))
+           OR (invalidation_action IS NOT NULL AND invalidation_action NOT IN (
+                 'none', 'latest_append', 'historical_closure'))
+           OR (invalidation_reason IS NOT NULL AND invalidation_reason NOT IN (
+                 'HISTORICAL_ACTIVITY_CHANGE', 'HISTORICAL_INSERT',
+                 'BEST_EFFORT_CHANGE', 'POWER_ELIGIBILITY_CHANGE',
+                 'DATE_CHANGE', 'REPAIR', 'explicit_backfill'))
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
       check_name = "admin_pipeline_terminal_state_consistent",
       check_scope = "publication",
       severity = "CRITICAL",

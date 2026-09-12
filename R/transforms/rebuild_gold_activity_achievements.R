@@ -896,13 +896,26 @@ rebuild_gold_activity_achievements <- function(
   evaluation_state_rows_written <- 0L
   zero_achievement_evaluations <- 0L
   invalidation_action <- "none"
+  invalidation_reason <- NA_character_
   dependency_start_date <- as.Date(NA)
   closure_activity_count <- 0L
   evaluation_state_rows_invalidated <- 0L
   remaining_invalidated_count <- 0L
   direct_affected_count <- 0L
+  transform_run_id <- NULL
 
   finish_with_timing <- function(result) {
+    measured_before_finalisation <- gold_elapsed_seconds(transform_wall_started_at)
+    finalisation_seconds <- max(
+      finalisation_seconds,
+      measured_before_finalisation - sum(
+        c(
+          setup_seconds, candidate_discovery_seconds,
+          source_preparation_seconds, processing_seconds
+        ),
+        na.rm = TRUE
+      )
+    )
     timing <- gold_transform_timing(
       entity_name = "activity_achievements",
       setup_seconds = setup_seconds,
@@ -910,7 +923,7 @@ rebuild_gold_activity_achievements <- function(
       source_preparation_seconds = source_preparation_seconds,
       processing_seconds = processing_seconds,
       finalisation_seconds = finalisation_seconds,
-      total_seconds = gold_elapsed_seconds(transform_wall_started_at)
+      total_seconds = measured_before_finalisation
     )
 
     timing$candidate_mode <- candidate_mode
@@ -923,6 +936,22 @@ rebuild_gold_activity_achievements <- function(
     timing$evaluation_state_rows_invalidated <- evaluation_state_rows_invalidated
     timing$remaining_invalidated_count <- remaining_invalidated_count
     timing$direct_affected_count <- direct_affected_count
+    timing$invalidation_reason <- invalidation_reason
+    persist_gold_transform_observability(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      entity_name = "activity_achievements",
+      timing = timing,
+      metrics = list(
+        direct_affected_count = direct_affected_count,
+        evaluation_debt_count = evaluation_debt_count,
+        closure_activity_count = closure_activity_count,
+        zero_achievement_evaluations = zero_achievement_evaluations,
+        evaluation_state_rows_invalidated = evaluation_state_rows_invalidated,
+        evaluation_state_rows_current = evaluation_state_rows_written,
+        remaining_invalidated_count = remaining_invalidated_count
+      )
+    )
     log_gold_transform_timing(timing)
     invisible(attach_gold_transform_timing(result, timing))
   }

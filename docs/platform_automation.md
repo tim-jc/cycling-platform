@@ -1,5 +1,10 @@
 # Platform Automation
 
+The daily pipeline persists its execution hierarchy and Phase 1B workload facts
+in `cycling_platform_admin`; see
+[`operational_observability.md`](operational_observability.md). This longitudinal
+telemetry does not make routine success notifications verbose again.
+
 Automation v1 is intentionally small and conservative. It runs the existing raw
 ingestion path, then runs Silver transforms, fast Silver publication checks,
 production Gold transforms, fast Gold publication checks, and notification as

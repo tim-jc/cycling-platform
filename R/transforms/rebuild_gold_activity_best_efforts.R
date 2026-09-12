@@ -977,15 +977,39 @@ rebuild_gold_activity_best_efforts <- function(
   discovery_mode <- "repair_scan"
   upstream_affected_count <- if (is.null(activity_ids)) NA_integer_ else length(unique(activity_ids))
   output_changed_activity_ids <- bit64::as.integer64(character())
+  repair_candidate_count <- NA_integer_
+  transform_run_id <- NULL
 
   finish_with_timing <- function(result) {
+    measured_before_finalisation <- gold_elapsed_seconds(transform_wall_started_at)
+    finalisation_seconds <- max(
+      finalisation_seconds,
+      measured_before_finalisation - sum(
+        c(setup_seconds, candidate_discovery_seconds, processing_seconds),
+        na.rm = TRUE
+      )
+    )
     timing <- gold_transform_timing(
       entity_name = "activity_best_efforts",
       setup_seconds = setup_seconds,
       candidate_discovery_seconds = candidate_discovery_seconds,
       processing_seconds = processing_seconds,
       finalisation_seconds = finalisation_seconds,
-      total_seconds = gold_elapsed_seconds(transform_wall_started_at)
+      total_seconds = measured_before_finalisation
+    )
+    timing$discovery_mode <- discovery_mode
+    timing$upstream_affected_count <- upstream_affected_count
+    timing$output_changed_activity_count <- length(output_changed_activity_ids)
+    persist_gold_transform_observability(
+      connection = connection,
+      transform_run_id = transform_run_id,
+      entity_name = "activity_best_efforts",
+      timing = timing,
+      metrics = list(
+        upstream_affected_count = upstream_affected_count,
+        output_changed_activity_count = length(output_changed_activity_ids),
+        repair_candidate_count = repair_candidate_count
+      )
     )
 
     log_gold_transform_timing(timing)
@@ -1158,6 +1182,9 @@ rebuild_gold_activity_best_efforts <- function(
   }
 
   candidate_activity_count <- nrow(activity_plan)
+  if (identical(discovery_mode, "repair_scan")) {
+    repair_candidate_count <- candidate_activity_count
+  }
 
   message(glue::glue(
     "Gold activity_best_efforts discovery mode: {discovery_mode}; ",

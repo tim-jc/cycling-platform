@@ -36,6 +36,7 @@ ingest_gear <- function(connection, run_id, source_id, config) {
   run_entity_id <- create_etl_run_entity(
     connection = connection,
     run_id = run_id,
+    source_id = source_id,
     entity_name = "gear"
   )
 
@@ -46,6 +47,33 @@ ingest_gear <- function(connection, run_id, source_id, config) {
     entity_name = "gear",
     endpoint_name = "GET /athlete + GET /gear/{id}"
   )
+  request_sequence <- 0L
+  current_request_sequence <- 0L
+  attempt_observer <- function(
+    path, attempt_number, attempt_status, retry_decision, http_status,
+    error, started_at, completed_at
+  ) {
+    if (identical(as.integer(attempt_number), 1L)) {
+      request_sequence <<- request_sequence + 1L
+      current_request_sequence <<- request_sequence
+    }
+    is_gear <- grepl("^/gear/", path)
+    record_api_request_attempt(
+      connection = connection,
+      endpoint_run_id = endpoint_run_id,
+      request_sequence = current_request_sequence,
+      request_name = if (is_gear) "GET /gear/{id}" else paste("GET", path),
+      source_reference = if (is_gear) sub("^/gear/", "", path) else NULL,
+      attempt_number = attempt_number,
+      attempt_status = attempt_status,
+      retry_decision = retry_decision,
+      http_status = http_status,
+      failure_class = if (is.null(error)) NULL else paste(class(error), collapse = "/"),
+      error_summary = if (is.null(error)) NULL else conditionMessage(error),
+      started_at = started_at,
+      completed_at = completed_at
+    )
+  }
 
   tryCatch(
     {
@@ -62,7 +90,8 @@ ingest_gear <- function(connection, run_id, source_id, config) {
             config$ingestion$gear_resolution_retry_days
           }
         ),
-        config = config
+        config = config,
+        attempt_observer = attempt_observer
       )
 
       load_result <- DBI::dbWithTransaction(

@@ -1107,6 +1107,16 @@ tryCatch(
               delivery_result = delivery_result
             )
 
+            update_achievement_notification_phase_workload(
+              connection = connection,
+              pipeline_run_id = pipeline_run_id,
+              queued = queue_result$queued,
+              attempted = delivery_result$attempted,
+              sent = delivery_result$sent,
+              failed = delivery_result$failed,
+              deferred = delivery_result$retry
+            )
+
             if (delivery_result$failed > 0) {
               stop(
                 "Achievement notification delivery failed for ",

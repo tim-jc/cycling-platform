@@ -97,6 +97,7 @@ get_gear <- function(
   config,
   token_fn = get_access_token,
   request_fn = perform_strava_request,
+  attempt_observer = NULL,
   body_fn = function(response) {
     httr2::resp_body_json(response, simplifyVector = FALSE)
   }
@@ -104,12 +105,15 @@ get_gear <- function(
   token <- token_fn()
   observed_at <- Sys.time()
   request_count <- 0L
+  perform_request <- function(path) {
+    arguments <- list(path = path, config = config, token = token)
+    if (!is.null(attempt_observer)) {
+      arguments$attempt_observer <- attempt_observer
+    }
+    do.call(request_fn, arguments)
+  }
 
-  athlete_response <- request_fn(
-    path = "/athlete",
-    config = config,
-    token = token
-  )
+  athlete_response <- perform_request("/athlete")
   request_count <- request_count + 1L
   athlete <- body_fn(athlete_response)
 
@@ -158,10 +162,8 @@ get_gear <- function(
     request_count <- request_count + 1L
     response <- tryCatch(
       {
-        request_fn(
-          path = paste0("/gear/", utils::URLencode(gear_id, reserved = TRUE)),
-          config = config,
-          token = token
+        perform_request(
+          paste0("/gear/", utils::URLencode(gear_id, reserved = TRUE))
         )
       },
       error = function(e) e

@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.transform_run (
 
     max_batch_expected_rows BIGINT NULL,
 
+    setup_seconds DOUBLE NULL,
+    discovery_seconds DOUBLE NULL,
+    source_preparation_seconds DOUBLE NULL,
+    processing_seconds DOUBLE NULL,
+    finalisation_seconds DOUBLE NULL,
+    discovery_mode VARCHAR(30) NULL,
+    candidate_mode VARCHAR(30) NULL,
+    invalidation_action VARCHAR(40) NULL,
+    invalidation_reason VARCHAR(100) NULL,
+    dependency_start_date DATE NULL,
+
     started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     completed_at DATETIME NULL,

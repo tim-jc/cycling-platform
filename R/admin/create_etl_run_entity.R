@@ -8,20 +8,23 @@
 create_etl_run_entity <- function(
   connection,
   run_id,
-  entity_name
+  entity_name,
+  source_id = NULL
 ) {
   DBI::dbExecute(
     conn = connection,
     statement = "
       INSERT INTO cycling_platform_admin.etl_run_entity (
         run_id,
+        source_id,
         entity_name,
         entity_status
       )
-      VALUES (?, ?, 'RUNNING')
+      VALUES (?, ?, ?, 'RUNNING')
     ",
     params = list(
       run_id,
+      if (is.null(source_id)) NA_integer_ else source_id,
       entity_name
     )
   )

@@ -20,6 +20,12 @@ CREATE TABLE IF NOT EXISTS cycling_platform_admin.pipeline_phase_run (
 
     failure_summary TEXT NULL,
 
+    notifications_queued INT NULL,
+    notifications_attempted INT NULL,
+    notifications_sent INT NULL,
+    notifications_failed INT NULL,
+    notifications_deferred INT NULL,
+
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT chk_pipeline_phase_name

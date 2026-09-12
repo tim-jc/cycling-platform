@@ -1,5 +1,10 @@
 # Platform Architecture
 
+Operational telemetry is a first-class Admin data product. Its durable execution,
+timing, workload, request-attempt, and source-lineage contracts are documented in
+[`operational_observability.md`](operational_observability.md). Logs remain the
+detailed diagnostic authority and ntfy remains exception-oriented.
+
 ## Data Flow
 
 ```text

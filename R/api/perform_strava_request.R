@@ -13,7 +13,10 @@ perform_strava_request <- function(
   path,
   config,
   query = list(),
-  token = get_access_token()
+  token = get_access_token(),
+  attempt_observer = NULL,
+  request_perform = httr2::req_perform,
+  sleep_fn = Sys.sleep
 ) {
   value_or_default <- function(value, default) {
     if (is.null(value)) {
@@ -90,7 +93,7 @@ perform_strava_request <- function(
       "sleeping {sleep_seconds}s before next request."
     ))
 
-    Sys.sleep(sleep_seconds)
+    sleep_fn(sleep_seconds)
 
     message(
       "Strava practical 15-minute rate limit sleep complete; ",
@@ -180,19 +183,52 @@ perform_strava_request <- function(
   for (attempt in seq_len(total_attempts)) {
     throttle_if_needed()
 
+    attempt_started_at <- Sys.time()
+
     response <- tryCatch(
-      httr2::req_perform(request),
+      request_perform(request),
       error = function(e) e
     )
+    attempt_completed_at <- Sys.time()
 
     if (!inherits(response, "error")) {
       log_rate_limit_headers(response)
+
+      if (!is.null(attempt_observer)) {
+        attempt_observer(
+          path = path, attempt_number = attempt,
+          attempt_status = "SUCCESS", retry_decision = "SUCCESS",
+          http_status = httr2::resp_status(response), error = NULL,
+          started_at = attempt_started_at, completed_at = attempt_completed_at
+        )
+      }
 
       return(response)
     }
 
     if (inherits(response, "httr2_http") && !is.null(response$resp)) {
       log_rate_limit_headers(response$resp)
+    }
+
+    is_retryable <- inherits(response, "httr2_failure") ||
+      inherits(response, "httr2_http_500") ||
+      inherits(response, "httr2_http_502") ||
+      inherits(response, "httr2_http_503") ||
+      inherits(response, "httr2_http_504")
+
+    retry_decision <- if (is_retryable && attempt < total_attempts) "RETRY" else "STOP"
+    http_status <- if (inherits(response, "httr2_http") && !is.null(response$resp)) {
+      httr2::resp_status(response$resp)
+    } else {
+      NA_integer_
+    }
+    if (!is.null(attempt_observer)) {
+      attempt_observer(
+        path = path, attempt_number = attempt,
+        attempt_status = "FAILED", retry_decision = retry_decision,
+        http_status = http_status, error = response,
+        started_at = attempt_started_at, completed_at = attempt_completed_at
+      )
     }
 
     if (inherits(response, "httr2_http_429")) {
@@ -202,12 +238,6 @@ perform_strava_request <- function(
 
       stop(response)
     }
-
-    is_retryable <- inherits(response, "httr2_failure") ||
-      inherits(response, "httr2_http_500") ||
-      inherits(response, "httr2_http_502") ||
-      inherits(response, "httr2_http_503") ||
-      inherits(response, "httr2_http_504")
 
     if (!is_retryable) {
       stop(response)
@@ -234,6 +264,6 @@ perform_strava_request <- function(
       "Error: {conditionMessage(response)}"
     ))
 
-    Sys.sleep(pause_seconds)
+    sleep_fn(pause_seconds)
   }
 }
