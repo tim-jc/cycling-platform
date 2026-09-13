@@ -165,6 +165,15 @@ Grafana and future operational MCP tools may consume these stable read models:
 Helper views prefixed with the same domain names support these contracts but are
 not intended as primary dashboard APIs.
 
+### Operational view text collation
+
+MariaDB can infer the connection collation for text produced solely from string
+literals, particularly `CASE` and `UNION ALL` outputs. Operational view DDL must
+apply `COLLATE utf8mb4_general_ci` explicitly to every generated textual output
+at its originating expression. Text selected directly from canonical table or
+view columns retains the source column collation. This prevents the compiled
+view contract from depending on the session used to run bootstrap.
+
 The transform history view exposes `has_phase_1b_metrics`. A new no-op Gold run
 has explicit zero metrics and this flag set; a pre-Phase-1B run has null metrics
 and the flag unset. Consumers must preserve that distinction.

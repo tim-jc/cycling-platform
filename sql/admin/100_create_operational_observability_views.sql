@@ -1,3 +1,7 @@
+-- MariaDB derives the collation of literal-only CASE and UNION expressions
+-- from the creating session. Every generated text output is therefore given
+-- the governed platform collation explicitly; base-column text retains its
+-- canonical table-column collation.
 CREATE OR REPLACE VIEW cycling_platform_admin.v_pipeline_run_history AS
 SELECT pipeline_run_id, pipeline_name, execution_mode, trigger_type,
        execution_host, requested_window_start, requested_window_end,
@@ -7,7 +11,7 @@ SELECT pipeline_run_id, pipeline_name, execution_mode, trigger_type,
          WHEN run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR THEN 'CRITICAL'
          WHEN run_status = 'RUNNING' THEN 'INFO'
          ELSE 'HEALTHY'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        started_at AS started_at_utc, completed_at AS completed_at_utc,
        duration_seconds, failure_class, failure_summary
 FROM cycling_platform_admin.pipeline_run;
@@ -21,7 +25,7 @@ SELECT phase.pipeline_phase_run_id, phase.pipeline_run_id,
          WHEN phase.phase_status = 'RUNNING' AND phase.started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR THEN 'CRITICAL'
          WHEN phase.phase_status IN ('RUNNING', 'SKIPPED', 'NOT_RUN') THEN 'INFO'
          ELSE 'HEALTHY'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        phase.started_at AS started_at_utc,
        phase.completed_at AS completed_at_utc,
        phase.duration_seconds,
@@ -115,7 +119,7 @@ SELECT policy.source_id, source.source_name, policy.entity_name,
          WHEN latest.newest_source_data_at > latest.previous_source_data_at THEN 'ADVANCED'
          WHEN latest.newest_source_data_at = latest.previous_source_data_at THEN 'UNCHANGED'
          ELSE 'REGRESSED'
-       END AS source_data_change_status,
+       END COLLATE utf8mb4_general_ci AS source_data_change_status,
        TIMESTAMPDIFF(MINUTE, success.latest_success_at_utc, UTC_TIMESTAMP()) / 60.0 AS execution_age_hours,
        TIMESTAMPDIFF(MINUTE, latest.newest_source_data_at, UTC_TIMESTAMP()) / 60.0 AS source_data_age_hours,
        CASE
@@ -132,7 +136,7 @@ SELECT policy.source_id, source.source_name, policy.entity_name,
            CASE WHEN policy.entity_requirement = 'REQUIRED' THEN 'WARNING' ELSE 'INFO' END
          WHEN latest.newest_source_data_at IS NULL THEN 'INFO'
          ELSE 'HEALTHY'
-       END AS health_status
+       END COLLATE utf8mb4_general_ci AS health_status
 FROM cycling_platform_admin.source_entity_observability_policy policy
 INNER JOIN cycling_platform_admin.data_source source ON source.source_id = policy.source_id
 LEFT JOIN cycling_platform_admin.v_source_freshness_observation_history latest
@@ -143,33 +147,33 @@ LEFT JOIN cycling_platform_admin.v_source_execution_success_latest success
   ON success.source_id = policy.source_id AND success.entity_name = policy.entity_name;
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_publication_success_latest AS
-SELECT 'RAW' publication_name,
+SELECT 'RAW' COLLATE utf8mb4_general_ci publication_name,
        MAX(CASE WHEN phase.phase_status = 'SUCCESS' THEN phase.completed_at END) latest_success_at_utc,
        MAX(phase.started_at) latest_attempt_at_utc,
        SUBSTRING_INDEX(GROUP_CONCAT(phase.phase_status ORDER BY phase.started_at DESC), ',', 1) latest_attempt_status,
        30 warning_after_hours, 48 critical_after_hours,
-       'Latest successful daily raw_ingestion phase completion' timestamp_semantics
+       'Latest successful daily raw_ingestion phase completion' COLLATE utf8mb4_general_ci timestamp_semantics
 FROM cycling_platform_admin.pipeline_phase_run phase
 INNER JOIN cycling_platform_admin.pipeline_run pipeline ON pipeline.pipeline_run_id = phase.pipeline_run_id
 WHERE phase.phase_name = 'raw_ingestion' AND pipeline.pipeline_name = 'daily-platform'
 UNION ALL
-SELECT 'SILVER', MAX(CASE WHEN phase.phase_status = 'SUCCESS' THEN phase.completed_at END),
+SELECT 'SILVER' COLLATE utf8mb4_general_ci, MAX(CASE WHEN phase.phase_status = 'SUCCESS' THEN phase.completed_at END),
        MAX(phase.started_at), SUBSTRING_INDEX(GROUP_CONCAT(phase.phase_status ORDER BY phase.started_at DESC), ',', 1), 30, 48,
-       'Latest successful Silver publication gate completion'
+       'Latest successful Silver publication gate completion' COLLATE utf8mb4_general_ci
 FROM cycling_platform_admin.pipeline_phase_run phase
 INNER JOIN cycling_platform_admin.pipeline_run pipeline ON pipeline.pipeline_run_id = phase.pipeline_run_id
 WHERE phase.phase_name = 'silver_publication_checks' AND pipeline.pipeline_name = 'daily-platform'
 UNION ALL
-SELECT 'GOLD', MAX(CASE WHEN phase.phase_status = 'SUCCESS' THEN phase.completed_at END),
+SELECT 'GOLD' COLLATE utf8mb4_general_ci, MAX(CASE WHEN phase.phase_status = 'SUCCESS' THEN phase.completed_at END),
        MAX(phase.started_at), SUBSTRING_INDEX(GROUP_CONCAT(phase.phase_status ORDER BY phase.started_at DESC), ',', 1), 30, 48,
-       'Latest successful Gold publication gate completion'
+       'Latest successful Gold publication gate completion' COLLATE utf8mb4_general_ci
 FROM cycling_platform_admin.pipeline_phase_run phase
 INNER JOIN cycling_platform_admin.pipeline_run pipeline ON pipeline.pipeline_run_id = phase.pipeline_run_id
 WHERE phase.phase_name = 'gold_publication_checks' AND pipeline.pipeline_name = 'daily-platform'
 UNION ALL
-SELECT 'DEEP_VALIDATION', MAX(CASE WHEN run_status = 'SUCCESS' THEN completed_at END),
+SELECT 'DEEP_VALIDATION' COLLATE utf8mb4_general_ci, MAX(CASE WHEN run_status = 'SUCCESS' THEN completed_at END),
        MAX(started_at), SUBSTRING_INDEX(GROUP_CONCAT(run_status ORDER BY started_at DESC), ',', 1), 48, 72,
-       'Latest successful DEEP validation execution completion'
+       'Latest successful DEEP validation execution completion' COLLATE utf8mb4_general_ci
 FROM cycling_platform_admin.validation_run WHERE validation_scope = 'DEEP';
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_publication_dependency_latest AS
@@ -202,7 +206,7 @@ SELECT publication_name, latest_success_at_utc,
          WHEN latest_success_at_utc < UTC_TIMESTAMP() - INTERVAL critical_after_hours HOUR THEN 'CRITICAL'
          WHEN latest_success_at_utc < UTC_TIMESTAMP() - INTERVAL warning_after_hours HOUR THEN 'WARNING'
          ELSE 'HEALTHY'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        timestamp_semantics
 FROM cycling_platform_admin.v_publication_dependency_latest;
 
@@ -211,7 +215,7 @@ SELECT source_id, source_name,
        CASE MAX(CASE health_status WHEN 'CRITICAL' THEN 4 WHEN 'WARNING' THEN 3 WHEN 'INFO' THEN 2 WHEN 'UNKNOWN' THEN 1 ELSE 0 END)
          WHEN 4 THEN 'CRITICAL' WHEN 3 THEN 'WARNING' WHEN 2 THEN 'INFO'
          WHEN 1 THEN 'UNKNOWN' ELSE 'HEALTHY'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        SUM(health_status = 'CRITICAL') AS critical_entity_count,
        SUM(health_status = 'WARNING') AS warning_entity_count,
        SUM(health_status = 'UNKNOWN') AS unknown_entity_count
@@ -235,7 +239,7 @@ SELECT run.validation_run_id, run.pipeline_run_id, run.validation_scope,
          WHEN SUM(CASE WHEN checks.severity = 'WARNING' AND checks.issue_count > 0 THEN 1 ELSE 0 END) > 0 THEN 'WARNING'
          WHEN run.run_status = 'SUCCESS' THEN 'HEALTHY'
          ELSE 'INFO'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        run.error_message
 FROM cycling_platform_admin.validation_run run
 LEFT JOIN cycling_platform_admin.validation_run_check checks
@@ -287,7 +291,7 @@ SELECT latest_attempt.backup_attempt_id AS latest_attempt_id,
          WHEN latest_reconciliation.status <> 'HEALTHY' THEN 'WARNING'
          WHEN latest_good.completed_at < UTC_TIMESTAMP() - INTERVAL 30 HOUR THEN 'WARNING'
          ELSE 'HEALTHY'
-       END AS health_status
+       END COLLATE utf8mb4_general_ci AS health_status
 FROM cycling_platform_admin.data_source anchor
 LEFT JOIN cycling_platform_admin.backup_attempt latest_attempt
   ON latest_attempt.backup_attempt_id = (SELECT MAX(backup_attempt_id) FROM cycling_platform_admin.backup_attempt)
@@ -313,77 +317,77 @@ INNER JOIN cycling_platform_admin.data_source source ON source.source_id = endpo
 WHERE attempt.attempt_status = 'FAILED';
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest AS
-  SELECT 'raw_activity_details' debt_key, 'RAW' debt_domain,
-         CASE WHEN COALESCE(SUM(details_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(details_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END health_status,
+  SELECT 'raw_activity_details' COLLATE utf8mb4_general_ci debt_key, 'RAW' COLLATE utf8mb4_general_ci debt_domain,
+         CASE WHEN COALESCE(SUM(details_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(details_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci health_status,
          COALESCE(SUM(details_status IN ('PENDING', 'FAILED')), 0) item_count,
-         'Activities awaiting or failing Raw detail retrieval' summary
+         'Activities awaiting or failing Raw detail retrieval' COLLATE utf8mb4_general_ci summary
   FROM cycling_platform_raw.activities
   UNION ALL
-  SELECT 'raw_activity_streams', 'RAW',
-         CASE WHEN COALESCE(SUM(stream_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(stream_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END,
-         COALESCE(SUM(stream_status IN ('PENDING', 'FAILED')), 0), 'Activities awaiting or failing Raw stream retrieval'
+  SELECT 'raw_activity_streams' COLLATE utf8mb4_general_ci, 'RAW' COLLATE utf8mb4_general_ci,
+         CASE WHEN COALESCE(SUM(stream_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(stream_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COALESCE(SUM(stream_status IN ('PENDING', 'FAILED')), 0), 'Activities awaiting or failing Raw stream retrieval' COLLATE utf8mb4_general_ci
   FROM cycling_platform_raw.activities
   UNION ALL
-  SELECT 'raw_activity_laps', 'RAW',
-         CASE WHEN COALESCE(SUM(laps_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(laps_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END,
-         COALESCE(SUM(laps_status IN ('PENDING', 'FAILED')), 0), 'Activities awaiting or failing Raw lap retrieval'
+  SELECT 'raw_activity_laps' COLLATE utf8mb4_general_ci, 'RAW' COLLATE utf8mb4_general_ci,
+         CASE WHEN COALESCE(SUM(laps_status = 'FAILED'), 0) > 0 THEN 'CRITICAL' WHEN COALESCE(SUM(laps_status = 'PENDING'), 0) > 0 THEN 'WARNING' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COALESCE(SUM(laps_status IN ('PENDING', 'FAILED')), 0), 'Activities awaiting or failing Raw lap retrieval' COLLATE utf8mb4_general_ci
   FROM cycling_platform_raw.activities
   UNION ALL
-  SELECT 'achievement_evaluation', 'GOLD',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Achievement evaluations currently INVALIDATED'
+  SELECT 'achievement_evaluation' COLLATE utf8mb4_general_ci, 'GOLD' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Achievement evaluations currently INVALIDATED' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.activity_achievement_evaluation_state WHERE evaluation_status = 'INVALIDATED'
   UNION ALL
-  SELECT 'notification_pending', 'NOTIFICATION',
-         CASE WHEN COUNT(*) > 0 THEN 'WARNING' ELSE 'HEALTHY' END,
-         COUNT(*), 'Achievement notifications awaiting first delivery'
+  SELECT 'notification_pending' COLLATE utf8mb4_general_ci, 'NOTIFICATION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'WARNING' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Achievement notifications awaiting first delivery' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.notification_outbox WHERE notification_status = 'PENDING'
   UNION ALL
-  SELECT 'notification_retry_or_failed', 'NOTIFICATION',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Achievement notifications awaiting retry or terminally failed'
+  SELECT 'notification_retry_or_failed' COLLATE utf8mb4_general_ci, 'NOTIFICATION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Achievement notifications awaiting retry or terminally failed' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.notification_outbox WHERE notification_status IN ('RETRY', 'FAILED')
   UNION ALL
-  SELECT 'notification_stale_sending', 'NOTIFICATION',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Achievement notifications left SENDING for more than one hour'
+  SELECT 'notification_stale_sending' COLLATE utf8mb4_general_ci, 'NOTIFICATION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Achievement notifications left SENDING for more than one hour' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.notification_outbox
   WHERE notification_status = 'SENDING' AND updated_at < UTC_TIMESTAMP() - INTERVAL 1 HOUR
   UNION ALL
-  SELECT 'stale_pipeline_execution', 'EXECUTION',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Pipeline executions RUNNING for more than six hours'
+  SELECT 'stale_pipeline_execution' COLLATE utf8mb4_general_ci, 'EXECUTION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Pipeline executions RUNNING for more than six hours' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.pipeline_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR
   UNION ALL
-  SELECT 'latest_daily_pipeline', 'EXECUTION',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Latest completed daily pipeline did not succeed'
+  SELECT 'latest_daily_pipeline' COLLATE utf8mb4_general_ci, 'EXECUTION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Latest completed daily pipeline did not succeed' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.pipeline_run run
   WHERE run.pipeline_run_id = (
     SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest
     WHERE latest.pipeline_name = 'daily-platform'
   ) AND run.run_status = 'FAILED'
   UNION ALL
-  SELECT 'stale_child_execution', 'EXECUTION',
+  SELECT 'stale_child_execution' COLLATE utf8mb4_general_ci, 'EXECUTION' COLLATE utf8mb4_general_ci,
          CASE WHEN ((SELECT COUNT(*) FROM cycling_platform_admin.etl_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR) +
                          (SELECT COUNT(*) FROM cycling_platform_admin.transform_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR) +
-                         (SELECT COUNT(*) FROM cycling_platform_admin.validation_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR)) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
+                         (SELECT COUNT(*) FROM cycling_platform_admin.validation_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR)) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
          ((SELECT COUNT(*) FROM cycling_platform_admin.etl_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR) +
           (SELECT COUNT(*) FROM cycling_platform_admin.transform_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR) +
           (SELECT COUNT(*) FROM cycling_platform_admin.validation_run WHERE run_status = 'RUNNING' AND started_at < UTC_TIMESTAMP() - INTERVAL 6 HOUR)),
-         'ETL, transform or validation executions RUNNING for more than six hours'
+         'ETL, transform or validation executions RUNNING for more than six hours' COLLATE utf8mb4_general_ci
   UNION ALL
-  SELECT 'latest_validation', 'VALIDATION',
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END,
-         COUNT(*), 'Validation scopes whose latest execution did not succeed'
+  SELECT 'latest_validation' COLLATE utf8mb4_general_ci, 'VALIDATION' COLLATE utf8mb4_general_ci,
+         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
+         COUNT(*), 'Validation scopes whose latest execution did not succeed' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.validation_run run
   WHERE run.validation_run_id IN (
     SELECT MAX(latest.validation_run_id) FROM cycling_platform_admin.validation_run latest GROUP BY latest.validation_scope
   ) AND run.run_status <> 'SUCCESS'
   UNION ALL
-  SELECT 'backup', 'BACKUP', health_status,
+  SELECT 'backup' COLLATE utf8mb4_general_ci, 'BACKUP' COLLATE utf8mb4_general_ci, health_status,
          CASE WHEN health_status = 'HEALTHY' THEN 0 ELSE 1 END,
-         'Latest complete recovery point, physical attempt and retention reconciliation'
+         'Latest complete recovery point, physical attempt and retention reconciliation' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.v_backup_health_latest;
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_latest AS
@@ -409,7 +413,7 @@ SELECT UTC_TIMESTAMP() AS observed_at_utc,
        CASE MAX(severity_rank)
          WHEN 4 THEN 'CRITICAL' WHEN 3 THEN 'WARNING' WHEN 2 THEN 'INFO'
          WHEN 1 THEN 'UNKNOWN' ELSE 'HEALTHY'
-       END AS health_status,
+       END COLLATE utf8mb4_general_ci AS health_status,
        SUM(health_status = 'CRITICAL') AS critical_condition_count,
        SUM(health_status = 'WARNING') AS warning_condition_count,
        SUM(health_status = 'INFO') AS info_condition_count,

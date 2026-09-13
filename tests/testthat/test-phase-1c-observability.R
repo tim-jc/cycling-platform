@@ -96,6 +96,40 @@ testthat::test_that("dashboard-facing view catalogue is stable and MariaDB-safe"
   testthat::expect_match(sql, "WHERE pipeline_name = 'daily-platform'", fixed = TRUE)
 })
 
+testthat::test_that("generated Phase 1C view text uses the canonical collation", {
+  source(phase_1c_path("R", "config", "platform_database_inventory.R"))
+  sql_lines <- readLines(
+    phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"),
+    warn = FALSE
+  )
+  sql <- paste(sql_lines, collapse = "\n")
+  canonical <- platform_canonical_collation()
+
+  # Literal-only CASE outputs otherwise inherit the MariaDB session collation.
+  generated_statuses <- gregexpr(
+    paste0("END COLLATE ", canonical, " AS (health_status|source_data_change_status)"),
+    sql,
+    perl = TRUE
+  )[[1]]
+  testthat::expect_equal(sum(generated_statuses > 0L), 9L)
+  testthat::expect_false(grepl("END AS (health_status|source_data_change_status)", sql))
+
+  # Every SELECT-list literal in the two UNION-based contracts is explicit.
+  union_lines <- sql_lines[
+    grepl("^[[:space:]]*SELECT '[^']+'", sql_lines) |
+      grepl("^[[:space:]]*UNION ALL SELECT '[^']+'", sql_lines)
+  ]
+  testthat::expect_true(length(union_lines) > 0L)
+  testthat::expect_true(all(grepl(paste("COLLATE", canonical), union_lines, fixed = TRUE)))
+
+  debt_start <- grep("CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest", sql_lines, fixed = TRUE)
+  debt_end <- grep("CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_latest", sql_lines, fixed = TRUE) - 1L
+  debt_sql <- paste(sql_lines[debt_start:debt_end], collapse = "\n")
+  testthat::expect_false(grepl("END[ ,\n]+COUNT", debt_sql, perl = TRUE))
+  debt_collations <- gregexpr(paste("COLLATE", canonical), debt_sql, fixed = TRUE)[[1]]
+  testthat::expect_gte(sum(debt_collations > 0L), 40L)
+})
+
 testthat::test_that("transform view distinguishes true zero work from old telemetry", {
   sql <- paste(readLines(phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"), warn = FALSE), collapse = "\n")
   testthat::expect_match(sql, "has_phase_1b_metrics")
