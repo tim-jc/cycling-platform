@@ -147,6 +147,9 @@ testthat::test_that("canonical migration covers databases and created tables", {
     full.names = TRUE,
     ignore.case = TRUE
   )
+  # Views do not own a table character set or collation and therefore must not
+  # be converted by the canonical table migration.
+  create_files <- create_files[!grepl("views[.]sql$", create_files)]
   create_sql <- paste(
     unlist(lapply(create_files, readLines, warn = FALSE)),
     collapse = "\n"

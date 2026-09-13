@@ -917,6 +917,98 @@ validate_platform_completeness <- function(
     checks,
     run_validation_query(
       connection = connection,
+      check_name = "admin_phase_1c_source_freshness_lineage_consistent",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT observation.source_freshness_observation_id,
+               observation.run_id AS observed_run_id,
+               entity.run_id AS entity_run_id,
+               observation.source_id AS observed_source_id,
+               entity.source_id AS entity_source_id,
+               observation.entity_name AS observed_entity_name,
+               entity.entity_name AS actual_entity_name
+        FROM cycling_platform_admin.source_freshness_observation observation
+        INNER JOIN cycling_platform_admin.etl_run_entity entity
+          ON entity.run_entity_id = observation.run_entity_id
+        INNER JOIN cycling_platform_admin.etl_run run
+          ON run.run_id = entity.run_id
+        WHERE observation.run_id <> entity.run_id
+           OR NOT (observation.source_id <=> entity.source_id)
+           OR observation.entity_name <> entity.entity_name
+           OR NOT (observation.pipeline_run_id <=> run.pipeline_run_id)
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_phase_1c_views_present",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT expected.view_name
+        FROM (
+          SELECT 'v_platform_health_latest' view_name
+          UNION ALL SELECT 'v_pipeline_run_history'
+          UNION ALL SELECT 'v_pipeline_phase_history'
+          UNION ALL SELECT 'v_transform_performance_history'
+          UNION ALL SELECT 'v_source_freshness_latest'
+          UNION ALL SELECT 'v_source_health_latest'
+          UNION ALL SELECT 'v_publication_freshness_latest'
+          UNION ALL SELECT 'v_operational_debt_latest'
+          UNION ALL SELECT 'v_validation_history'
+          UNION ALL SELECT 'v_backup_health_latest'
+          UNION ALL SELECT 'v_backup_history'
+          UNION ALL SELECT 'v_api_request_failure_history'
+        ) expected
+        LEFT JOIN information_schema.views actual
+          ON actual.table_schema = 'cycling_platform_admin'
+         AND actual.table_name = expected.view_name
+        WHERE actual.table_name IS NULL
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
+      check_name = "admin_phase_1c_health_vocabulary_governed",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT 'platform' contract_name, health_status
+        FROM cycling_platform_admin.v_platform_health_latest
+        WHERE health_status NOT IN ('HEALTHY', 'INFO', 'WARNING', 'CRITICAL', 'UNKNOWN')
+        UNION ALL
+        SELECT 'source', health_status
+        FROM cycling_platform_admin.v_source_freshness_latest
+        WHERE health_status NOT IN ('HEALTHY', 'INFO', 'WARNING', 'CRITICAL', 'UNKNOWN')
+        UNION ALL
+        SELECT 'publication', health_status
+        FROM cycling_platform_admin.v_publication_freshness_latest
+        WHERE health_status NOT IN ('HEALTHY', 'INFO', 'WARNING', 'CRITICAL', 'UNKNOWN')
+        UNION ALL
+        SELECT 'debt', health_status
+        FROM cycling_platform_admin.v_operational_debt_latest
+        WHERE health_status NOT IN ('HEALTHY', 'INFO', 'WARNING', 'CRITICAL', 'UNKNOWN')
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
       check_name = "admin_phase_1b_gold_telemetry_governed",
       check_scope = "publication",
       severity = "CRITICAL",

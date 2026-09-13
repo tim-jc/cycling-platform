@@ -311,6 +311,12 @@ tryCatch(
       }
     }
 
+    record_source_freshness_observations(
+      connection = connection,
+      run_id = run_id,
+      pipeline_run_id = pipeline_run_id
+    )
+
     update_etl_run(
       connection = connection,
       run_id = run_id,
@@ -325,6 +331,24 @@ tryCatch(
       run_status = "FAILED",
       error_message = conditionMessage(e)
     )
+
+    freshness_error <- tryCatch(
+      {
+        record_source_freshness_observations(
+          connection = connection,
+          run_id = run_id,
+          pipeline_run_id = pipeline_run_id
+        )
+        NULL
+      },
+      error = function(observability_error) observability_error
+    )
+    if (!is.null(freshness_error)) {
+      message(
+        "Unable to record failed-run source freshness: ",
+        conditionMessage(freshness_error)
+      )
+    }
 
     platform_error <<- e
   },

@@ -23,14 +23,22 @@ list_platform_bootstrap_sql_files <- function(project_root = ".") {
     )
   }
 
+  admin_files <- list_sql_files("admin")
+  deferred_admin_views <- admin_files[grepl(
+    "^[0-9]+_create_.*views[.]sql$",
+    basename(admin_files)
+  )]
+  admin_files <- setdiff(admin_files, deferred_admin_views)
+
   unlist(
     list(
-      list_sql_files("admin"),
+      admin_files,
       list_sql_files("stage"),
       list_sql_files("raw"),
       list_sql_files("reference", "^[0-9]+_create_.*[.]sql$"),
       list_sql_files("silver", "^[0-9]+_create_.*[.]sql$"),
-      list_sql_files("gold", "^[0-9]+_create_.*[.]sql$")
+      list_sql_files("gold", "^[0-9]+_create_.*[.]sql$"),
+      deferred_admin_views
     ),
     use.names = FALSE
   )
