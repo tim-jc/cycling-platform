@@ -27,6 +27,35 @@ log() {
   printf '[backup-workflow] %s\n' "$*"
 }
 
+guard_persistent_backup_paths() {
+  local config_dir config_root expected_data actual_data
+
+  [[ "$MODE" == "backup" ]] || return 0
+  [[ "$(basename "$BACKUP_CONFIG_FILE")" == "backup.env" ]] || return 0
+
+  config_dir="$(dirname "$BACKUP_CONFIG_FILE")"
+  [[ "$(basename "$config_dir")" == "config" ]] || return 0
+  [[ -d "$config_dir/.." ]] || return 0
+
+  config_root="$(cd "$config_dir/.." && pwd -P)"
+  expected_data="$config_root/data"
+  if [[ -d "$BACKUP_DIR" ]]; then
+    actual_data="$(cd "$BACKUP_DIR" && pwd -P)"
+  elif [[ -d "$(dirname "$BACKUP_DIR")" ]]; then
+    actual_data="$(cd "$(dirname "$BACKUP_DIR")" && pwd -P)/$(basename "$BACKUP_DIR")"
+  else
+    actual_data="$BACKUP_DIR"
+  fi
+
+  if [[ "$actual_data" != "$expected_data" ]]; then
+    log "Backup cannot start: persistent configuration $BACKUP_CONFIG_FILE must use its canonical data directory $expected_data (received $actual_data)."
+    log "Run the installed backup workflow rather than combining installed configuration with a repository checkout."
+    exit 64
+  fi
+}
+
+guard_persistent_backup_paths
+
 if [[ "$MODE" == "backup" && "$SLEEP_PROTECTION_ACTIVE" != "1" ]]; then
   if [[ ! -x "$CAFFEINATE_BIN" ]]; then
     log "Backup cannot start: required sleep-prevention command is unavailable: $CAFFEINATE_BIN"

@@ -289,10 +289,21 @@ not disappear unexpectedly across layer boundaries:
   visible through `admin.etl_request_log`.
 * Google Health sleep-stage metadata is checked against retained sleep payload
   indicators where promoted columns are populated.
-* Google Health RHR/HRV/sleep date overlap is diagnostic only. Current live
-  inspection shows sleep payloads are present but promoted sleep interval dates
-  are null, so overlap warnings can indicate missing sleep metadata rather than
-  missing sleep ingestion.
+* Google Health RHR/HRV/sleep date overlap is source-data diagnostics. A recovery
+  date established by either daily RHR or daily HRV, with no sleep session whose
+  promoted local start or end date overlaps it, is actionable while that date is
+  still inside `ingestion.google_health_sleep_refresh_days`. It is then reported
+  as a WARNING because normal scheduled ingestion can still discover delayed or
+  corrected sleep.
+* An unresolved overlap gap older than the configured routine sleep-refresh
+  window is retained by
+  `raw_google_health_rhr_hrv_sleep_historical_debt` as INFO. Its Raw evidence,
+  validation count and reproducible query remain auditable through Admin
+  validation history, but it does not keep current validation in
+  `PASSED_WITH_WARNINGS`. Explicit 365-day backfill reach does not extend the
+  operational warning lifecycle because backfill requires operator action.
+  If Google Health later supplies an overlapping sleep session, the shared query
+  removes the date naturally from both lifecycle classes.
 * Gold publication checks must confirm required Gold transforms are successful
   and fresh before deep Gold completeness checks run.
 * `gold.activity_best_efforts` must contain expected watts, cadence, and

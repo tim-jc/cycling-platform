@@ -285,6 +285,18 @@ ingestion:
   google_health_request_pause_seconds: 0.25
 ```
 
+The routine sleep refresh window also governs whether an RHR/HRV date with no
+overlapping sleep is considered currently repairable. Deep validation reports
+such dates inside `google_health_sleep_refresh_days` as WARNING. Older unresolved
+dates remain visible as INFO historical source-data debt. This lifecycle uses
+the same configured value as ingestion; the wider manual/backfill window does
+not create permanent operational warnings.
+
+Sleep overlap uses the source-promoted local civil start and end dates, falling
+back to the UTC physical date only when the corresponding civil date is absent.
+An overnight session therefore satisfies both its starting and ending recovery
+dates. Unknown source records are never fabricated or zero-filled.
+
 Optional later:
 
 ```yaml

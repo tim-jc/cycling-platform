@@ -89,6 +89,23 @@ testthat::test_that("validation outcome summary handles one warning", {
   testthat::expect_equal(summary$error_check_count[[1]], 0L)
 })
 
+testthat::test_that("informational historical debt does not create warning status", {
+  source_validation_notification_files()
+
+  results <- validation_result_fixture(
+    check_name = "raw_google_health_rhr_hrv_sleep_historical_debt",
+    severity = "INFO",
+    passed = FALSE,
+    issue_count = 1L
+  )
+  summary <- summarize_platform_validation_results(results)
+
+  testthat::expect_equal(summary$validation_outcome[[1]], "PASSED")
+  testthat::expect_equal(summary$warning_check_count[[1]], 0L)
+  testthat::expect_equal(summary$warning_issue_count[[1]], 0L)
+  testthat::expect_equal(summary$error_check_count[[1]], 0L)
+})
+
 testthat::test_that("validation outcome summary handles multiple warnings", {
   source_validation_notification_files()
 

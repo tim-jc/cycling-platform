@@ -64,6 +64,12 @@ same TCC-safe code and configuration as launchd:
 "$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" backup
 ```
 
+This is the single supported manual-backup command. Do not run the repository
+copy with only the installed `BACKUP_CONFIG_FILE` exported: the repository and
+installed runtime have different default data roots. The workflow rejects an
+installed-style `config/backup.env` paired with any directory other than its
+sibling canonical `data` directory before starting `caffeinate` or a dump.
+
 The canonical `backup` entry point re-executes the complete physical workflow
 through `/usr/bin/caffeinate -s -i`. The `-s` assertion prevents system sleep
 while on AC power, which is the condition under which the scheduled Mac enters

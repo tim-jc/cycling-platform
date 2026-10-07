@@ -242,7 +242,7 @@ testthat::test_that("publication scope counts fast blocking and audit checks", {
         "heartrate_bpm"
       )
     ),
-    83L
+    84L
   )
 })
 
@@ -283,7 +283,7 @@ testthat::test_that("Silver working-table validation is explicit and scoped", {
   )
 })
 
-testthat::test_that("Google Health overlap validation ignores the current day", {
+testthat::test_that("Google Health sleep-gap lifecycle follows routine refresh config", {
   validation_file <- file.path(
     "R",
     "validation",
@@ -300,15 +300,137 @@ testthat::test_that("Google Health overlap validation ignores the current day", 
     )
   }
 
-  validation_source <- paste(
-    readLines(
-      validation_file,
-      warn = FALSE
-    ),
-    collapse = "\n"
+  source(validation_file)
+
+  config <- list(
+    ingestion = list(
+      google_health_sleep_refresh_days = 7L,
+      google_health_sleep_backfill_days = 365L
+    )
   )
 
-  overlap_check <- regmatches(
+  testthat::expect_equal(
+    google_health_sleep_repair_horizon_days(config),
+    7L
+  )
+  testthat::expect_equal(
+    google_health_sleep_repair_horizon_days(list()),
+    7L
+  )
+  testthat::expect_error(
+    google_health_sleep_repair_horizon_days(list(
+      ingestion = list(google_health_sleep_refresh_days = -1L)
+    )),
+    "must be one non-negative integer"
+  )
+})
+
+testthat::test_that("Google Health sleep-gap queries partition actionable and historical debt", {
+  validation_file <- file.path(
+    "R",
+    "validation",
+    "validate_platform_completeness.R"
+  )
+
+  if (!file.exists(validation_file)) {
+    validation_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "validation",
+      "validate_platform_completeness.R"
+    )
+  }
+
+  source(validation_file)
+
+  actionable <- google_health_rhr_hrv_sleep_gap_query(
+    repair_horizon_days = 7L,
+    lifecycle = "actionable"
+  )
+  historical <- google_health_rhr_hrv_sleep_gap_query(
+    repair_horizon_days = 7L,
+    lifecycle = "historical"
+  )
+
+  testthat::expect_match(
+    actionable,
+    "AND dates.activity_date < UTC_DATE()",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    actionable,
+    "gap.activity_date >= UTC_DATE() - INTERVAL 7 DAY",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    actionable,
+    "'ACTIONABLE' AS lifecycle_status",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    historical,
+    "gap.activity_date < UTC_DATE() - INTERVAL 7 DAY",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    historical,
+    "'HISTORICAL' AS lifecycle_status",
+    fixed = TRUE
+  )
+
+  # A sleep starting or ending on the recovery date resolves the gap. This
+  # covers both directions of an overnight session and late-arriving sleep.
+  testthat::expect_match(
+    actionable,
+    "sleep_start.activity_date IS NULL",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    actionable,
+    "sleep_end.activity_date IS NULL",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    actionable,
+    "start_civil_date",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    actionable,
+    "end_civil_date",
+    fixed = TRUE
+  )
+
+  # Preserve the established signal rule: either RHR or HRV can establish a
+  # recovery date. Partial-component coverage remains a separate INFO check.
+  testthat::expect_match(
+    actionable,
+    "rhr.activity_date IS NOT NULL OR hrv.activity_date IS NOT NULL",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("Google Health sleep-gap check severities preserve historical evidence", {
+  validation_file <- file.path(
+    "R",
+    "validation",
+    "validate_platform_completeness.R"
+  )
+
+  if (!file.exists(validation_file)) {
+    validation_file <- file.path(
+      "..",
+      "..",
+      "R",
+      "validation",
+      "validate_platform_completeness.R"
+    )
+  }
+
+  validation_source <- paste(readLines(validation_file, warn = FALSE), collapse = "\n")
+
+  actionable_check <- regmatches(
     validation_source,
     regexpr(
       paste0(
@@ -320,10 +442,31 @@ testthat::test_that("Google Health overlap validation ignores the current day", 
       perl = TRUE
     )
   )
+  historical_check <- regmatches(
+    validation_source,
+    regexpr(
+      paste0(
+        "check_name = \"raw_google_health_rhr_hrv_sleep_historical_debt\"",
+        "[\\s\\S]*?",
+        "check_name = "
+      ),
+      validation_source,
+      perl = TRUE
+    )
+  )
 
+  testthat::expect_match(actionable_check, 'severity = "WARNING"', fixed = TRUE)
+  testthat::expect_match(actionable_check, 'lifecycle = "actionable"', fixed = TRUE)
+  testthat::expect_match(historical_check, 'severity = "INFO"', fixed = TRUE)
+  testthat::expect_match(historical_check, 'lifecycle = "historical"', fixed = TRUE)
   testthat::expect_match(
-    overlap_check,
-    "AND dates.activity_date < UTC_DATE()",
+    actionable_check,
+    "google_health_sleep_repair_horizon_days(config)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    historical_check,
+    "google_health_sleep_repair_horizon_days(config)",
     fixed = TRUE
   )
 })

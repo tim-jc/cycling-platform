@@ -541,7 +541,7 @@ count_platform_completeness_checks <- function(
     return(19L)
   }
 
-  check_count <- 61L
+  check_count <- 62L
 
   if (isTRUE(include_gold)) {
     check_count <- check_count + 1L
@@ -555,6 +555,147 @@ count_platform_completeness_checks <- function(
   }
 
   check_count
+}
+
+#' Google Health Sleep Repair Horizon
+#'
+#' Return the number of local activity dates revisited by normal scheduled
+#' Google Health sleep ingestion. Historical backfill reach is deliberately not
+#' used: backfill is an explicit operator action, not automatic repair.
+#'
+#' @param config Platform configuration.
+#'
+#' @return Non-negative integer number of days.
+google_health_sleep_repair_horizon_days <- function(config = list()) {
+  refresh_days <- config$ingestion$google_health_sleep_refresh_days
+
+  if (is.null(refresh_days)) {
+    refresh_days <- 7L
+  }
+
+  refresh_days <- suppressWarnings(as.integer(refresh_days))
+
+  if (
+    length(refresh_days) != 1L ||
+      is.na(refresh_days) ||
+      refresh_days < 0L
+  ) {
+    stop(
+      "ingestion.google_health_sleep_refresh_days must be one non-negative integer.",
+      call. = FALSE
+    )
+  }
+
+  refresh_days
+}
+
+#' Google Health RHR/HRV Sleep Gap Query
+#'
+#' Build the common Google Health recovery-date gap query, partitioned into
+#' automatically repairable and historical lifecycle classes.
+#'
+#' @param repair_horizon_days Normal scheduled sleep refresh horizon.
+#' @param lifecycle Either `actionable` or `historical`.
+#'
+#' @return MariaDB SQL string.
+google_health_rhr_hrv_sleep_gap_query <- function(
+  repair_horizon_days,
+  lifecycle = c("actionable", "historical")
+) {
+  lifecycle <- match.arg(lifecycle)
+  repair_horizon_days <- suppressWarnings(as.integer(repair_horizon_days))
+
+  if (
+    length(repair_horizon_days) != 1L ||
+      is.na(repair_horizon_days) ||
+      repair_horizon_days < 0L
+  ) {
+    stop("repair_horizon_days must be one non-negative integer.", call. = FALSE)
+  }
+
+  lifecycle_predicate <- if (identical(lifecycle, "actionable")) {
+    glue::glue(
+      "gap.activity_date >= UTC_DATE() - INTERVAL {repair_horizon_days} DAY"
+    )
+  } else {
+    glue::glue(
+      "gap.activity_date < UTC_DATE() - INTERVAL {repair_horizon_days} DAY"
+    )
+  }
+
+  lifecycle_status <- if (identical(lifecycle, "actionable")) {
+    "ACTIONABLE"
+  } else {
+    "HISTORICAL"
+  }
+
+  as.character(glue::glue("\
+    WITH dates AS (
+      SELECT activity_date
+      FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+      UNION
+      SELECT activity_date
+      FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+      UNION
+      SELECT COALESCE(start_civil_date, DATE(start_physical_time)) AS activity_date
+      FROM cycling_platform_raw.google_health_sleep_logs
+      WHERE start_civil_date IS NOT NULL OR start_physical_time IS NOT NULL
+      UNION
+      SELECT COALESCE(end_civil_date, DATE(end_physical_time)) AS activity_date
+      FROM cycling_platform_raw.google_health_sleep_logs
+      WHERE end_civil_date IS NOT NULL OR end_physical_time IS NOT NULL
+    ),
+    gap AS (
+      SELECT
+        dates.activity_date,
+        rhr.activity_date IS NOT NULL AS has_rhr,
+        hrv.activity_date IS NOT NULL AS has_hrv,
+        sleep_start.activity_date IS NOT NULL AS has_sleep_by_start_date,
+        sleep_end.activity_date IS NOT NULL AS has_sleep_by_end_date
+      FROM dates
+      LEFT JOIN (
+        SELECT DISTINCT activity_date
+        FROM cycling_platform_raw.google_health_daily_resting_heart_rate
+      ) rhr ON rhr.activity_date = dates.activity_date
+      LEFT JOIN (
+        SELECT DISTINCT activity_date
+        FROM cycling_platform_raw.google_health_daily_heart_rate_variability
+      ) hrv ON hrv.activity_date = dates.activity_date
+      LEFT JOIN (
+        SELECT DISTINCT COALESCE(
+          start_civil_date,
+          DATE(start_physical_time)
+        ) AS activity_date
+        FROM cycling_platform_raw.google_health_sleep_logs
+        WHERE start_civil_date IS NOT NULL OR start_physical_time IS NOT NULL
+      ) sleep_start ON sleep_start.activity_date = dates.activity_date
+      LEFT JOIN (
+        SELECT DISTINCT COALESCE(
+          end_civil_date,
+          DATE(end_physical_time)
+        ) AS activity_date
+        FROM cycling_platform_raw.google_health_sleep_logs
+        WHERE end_civil_date IS NOT NULL OR end_physical_time IS NOT NULL
+      ) sleep_end ON sleep_end.activity_date = dates.activity_date
+      WHERE (rhr.activity_date IS NOT NULL OR hrv.activity_date IS NOT NULL)
+        AND dates.activity_date < UTC_DATE()
+        AND sleep_start.activity_date IS NULL
+        AND sleep_end.activity_date IS NULL
+    )
+    SELECT
+      gap.activity_date,
+      gap.has_rhr,
+      gap.has_hrv,
+      gap.has_sleep_by_start_date,
+      gap.has_sleep_by_end_date,
+      DATEDIFF(UTC_DATE(), gap.activity_date) AS age_days,
+      {repair_horizon_days} AS normal_repair_horizon_days,
+      '{lifecycle_status}' AS lifecycle_status
+    FROM gap
+    WHERE {lifecycle_predicate}
+    ORDER BY gap.activity_date DESC
+    LIMIT 1000
+  "))
 }
 
 append_validation_result <- function(
@@ -2805,77 +2946,26 @@ validate_platform_completeness <- function(
         check_name = "raw_google_health_rhr_hrv_sleep_date_overlap",
         check_scope = "deep",
         severity = "WARNING",
-        query = "
-          WITH dates AS (
-            SELECT activity_date
-            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
-            UNION
-            SELECT activity_date
-            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
-            UNION
-            SELECT COALESCE(
-              start_civil_date,
-              DATE(start_physical_time)
-            ) AS activity_date
-            FROM cycling_platform_raw.google_health_sleep_logs
-            WHERE start_civil_date IS NOT NULL
-               OR start_physical_time IS NOT NULL
-            UNION
-            SELECT COALESCE(
-              end_civil_date,
-              DATE(end_physical_time)
-            ) AS activity_date
-            FROM cycling_platform_raw.google_health_sleep_logs
-            WHERE end_civil_date IS NOT NULL
-               OR end_physical_time IS NOT NULL
-          )
-          SELECT
-            dates.activity_date,
-            rhr.activity_date IS NOT NULL AS has_rhr,
-            hrv.activity_date IS NOT NULL AS has_hrv,
-            sleep_start.activity_date IS NOT NULL AS has_sleep_by_start_date,
-            sleep_end.activity_date IS NOT NULL AS has_sleep_by_end_date
-          FROM dates
-          LEFT JOIN (
-            SELECT DISTINCT activity_date
-            FROM cycling_platform_raw.google_health_daily_resting_heart_rate
-          ) rhr
-            ON rhr.activity_date = dates.activity_date
-          LEFT JOIN (
-            SELECT DISTINCT activity_date
-            FROM cycling_platform_raw.google_health_daily_heart_rate_variability
-          ) hrv
-            ON hrv.activity_date = dates.activity_date
-          LEFT JOIN (
-            SELECT DISTINCT COALESCE(
-              start_civil_date,
-              DATE(start_physical_time)
-            ) AS activity_date
-            FROM cycling_platform_raw.google_health_sleep_logs
-            WHERE start_civil_date IS NOT NULL
-               OR start_physical_time IS NOT NULL
-          ) sleep_start
-            ON sleep_start.activity_date = dates.activity_date
-          LEFT JOIN (
-            SELECT DISTINCT COALESCE(
-              end_civil_date,
-              DATE(end_physical_time)
-            ) AS activity_date
-            FROM cycling_platform_raw.google_health_sleep_logs
-            WHERE end_civil_date IS NOT NULL
-               OR end_physical_time IS NOT NULL
-          ) sleep_end
-            ON sleep_end.activity_date = dates.activity_date
-          WHERE (
-              rhr.activity_date IS NOT NULL
-              OR hrv.activity_date IS NOT NULL
-            )
-            AND dates.activity_date < UTC_DATE()
-            AND sleep_start.activity_date IS NULL
-            AND sleep_end.activity_date IS NULL
-          ORDER BY dates.activity_date DESC
-          LIMIT 1000
-        ",
+        query = google_health_rhr_hrv_sleep_gap_query(
+          repair_horizon_days = google_health_sleep_repair_horizon_days(config),
+          lifecycle = "actionable"
+        ),
+        per_check_timeout_seconds = per_check_timeout_seconds,
+        deadline = deadline
+      )
+    )
+
+    checks <- append_validation_result(
+      checks,
+      run_validation_query(
+        connection = connection,
+        check_name = "raw_google_health_rhr_hrv_sleep_historical_debt",
+        check_scope = "deep",
+        severity = "INFO",
+        query = google_health_rhr_hrv_sleep_gap_query(
+          repair_horizon_days = google_health_sleep_repair_horizon_days(config),
+          lifecycle = "historical"
+        ),
         per_check_timeout_seconds = per_check_timeout_seconds,
         deadline = deadline
       )

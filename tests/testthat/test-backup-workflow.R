@@ -234,6 +234,43 @@ testthat::test_that("missing caffeinate fails rather than running unprotected", 
   testthat::expect_false(file.exists(marker))
 })
 
+testthat::test_that("installed-style config cannot silently target another data directory", {
+  directory <- tempfile("backup-path-guard-")
+  config_directory <- file.path(directory, "installed", "config")
+  canonical_data <- file.path(directory, "installed", "data")
+  wrong_data <- file.path(directory, "repository-data")
+  dir.create(config_directory, recursive = TRUE)
+  dir.create(canonical_data)
+  config <- file.path(config_directory, "backup.env")
+  writeLines(character(), config)
+  marker <- file.path(directory, "backup-ran")
+  backup_command <- write_executable(
+    file.path(directory, "backup-command"),
+    c(paste0("touch ", shQuote(marker)), "exit 0")
+  )
+
+  output <- suppressWarnings(system2(
+    "bash",
+    c(file.path(backup_workflow_root, "scripts/run_backup_workflow.sh"), "backup"),
+    env = c(
+      paste0("BACKUP_CONFIG_FILE=", config),
+      paste0("BACKUP_DIR=", wrong_data),
+      paste0("BACKUP_COMMAND=", backup_command)
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+
+  testthat::expect_equal(attr(output, "status"), 64L)
+  testthat::expect_false(dir.exists(wrong_data))
+  testthat::expect_false(file.exists(marker))
+  testthat::expect_true(any(grepl(
+    "must use its canonical data directory",
+    output,
+    fixed = TRUE
+  )))
+})
+
 testthat::test_that("physical health rejects an artefact whose dumps are absent", {
   directory <- tempfile("backup-health-")
   dir.create(directory)
