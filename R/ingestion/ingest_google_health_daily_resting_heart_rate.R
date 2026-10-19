@@ -33,6 +33,7 @@ ingest_google_health_daily_resting_heart_rate <- function(
 
   rows_inserted <- 0L
   rows_updated <- 0L
+  rows_unchanged <- 0L
 
   tryCatch(
     {
@@ -114,12 +115,14 @@ ingest_google_health_daily_resting_heart_rate <- function(
 
         rows_inserted <- rows_inserted + batch_result$rows_inserted
         rows_updated <- rows_updated + batch_result$rows_updated
+        rows_unchanged <- rows_unchanged + batch_result$rows_unchanged
 
         message(glue::glue(
           "Completed Google Health daily resting heart-rate batch ",
           "{i}/{length(date_batches)}: ",
           "{batch_result$rows_inserted} inserted, ",
-          "{batch_result$rows_updated} updated."
+          "{batch_result$rows_updated} updated, ",
+          "{batch_result$rows_unchanged} unchanged."
         ))
       }
 
@@ -130,6 +133,12 @@ ingest_google_health_daily_resting_heart_rate <- function(
         rows_inserted = rows_inserted,
         rows_updated = rows_updated
       )
+
+      message(glue::glue(
+        "Google Health daily resting heart rate complete: ",
+        "inserted={rows_inserted}, updated={rows_updated}, ",
+        "unchanged={rows_unchanged}."
+      ))
     },
     error = function(e) {
       update_etl_run_entity(

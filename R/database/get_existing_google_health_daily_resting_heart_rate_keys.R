@@ -5,7 +5,8 @@ get_existing_google_health_daily_resting_heart_rate_keys <- function(
   if (length(daily_resting_heart_rate_keys) == 0) {
     return(
       tibble::tibble(
-        daily_resting_heart_rate_key = character()
+        daily_resting_heart_rate_key = character(),
+        payload_hash = character()
       )
     )
   }
@@ -16,7 +17,10 @@ get_existing_google_health_daily_resting_heart_rate_keys <- function(
   )
 
   sql <- paste0(
-    "SELECT daily_resting_heart_rate_key
+    "SELECT
+       daily_resting_heart_rate_key,
+       LOWER(SHA2(CAST(daily_resting_heart_rate_payload AS CHAR), 256))
+         AS payload_hash
      FROM cycling_platform_raw.google_health_daily_resting_heart_rate
      WHERE daily_resting_heart_rate_key IN (",
     placeholders,
@@ -31,6 +35,7 @@ get_existing_google_health_daily_resting_heart_rate_keys <- function(
     )
   ) |>
     dplyr::mutate(
-      daily_resting_heart_rate_key = as.character(daily_resting_heart_rate_key)
+      daily_resting_heart_rate_key = as.character(daily_resting_heart_rate_key),
+      payload_hash = as.character(payload_hash)
     )
 }
