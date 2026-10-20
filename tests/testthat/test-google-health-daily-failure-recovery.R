@@ -50,7 +50,7 @@ request_fixture <- function(
   )
 }
 
-unresolved_ids <- function(entities, requests) {
+failure_history <- function(entities, requests) {
   daily_entities <- c(
     "google_health_daily_resting_heart_rate",
     "google_health_daily_heart_rate_variability",
@@ -60,15 +60,24 @@ unresolved_ids <- function(entities, requests) {
   failures <- entities |>
     dplyr::filter(
       .data$entity_name %in% daily_entities,
-      .data$entity_status == "FAILED",
-      .data$started_at >= recovery_time("2026-10-01")
+      .data$entity_status == "FAILED"
     )
 
-  recovered <- vapply(seq_len(nrow(failures)), function(index) {
+  purrr::map_dfr(seq_len(nrow(failures)), function(index) {
     failed <- failures[index, , drop = FALSE]
     failed_requests <- requests |>
-      dplyr::filter(.data$run_entity_id == failed$run_entity_id[[1]])
-    if (nrow(failed_requests) == 0L) return(FALSE)
+      dplyr::filter(.data$run_entity_id == failed$run_entity_id[[1]]) |>
+      dplyr::filter(.data$requested_end_date > .data$requested_start_date) |>
+      dplyr::distinct(.data$requested_start_date, .data$requested_end_date)
+    if (nrow(failed_requests) == 0L) {
+      return(tibble::tibble(
+        run_entity_id = failed$run_entity_id[[1]],
+        recovery_status = "UNKNOWN",
+        failed_request_window_count = 0L,
+        covered_request_window_count = 0L,
+        recovery_completed_at = as.POSIXct(NA)
+      ))
+    }
 
     boundary <- failed$completed_at[[1]]
     if (is.na(boundary)) boundary <- failed$started_at[[1]]
@@ -82,28 +91,77 @@ unresolved_ids <- function(entities, requests) {
           (is.na(.data$source_id) & is.na(failed$source_id[[1]]))
       )
     recovered_requests <- requests |>
-      dplyr::filter(
-        .data$run_entity_id %in% recovered_entities$run_entity_id,
-        .data$request_status == "SUCCESS"
+      dplyr::filter(.data$run_entity_id %in% recovered_entities$run_entity_id) |>
+      dplyr::filter(.data$request_status == "SUCCESS") |>
+      dplyr::left_join(
+        recovered_entities |>
+          dplyr::select("run_entity_id", "completed_at"),
+        by = "run_entity_id"
       )
 
-    all(vapply(seq_len(nrow(failed_requests)), function(request_index) {
-      request <- failed_requests[request_index, , drop = FALSE]
-      any(
-        recovered_requests$requested_start_date <=
-          request$requested_start_date[[1]] &
-          recovered_requests$requested_end_date >=
-            request$requested_end_date[[1]]
-      )
-    }, logical(1)))
-  }, logical(1))
+    window_recovery <- purrr::map_dfr(
+      seq_len(nrow(failed_requests)),
+      function(request_index) {
+        request <- failed_requests[request_index, , drop = FALSE]
+        days <- seq(
+          request$requested_start_date[[1]],
+          request$requested_end_date[[1]] - 1L,
+          by = "day"
+        )
+        day_recovery <- vapply(days, function(day) {
+          day <- as.Date(day, origin = "1970-01-01")
+          candidates <- recovered_requests |>
+            dplyr::filter(
+              .data$requested_start_date <= day,
+              .data$requested_end_date > day
+            )
+          if (nrow(candidates) == 0L) return(as.numeric(NA))
+          min(as.numeric(candidates$completed_at))
+        }, numeric(1))
+        tibble::tibble(
+          covered = all(!is.na(day_recovery)),
+          recovery_completed_at = if (all(!is.na(day_recovery))) {
+            as.POSIXct(max(day_recovery), origin = "1970-01-01", tz = "UTC")
+          } else {
+            as.POSIXct(NA)
+          }
+        )
+      }
+    )
 
-  failures$run_entity_id[!recovered]
+    is_recovered <- all(window_recovery$covered)
+    tibble::tibble(
+      run_entity_id = failed$run_entity_id[[1]],
+      recovery_status = if (is_recovered) "RECOVERED" else "UNRESOLVED",
+      failed_request_window_count = nrow(failed_requests),
+      covered_request_window_count = sum(window_recovery$covered),
+      recovery_completed_at = if (is_recovered) {
+        max(window_recovery$recovery_completed_at)
+      } else {
+        as.POSIXct(NA)
+      }
+    )
+  })
+}
+
+unresolved_ids <- function(entities, requests) {
+  history <- failure_history(entities, requests)
+  history$run_entity_id[history$recovery_status != "RECOVERED"]
 }
 
 testthat::test_that("failed daily entity without later success remains unresolved", {
   entities <- entity_fixture(1)
   requests <- request_fixture(1)
+
+  testthat::expect_equal(unresolved_ids(entities, requests), 1)
+})
+
+testthat::test_that("historical age does not suppress unresolved coverage", {
+  entities <- entity_fixture(
+    1,
+    started_at = recovery_time("2025-01-01")
+  )
+  requests <- request_fixture(1, "2024-12-15")
 
   testthat::expect_equal(unresolved_ids(entities, requests), 1)
 })
@@ -235,6 +293,73 @@ testthat::test_that("missing request coverage metadata remains unresolved", {
   requests <- request_fixture(2)
 
   testthat::expect_equal(unresolved_ids(entities, requests), 1)
+  testthat::expect_identical(
+    failure_history(entities, requests)$recovery_status,
+    "UNKNOWN"
+  )
+})
+
+testthat::test_that("adjacent successful windows collectively recover a failed interval", {
+  entities <- dplyr::bind_rows(
+    entity_fixture(1),
+    entity_fixture(2, entity_status = "SUCCESS", started_at = recovery_time("2026-10-20")),
+    entity_fixture(3, entity_status = "SUCCESS", started_at = recovery_time("2026-10-21"))
+  )
+  requests <- dplyr::bind_rows(
+    request_fixture(1, "2026-10-05", "2026-10-08"),
+    request_fixture(2, "2026-10-05", "2026-10-06"),
+    request_fixture(3, "2026-10-06", "2026-10-08")
+  )
+
+  history <- failure_history(entities, requests)
+  testthat::expect_identical(history$recovery_status, "RECOVERED")
+  testthat::expect_equal(history$recovery_completed_at, recovery_time("2026-10-21") + 60)
+})
+
+testthat::test_that("a gap between successful windows remains unresolved", {
+  entities <- dplyr::bind_rows(
+    entity_fixture(1),
+    entity_fixture(2, entity_status = "SUCCESS", started_at = recovery_time("2026-10-20")),
+    entity_fixture(3, entity_status = "SUCCESS", started_at = recovery_time("2026-10-21"))
+  )
+  requests <- dplyr::bind_rows(
+    request_fixture(1, "2026-10-05", "2026-10-08"),
+    request_fixture(2, "2026-10-05", "2026-10-06"),
+    request_fixture(3, "2026-10-07", "2026-10-08")
+  )
+
+  history <- failure_history(entities, requests)
+  testthat::expect_identical(history$recovery_status, "UNRESOLVED")
+  testthat::expect_true(is.na(history$recovery_completed_at))
+})
+
+testthat::test_that("duplicate failed windows retain one recovery obligation", {
+  entities <- dplyr::bind_rows(
+    entity_fixture(1),
+    entity_fixture(2, entity_status = "SUCCESS", started_at = recovery_time("2026-10-20"))
+  )
+  requests <- dplyr::bind_rows(
+    request_fixture(1), request_fixture(1), request_fixture(2)
+  )
+
+  history <- failure_history(entities, requests)
+  testthat::expect_equal(history$failed_request_window_count, 1L)
+  testthat::expect_equal(history$covered_request_window_count, 1L)
+})
+
+testthat::test_that("success from another source cannot establish recovery", {
+  entities <- dplyr::bind_rows(
+    entity_fixture(1, source_id = 2L),
+    entity_fixture(
+      2,
+      source_id = 3L,
+      entity_status = "SUCCESS",
+      started_at = recovery_time("2026-10-20")
+    )
+  )
+  requests <- dplyr::bind_rows(request_fixture(1), request_fixture(2))
+
+  testthat::expect_equal(unresolved_ids(entities, requests), 1)
 })
 
 testthat::test_that("classification leaves historical execution rows unchanged", {
@@ -285,21 +410,17 @@ testthat::test_that("all governed daily entities use identical recovery semantic
   testthat::expect_length(unresolved_ids(entities, requests), 0L)
 })
 
-testthat::test_that("production SQL requires complete same-entity source coverage", {
+testthat::test_that("validation consumes the authoritative recovery contract", {
   sql <- google_health_daily_unresolved_failures_query()
 
-  testthat::expect_match(sql, "NOT EXISTS", fixed = TRUE)
-  testthat::expect_match(sql, "recovered.entity_name = failed.entity_name", fixed = TRUE)
-  testthat::expect_match(sql, "recovered.source_id = failed.source_id", fixed = TRUE)
-  testthat::expect_match(sql, "recovered.entity_status = 'SUCCESS'", fixed = TRUE)
-  testthat::expect_match(sql, "recovered_request.request_status = 'SUCCESS'", fixed = TRUE)
   testthat::expect_match(
     sql,
-    "recovered_request.requested_start_date",
+    "v_google_health_daily_ingestion_failure_history",
     fixed = TRUE
   )
-  testthat::expect_match(sql, "<= failed_request.requested_start_date", fixed = TRUE)
-  testthat::expect_match(sql, ">= failed_request.requested_end_date", fixed = TRUE)
+  testthat::expect_match(sql, "recovery_status IN ('UNRESOLVED', 'UNKNOWN')", fixed = TRUE)
+  testthat::expect_false(grepl("INTERVAL 14 DAY", sql, fixed = TRUE))
+  testthat::expect_false(grepl("etl_request_log", sql, fixed = TRUE))
 })
 
 testthat::test_that("an unresolved issue retains warning governance", {

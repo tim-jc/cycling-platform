@@ -137,11 +137,45 @@ is UNKNOWN; an optional never-observed entity is INFO.
 | Latest daily pipeline failed | CRITICAL |
 | Pipeline or child execution RUNNING for over six hours | CRITICAL |
 | Latest validation execution in a scope failed | CRITICAL |
+| Google Health daily ingestion coverage UNRESOLVED | WARNING |
+| Google Health daily ingestion coverage UNKNOWN | UNKNOWN |
 | Backup health | Classification from the backup contract below |
 
 This is current state, not a duplicated debt-event history. Existing execution,
 validation, notification and backup histories show when most transitions occurred.
 Automatic repair of stale RUNNING rows remains deferred; detection is deliberate.
+
+### Google Health daily ingestion recovery
+
+`v_google_health_daily_ingestion_failure_history` is the authoritative recovery
+contract for failed resting-heart-rate, heart-rate-variability, and respiratory-rate
+entity executions. Its grain is one historical failed `etl_run_entity`. The failed
+execution and sanitised error remain immutable evidence; recovery is derived from
+`etl_request_log` rather than written back to that history.
+
+Request dates are inclusive start/exclusive end. A failed execution is `RECOVERED`
+only when every distinct recorded request window is covered by later successful
+requests for the same source and entity, and those requests belong to terminally
+successful entity executions. Adjacent successful intervals may collectively cover
+a failed interval. `recovery_completed_at_utc` is the point at which the last
+required day first became demonstrably covered. Duplicate failed windows create one
+coverage obligation. Missing or invalid failed-window telemetry is `UNKNOWN`, not
+implicitly recovered; incomplete evidence is `UNRESOLVED`.
+
+The implementation expands an individual failed DATE interval to its constituent
+days. Scheduled daily-entity requests are one day and the normal refresh window is
+small, so this remains bounded in normal operation. MariaDB's recursive-CTE limit is
+therefore not approached by governed ingestion. An unusually large manually logged
+single request interval above that database limit is a documented limitation and
+must not be treated as recovered without inspecting the query result.
+
+The deep validation check
+`raw_google_health_daily_entities_recent_failures` consumes this view and warns on
+`UNRESOLVED` and `UNKNOWN`; it no longer embeds its own recovery SQL or ages debt out
+after 14 days. The same states feed `v_operational_debt_latest`, and therefore the
+existing platform-health severity roll-up. Recovered incidents remain queryable in
+history but do not degrade current health. This keeps recovery semantics in Admin
+for validation and future Grafana consumers.
 
 ## Dashboard-facing Admin Views
 
@@ -161,6 +195,7 @@ Grafana and future operational MCP tools may consume these stable read models:
 | `v_backup_health_latest` | Latest attempt, complete recovery point and reconciliation health |
 | `v_backup_history` | Physical attempts linked to complete verified recovery points |
 | `v_api_request_failure_history` | Sanitised failed/retried request evidence |
+| `v_google_health_daily_ingestion_failure_history` | Historical failed daily-entity executions with authoritative request-window recovery state |
 
 Helper views prefixed with the same domain names support these contracts but are
 not intended as primary dashboard APIs.

@@ -21,56 +21,19 @@ platform_database_schemas <- function() {
 google_health_daily_unresolved_failures_query <- function() {
   "
     SELECT
-      failed.run_entity_id,
-      failed.run_id,
-      failed.entity_name,
-      failed.entity_status,
-      failed.error_message
-    FROM cycling_platform_admin.etl_run_entity failed
-    WHERE failed.entity_name IN (
-        'google_health_daily_resting_heart_rate',
-        'google_health_daily_heart_rate_variability',
-        'google_health_daily_respiratory_rate'
-      )
-      AND failed.entity_status = 'FAILED'
-      AND failed.started_at >= UTC_TIMESTAMP() - INTERVAL 14 DAY
-      AND (
-        NOT EXISTS (
-          SELECT 1
-          FROM cycling_platform_admin.etl_request_log failed_request
-          WHERE failed_request.run_entity_id = failed.run_entity_id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM cycling_platform_admin.etl_request_log failed_request
-          WHERE failed_request.run_entity_id = failed.run_entity_id
-            AND NOT EXISTS (
-              SELECT 1
-              FROM cycling_platform_admin.etl_run_entity recovered
-              INNER JOIN cycling_platform_admin.etl_request_log recovered_request
-                ON recovered_request.run_entity_id = recovered.run_entity_id
-              WHERE recovered.entity_name = failed.entity_name
-                AND (
-                  recovered.source_id = failed.source_id
-                  OR (
-                    recovered.source_id IS NULL
-                    AND failed.source_id IS NULL
-                  )
-                )
-                AND recovered.entity_status = 'SUCCESS'
-                AND recovered.started_at > COALESCE(
-                  failed.completed_at,
-                  failed.started_at
-                )
-                AND recovered_request.request_status = 'SUCCESS'
-                AND recovered_request.requested_start_date
-                    <= failed_request.requested_start_date
-                AND recovered_request.requested_end_date
-                    >= failed_request.requested_end_date
-            )
-        )
-      )
-    ORDER BY failed.started_at DESC
+      failed_run_entity_id AS run_entity_id,
+      failed_run_id AS run_id,
+      entity_name,
+      original_entity_status AS entity_status,
+      recovery_status,
+      failed_request_window_count,
+      covered_request_window_count,
+      earliest_failed_request_start_date,
+      latest_failed_request_end_date,
+      error_summary AS error_message
+    FROM cycling_platform_admin.v_google_health_daily_ingestion_failure_history
+    WHERE recovery_status IN ('UNRESOLVED', 'UNKNOWN')
+    ORDER BY failure_started_at_utc DESC
     LIMIT 1000
   "
 }
@@ -1163,6 +1126,7 @@ validate_platform_completeness <- function(
           UNION ALL SELECT 'v_backup_health_latest'
           UNION ALL SELECT 'v_backup_history'
           UNION ALL SELECT 'v_api_request_failure_history'
+          UNION ALL SELECT 'v_google_health_daily_ingestion_failure_history'
         ) expected
         LEFT JOIN information_schema.views actual
           ON actual.table_schema = 'cycling_platform_admin'
@@ -1197,6 +1161,10 @@ validate_platform_completeness <- function(
         SELECT 'debt', health_status
         FROM cycling_platform_admin.v_operational_debt_latest
         WHERE health_status NOT IN ('HEALTHY', 'INFO', 'WARNING', 'CRITICAL', 'UNKNOWN')
+        UNION ALL
+        SELECT 'google_health_daily_ingestion_recovery', recovery_status
+        FROM cycling_platform_admin.v_google_health_daily_ingestion_failure_history
+        WHERE recovery_status NOT IN ('RECOVERED', 'UNRESOLVED', 'UNKNOWN')
       ",
       per_check_timeout_seconds = per_check_timeout_seconds,
       deadline = deadline

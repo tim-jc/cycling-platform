@@ -83,7 +83,8 @@ testthat::test_that("dashboard-facing view catalogue is stable and MariaDB-safe"
     "v_source_freshness_latest", "v_source_health_latest",
     "v_publication_freshness_latest", "v_operational_debt_latest",
     "v_validation_history", "v_backup_health_latest", "v_backup_history",
-    "v_api_request_failure_history"
+    "v_api_request_failure_history",
+    "v_google_health_daily_ingestion_failure_history"
   )
   for (view in expected_views) {
     testthat::expect_match(sql, paste0("CREATE OR REPLACE VIEW cycling_platform_admin.", view), fixed = TRUE)
@@ -146,10 +147,26 @@ testthat::test_that("debt views govern current actionable conditions", {
     "achievement_evaluation", "notification_pending",
     "notification_retry_or_failed", "notification_stale_sending",
     "stale_pipeline_execution",
-    "stale_child_execution", "latest_validation", "backup"
+    "stale_child_execution", "latest_validation", "backup",
+    "google_health_daily_ingestion_coverage"
   )) testthat::expect_match(sql, debt, fixed = TRUE)
   testthat::expect_match(sql, "INTERVAL 6 HOUR", fixed = TRUE)
   testthat::expect_match(sql, "evaluation_status = 'INVALIDATED'", fixed = TRUE)
+})
+
+testthat::test_that("Google Health recovery is an Admin-owned health dependency", {
+  sql <- paste(readLines(phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"), warn = FALSE), collapse = "\n")
+
+  testthat::expect_match(sql, "CREATE OR REPLACE VIEW cycling_platform_admin.v_google_health_daily_ingestion_failure_history", fixed = TRUE)
+  testthat::expect_match(sql, "WITH RECURSIVE", fixed = TRUE)
+  testthat::expect_match(sql, "SELECT DISTINCT failed.run_entity_id", fixed = TRUE)
+  testthat::expect_match(sql, "recovered.source_id <=> failed.source_id", fixed = TRUE)
+  testthat::expect_match(sql, "recovered.entity_status = 'SUCCESS'", fixed = TRUE)
+  testthat::expect_match(sql, "recovered_request.request_status = 'SUCCESS'", fixed = TRUE)
+  testthat::expect_match(sql, "THEN 'RECOVERED'", fixed = TRUE)
+  testthat::expect_match(sql, "THEN 'UNKNOWN'", fixed = TRUE)
+  testthat::expect_match(sql, "SUM(recovery_status IN ('UNRESOLVED', 'UNKNOWN'))", fixed = TRUE)
+  testthat::expect_match(sql, "FROM cycling_platform_admin.v_google_health_daily_ingestion_failure_history", fixed = TRUE)
 })
 
 testthat::test_that("backup and validation views preserve authoritative semantics", {

@@ -63,6 +63,51 @@ testthat::test_that("migration 001 retains its rehearsed immutable checksum", {
   )
 })
 
+testthat::test_that("migration 014 records the authoritative Google Health recovery view", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "014_add_google_health_daily_ingestion_recovery.sql"
+  )
+  migration_sql <- paste(readLines(migration_file, warn = FALSE), collapse = "\n")
+
+  testthat::expect_match(
+    migration_sql,
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_google_health_daily_ingestion_failure_history",
+    fixed = TRUE
+  )
+  testthat::expect_match(migration_sql, "WITH RECURSIVE", fixed = TRUE)
+  testthat::expect_match(migration_sql, "recovered.source_id <=> failed.source_id", fixed = TRUE)
+  testthat::expect_match(migration_sql, "recovered.entity_status = 'SUCCESS'", fixed = TRUE)
+  testthat::expect_match(migration_sql, "recovered_request.request_status = 'SUCCESS'", fixed = TRUE)
+
+  canonical_file <- file.path(
+    project_root,
+    "sql",
+    "admin",
+    "100_create_operational_observability_views.sql"
+  )
+  canonical_lines <- readLines(canonical_file, warn = FALSE)
+  start <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_google_health_daily_ingestion_failure_history",
+    canonical_lines,
+    fixed = TRUE
+  )
+  end <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest",
+    canonical_lines,
+    fixed = TRUE
+  ) - 1L
+  canonical_sql <- paste(canonical_lines[start:end], collapse = "\n")
+  migration_body <- paste(
+    readLines(migration_file, warn = FALSE)[-(1:3)],
+    collapse = "\n"
+  )
+  testthat::expect_identical(trimws(migration_body), trimws(canonical_sql))
+})
+
 testthat::test_that("migration 006 removes only the obsolete Silver staging table", {
   project_root <- find_migration_project_root()
   migration_file <- file.path(
