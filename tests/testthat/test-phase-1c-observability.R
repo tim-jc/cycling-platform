@@ -163,6 +163,8 @@ testthat::test_that("Google Health recovery is an Admin-owned health dependency"
   testthat::expect_match(sql, "recovered.source_id <=> failed.source_id", fixed = TRUE)
   testthat::expect_match(sql, "recovered.entity_status = 'SUCCESS'", fixed = TRUE)
   testthat::expect_match(sql, "recovered_request.request_status = 'SUCCESS'", fixed = TRUE)
+  testthat::expect_match(sql, "AS CHAR CHARACTER SET utf8mb4", fixed = TRUE)
+  testthat::expect_match(sql, "_utf8mb4',' COLLATE utf8mb4_general_ci", fixed = TRUE)
   testthat::expect_match(sql, "THEN 'RECOVERED'", fixed = TRUE)
   testthat::expect_match(sql, "THEN 'UNKNOWN'", fixed = TRUE)
   testthat::expect_match(sql, "SUM(recovery_status IN ('UNRESOLVED', 'UNKNOWN'))", fixed = TRUE)

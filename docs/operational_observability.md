@@ -209,6 +209,16 @@ at its originating expression. Text selected directly from canonical table or
 view columns retains the source column collation. This prevents the compiled
 view contract from depending on the session used to run bootstrap.
 
+For string functions, collating only the final result is insufficient. MariaDB
+must first reconcile the function operands. Every generated string operand and
+literal delimiter must therefore be given an explicit compatible character set
+and collation inside the function call. The recovery view uses
+`CAST(... AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci` together
+with an explicitly introduced and collated `_utf8mb4` delimiter for this reason.
+This keeps view execution and `SHOW CREATE VIEW` independent of whether a client
+negotiates MySQL's `utf8mb4_0900_ai_ci` or MariaDB's
+`utf8mb4_uca1400_ai_ci`.
+
 The transform history view exposes `has_phase_1b_metrics`. A new no-op Gold run
 has explicit zero metrics and this flag set; a pre-Phase-1B run has null metrics
 and the flag unset. Consumers must preserve that distinction.

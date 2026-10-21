@@ -63,25 +63,44 @@ testthat::test_that("migration 001 retains its rehearsed immutable checksum", {
   )
 })
 
-testthat::test_that("migration 014 records the authoritative Google Health recovery view", {
+testthat::test_that("migration 014 remains immutable after deployment", {
+  project_root <- find_migration_project_root()
+  manifest <- discover_schema_migrations(
+    file.path(project_root, "sql", "migrations")
+  )
+  migration_014 <- manifest[
+    manifest$migration_version == "014",
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_equal(nrow(migration_014), 1L)
+  testthat::expect_identical(
+    migration_014$migration_filename[[1]],
+    "014_add_google_health_daily_ingestion_recovery.sql"
+  )
+  testthat::expect_identical(
+    migration_014$migration_checksum[[1]],
+    "59d9b9156873edc2542ff92018e1db680bdc58cebaed36f126c7ed2cd0ecfaed"
+  )
+})
+
+testthat::test_that("migration 015 publishes the canonical collation-safe recovery view", {
   project_root <- find_migration_project_root()
   migration_file <- file.path(
     project_root,
     "sql",
     "migrations",
-    "014_add_google_health_daily_ingestion_recovery.sql"
+    "015_fix_google_health_recovery_view_collation.sql"
   )
   migration_sql <- paste(readLines(migration_file, warn = FALSE), collapse = "\n")
 
+  testthat::expect_match(migration_sql, "AS CHAR CHARACTER SET utf8mb4", fixed = TRUE)
   testthat::expect_match(
     migration_sql,
-    "CREATE OR REPLACE VIEW cycling_platform_admin.v_google_health_daily_ingestion_failure_history",
+    "_utf8mb4',' COLLATE utf8mb4_general_ci",
     fixed = TRUE
   )
-  testthat::expect_match(migration_sql, "WITH RECURSIVE", fixed = TRUE)
-  testthat::expect_match(migration_sql, "recovered.source_id <=> failed.source_id", fixed = TRUE)
-  testthat::expect_match(migration_sql, "recovered.entity_status = 'SUCCESS'", fixed = TRUE)
-  testthat::expect_match(migration_sql, "recovered_request.request_status = 'SUCCESS'", fixed = TRUE)
 
   canonical_file <- file.path(
     project_root,

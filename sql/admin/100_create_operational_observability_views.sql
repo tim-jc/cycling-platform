@@ -362,12 +362,15 @@ day_recovery AS (
          MIN(CASE WHEN recovered_request.request_id IS NOT NULL
                   THEN recovered.completed_at END) AS recovery_completed_at,
          SUBSTRING_INDEX(
-           GROUP_CONCAT(
-             CASE WHEN recovered_request.request_id IS NOT NULL
-                  THEN recovered.run_entity_id END
-             ORDER BY recovered.completed_at, recovered.run_entity_id
-           ),
-           ',', 1
+           CAST(
+             GROUP_CONCAT(
+               CASE WHEN recovered_request.request_id IS NOT NULL
+                    THEN recovered.run_entity_id END
+               ORDER BY recovered.completed_at, recovered.run_entity_id
+             ) AS CHAR CHARACTER SET utf8mb4
+           ) COLLATE utf8mb4_general_ci,
+           _utf8mb4',' COLLATE utf8mb4_general_ci,
+           1
          ) AS recovery_run_entity_id
   FROM failed_days failed_day
   INNER JOIN failed_entities failed
