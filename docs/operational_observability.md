@@ -125,6 +125,39 @@ Roll-up precedence is `CRITICAL` → `WARNING` → `INFO` → `UNKNOWN` → `HEA
 Missing evidence is not automatically critical. A required never-observed entity
 is UNKNOWN; an optional never-observed entity is INFO.
 
+### Validation outcome contract
+
+Validation execution and validation assessment are separate governed facts:
+
+- `validation_run.run_status` describes execution lifecycle: `RUNNING`, `SUCCESS`,
+  `FAILED`, or `TIMED_OUT`.
+- `validation_run.validation_outcome` describes the completed assessment:
+  `PASSED`, `PASSED_WITH_WARNINGS`, `FAILED`, or `TIMED_OUT`.
+- `validation_run_check.check_status` and `severity` retain individual check
+  evidence. A failed `INFO` check is observational and does not by itself degrade
+  the governed outcome; a failed `WARNING` check yields
+  `PASSED_WITH_WARNINGS`; failed `CRITICAL` or legacy `ERROR` checks yield
+  `FAILED`.
+- `v_validation_history.health_status` is the stable consumer mapping:
+  `PASSED` → `HEALTHY`, `PASSED_WITH_WARNINGS` → `WARNING`, and `FAILED` or
+  `TIMED_OUT` → `CRITICAL`. Incomplete, malformed, or unsupported evidence is
+  `UNKNOWN`, never optimistically healthy.
+
+Older deployed databases predate persisted validation summaries. Migration 016
+adds the already-canonical summary columns without rewriting historical rows.
+For a historical successful execution whose persisted outcome is null,
+`v_validation_history` derives the same outcome from its durable per-check
+evidence. It refuses to infer an outcome from incomplete or malformed evidence.
+New executions persist the governed outcome directly.
+
+Historical execution rows remain immutable: a past `FAILED` execution stays
+failed even after later recovery. Current health instead consumes the latest
+governed validation outcome per scope through `v_operational_debt_latest`. This
+prevents an informational historical finding from becoming a false critical
+condition while ensuring real warnings, failures, timeouts, and unknown current
+state remain visible. Grafana and other read consumers must use these Admin views
+rather than independently reclassifying checks.
+
 `v_operational_debt_latest` owns the current debt catalogue:
 
 | Debt | Classification |
@@ -136,7 +169,9 @@ is UNKNOWN; an optional never-observed entity is INFO.
 | Notification RETRY, FAILED, or SENDING for over one hour | CRITICAL |
 | Latest daily pipeline failed | CRITICAL |
 | Pipeline or child execution RUNNING for over six hours | CRITICAL |
-| Latest validation execution in a scope failed | CRITICAL |
+| Latest validation outcome in a scope PASSED_WITH_WARNINGS | WARNING |
+| Latest validation execution/outcome in a scope failed or timed out | CRITICAL |
+| Latest validation execution/outcome in a scope is incomplete or untrusted | UNKNOWN |
 | Google Health daily ingestion coverage UNRESOLVED | WARNING |
 | Google Health daily ingestion coverage UNKNOWN | UNKNOWN |
 | Backup health | Classification from the backup contract below |
@@ -191,7 +226,7 @@ Grafana and future operational MCP tools may consume these stable read models:
 | `v_source_health_latest` | Required-entity roll-up per external source |
 | `v_publication_freshness_latest` | Raw/Silver/Gold/deep-validation recency, plus platform-owned Silver/Gold upstream-lag state |
 | `v_operational_debt_latest` | Current actionable debt catalogue |
-| `v_validation_history` | Validation outcomes and check counts without relying on optional legacy summary columns |
+| `v_validation_history` | Validation execution history, governed outcomes and check counts, with conservative legacy derivation |
 | `v_backup_health_latest` | Latest attempt, complete recovery point and reconciliation health |
 | `v_backup_history` | Physical attempts linked to complete verified recovery points |
 | `v_api_request_failure_history` | Sanitised failed/retried request evidence |

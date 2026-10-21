@@ -127,6 +127,94 @@ testthat::test_that("migration 015 publishes the canonical collation-safe recove
   testthat::expect_identical(trimws(migration_body), trimws(canonical_sql))
 })
 
+testthat::test_that("migration 015 remains immutable after deployment", {
+  project_root <- find_migration_project_root()
+  manifest <- discover_schema_migrations(
+    file.path(project_root, "sql", "migrations")
+  )
+  migration_015 <- manifest[
+    manifest$migration_version == "015",
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_equal(nrow(migration_015), 1L)
+  testthat::expect_identical(
+    migration_015$migration_filename[[1]],
+    "015_fix_google_health_recovery_view_collation.sql"
+  )
+  testthat::expect_identical(
+    migration_015$migration_checksum[[1]],
+    "90f947cc995e08c9c79ec925bd6d5b6c44d745b86a2d522cf2eb032942536704"
+  )
+})
+
+testthat::test_that("migration 016 reconciles validation outcomes and current health", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "016_govern_validation_outcome_semantics.sql"
+  )
+  migration_sql <- paste(readLines(migration_file, warn = FALSE), collapse = "\n")
+  canonical_lines <- readLines(file.path(
+    project_root,
+    "sql",
+    "admin",
+    "100_create_operational_observability_views.sql"
+  ), warn = FALSE)
+
+  for (column in c(
+    "validation_outcome", "total_check_count", "warning_check_count",
+    "warning_issue_count", "error_check_count", "error_issue_count",
+    "skipped_check_count"
+  )) {
+    testthat::expect_match(
+      migration_sql,
+      paste("ADD COLUMN IF NOT EXISTS", column),
+      fixed = TRUE
+    )
+  }
+  testthat::expect_match(
+    migration_sql,
+    "ADD INDEX IF NOT EXISTS idx_validation_run_outcome",
+    fixed = TRUE
+  )
+
+  validation_start <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_validation_history",
+    canonical_lines,
+    fixed = TRUE
+  )
+  validation_end <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_backup_history",
+    canonical_lines,
+    fixed = TRUE
+  ) - 1L
+  debt_start <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest",
+    canonical_lines,
+    fixed = TRUE
+  )
+  debt_end <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_latest",
+    canonical_lines,
+    fixed = TRUE
+  ) - 1L
+
+  testthat::expect_match(
+    migration_sql,
+    trimws(paste(canonical_lines[validation_start:validation_end], collapse = "\n")),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    migration_sql,
+    trimws(paste(canonical_lines[debt_start:debt_end], collapse = "\n")),
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("migration 006 removes only the obsolete Silver staging table", {
   project_root <- find_migration_project_root()
   migration_file <- file.path(
@@ -459,6 +547,33 @@ testthat::test_that("bootstrap file ordering and reruns are deterministic", {
 
   testthat::expect_identical(first_run, second_run)
   testthat::expect_identical(migration_runs, 2L)
+})
+
+testthat::test_that("bootstrap applies migrations before publishing dependent views", {
+  project_root <- find_migration_project_root()
+  events <- character()
+
+  bootstrap_platform_schema(
+    connection = NULL,
+    project_root = project_root,
+    execute_sql = function(sql_file, connection) {
+      events <<- c(events, paste0("ddl:", basename(sql_file)))
+    },
+    migrate = function(...) {
+      events <<- c(events, "migrate")
+      character()
+    },
+    database_access_findings = function(...) data.frame()
+  )
+
+  view_events <- grep("ddl:[0-9]+_create_.*views[.]sql$", events)
+  migration_event <- match("migrate", events)
+
+  testthat::expect_length(view_events, 1L)
+  testthat::expect_true(all(seq_along(events)[
+    grepl("^ddl:", events) & !seq_along(events) %in% view_events
+  ] < migration_event))
+  testthat::expect_true(all(view_events > migration_event))
 })
 
 testthat::test_that("bootstrap stops before object DDL when infrastructure is not ready", {

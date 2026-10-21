@@ -181,6 +181,83 @@ testthat::test_that("backup and validation views preserve authoritative semantic
   testthat::expect_match(sql, "checks.check_status = 'FAIL'", fixed = TRUE)
 })
 
+testthat::test_that("validation history preserves execution and governed outcome semantics", {
+  sql_lines <- readLines(
+    phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"),
+    warn = FALSE
+  )
+  start <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_validation_history",
+    sql_lines,
+    fixed = TRUE
+  )
+  end <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_backup_history",
+    sql_lines,
+    fixed = TRUE
+  ) - 1L
+  sql <- paste(sql_lines[start:end], collapse = "\n")
+
+  testthat::expect_match(sql, "WHEN run.run_status = 'TIMED_OUT' THEN 'TIMED_OUT'", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN run.run_status = 'FAILED' THEN 'FAILED'", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN run.run_status = 'RUNNING' THEN NULL", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN COALESCE(checks.critical_failure_count, 0) > 0 THEN 'FAILED'", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN COALESCE(checks.warning_failure_count, 0) > 0 THEN 'PASSED_WITH_WARNINGS'", fixed = TRUE)
+  testthat::expect_match(sql, "ELSE 'PASSED'", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN 'PASSED' THEN 'HEALTHY'", fixed = TRUE)
+  testthat::expect_match(sql, "WHEN 'PASSED_WITH_WARNINGS' THEN 'WARNING'", fixed = TRUE)
+  testthat::expect_match(sql, "ELSE 'UNKNOWN'", fixed = TRUE)
+  testthat::expect_false(grepl(
+    "WHEN SUM\\(CASE WHEN checks.check_status = 'FAIL'.*THEN 'CRITICAL'",
+    sql
+  ))
+
+  public_select <- paste(sql_lines[(end - 14L):end], collapse = " ")
+  existing_columns <- c(
+    "validation_run_id", "pipeline_run_id", "validation_scope", "run_mode",
+    "run_status", "started_at_utc", "completed_at_utc", "duration_seconds",
+    "check_count", "passed_check_count", "failed_check_count",
+    "skipped_check_count", "issue_count", "health_status", "error_message"
+  )
+  positions <- vapply(existing_columns, function(column) {
+    regexpr(column, public_select, fixed = TRUE)[[1]]
+  }, integer(1))
+  testthat::expect_true(all(positions > 0L))
+  testthat::expect_true(all(diff(positions) > 0L))
+  outcome_positions <- gregexpr(
+    "validation_outcome",
+    public_select,
+    fixed = TRUE
+  )[[1]]
+  testthat::expect_gt(
+    max(outcome_positions),
+    positions[[length(positions)]]
+  )
+})
+
+testthat::test_that("latest validation debt consumes governed validation history", {
+  sql <- paste(readLines(
+    phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"),
+    warn = FALSE
+  ), collapse = "\n")
+
+  testthat::expect_match(
+    sql,
+    "FROM cycling_platform_admin.v_validation_history history",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    sql,
+    "WHEN 'CRITICAL' THEN 4 WHEN 'WARNING' THEN 3 WHEN 'UNKNOWN' THEN 1 ELSE 0",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    sql,
+    "Latest governed validation outcome for each validation scope",
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("mixed Raw identity uses entity source attribution", {
   sql <- paste(readLines(phase_1c_path("sql", "admin", "100_create_operational_observability_views.sql"), warn = FALSE), collapse = "\n")
   helper <- paste(readLines(phase_1c_path("R", "admin", "source_freshness_observability.R"), warn = FALSE), collapse = "\n")

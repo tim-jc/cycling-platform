@@ -224,29 +224,61 @@ WHERE entity_requirement = 'REQUIRED'
 GROUP BY source_id, source_name;
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_validation_history AS
-SELECT run.validation_run_id, run.pipeline_run_id, run.validation_scope,
-       run.run_mode, run.run_status,
-       run.started_at AS started_at_utc, run.completed_at AS completed_at_utc,
-       run.duration_seconds,
-       COUNT(checks.validation_run_check_id) AS check_count,
-       SUM(CASE WHEN checks.check_status = 'PASS' THEN 1 ELSE 0 END) AS passed_check_count,
-       SUM(CASE WHEN checks.check_status = 'FAIL' THEN 1 ELSE 0 END) AS failed_check_count,
-       0 AS skipped_check_count,
-       COALESCE(SUM(checks.issue_count), 0) AS issue_count,
-       CASE
-         WHEN run.run_status IN ('FAILED', 'TIMED_OUT') THEN 'CRITICAL'
-         WHEN SUM(CASE WHEN checks.check_status = 'FAIL' THEN 1 ELSE 0 END) > 0 THEN 'CRITICAL'
-         WHEN SUM(CASE WHEN checks.severity = 'WARNING' AND checks.issue_count > 0 THEN 1 ELSE 0 END) > 0 THEN 'WARNING'
-         WHEN run.run_status = 'SUCCESS' THEN 'HEALTHY'
-         ELSE 'INFO'
+WITH
+check_summary AS (
+  SELECT checks.validation_run_id,
+         COUNT(*) AS check_count,
+         SUM(checks.check_status = 'PASS') AS passed_check_count,
+         SUM(checks.check_status = 'FAIL') AS failed_check_count,
+         COALESCE(SUM(checks.issue_count), 0) AS issue_count,
+         SUM(checks.check_status = 'FAIL' AND checks.severity = 'WARNING') AS warning_failure_count,
+         SUM(checks.check_status = 'FAIL' AND checks.severity IN ('CRITICAL', 'ERROR')) AS critical_failure_count,
+         SUM(checks.check_status NOT IN ('PASS', 'FAIL') OR checks.check_status IS NULL OR checks.severity IS NULL) AS malformed_check_count
+  FROM cycling_platform_admin.validation_run_check checks
+  GROUP BY checks.validation_run_id
+),
+governed_outcome AS (
+  SELECT run.validation_run_id, run.pipeline_run_id, run.validation_scope,
+         run.run_mode, run.run_status,
+         run.started_at AS started_at_utc, run.completed_at AS completed_at_utc,
+         run.duration_seconds,
+         COALESCE(checks.check_count, 0) AS check_count,
+         COALESCE(checks.passed_check_count, 0) AS passed_check_count,
+         COALESCE(checks.failed_check_count, 0) AS failed_check_count,
+         run.skipped_check_count,
+         COALESCE(checks.issue_count, 0) AS issue_count,
+         CASE
+           WHEN run.run_status = 'TIMED_OUT' THEN 'TIMED_OUT'
+           WHEN run.run_status = 'FAILED' THEN 'FAILED'
+           WHEN run.run_status = 'RUNNING' THEN NULL
+           WHEN run.run_status <> 'SUCCESS' THEN NULL
+           WHEN run.validation_outcome IN ('PASSED', 'PASSED_WITH_WARNINGS', 'FAILED', 'TIMED_OUT') THEN run.validation_outcome
+           WHEN run.validation_outcome IS NOT NULL THEN NULL
+           WHEN COALESCE(checks.malformed_check_count, 0) > 0 THEN NULL
+           WHEN run.checks_planned > 0 AND COALESCE(checks.check_count, 0) < run.checks_planned THEN NULL
+           WHEN COALESCE(checks.critical_failure_count, 0) > 0 THEN 'FAILED'
+           WHEN COALESCE(checks.warning_failure_count, 0) > 0 THEN 'PASSED_WITH_WARNINGS'
+           ELSE 'PASSED'
+         END COLLATE utf8mb4_general_ci AS validation_outcome,
+         run.error_message
+  FROM cycling_platform_admin.validation_run run
+  LEFT JOIN check_summary checks
+    ON checks.validation_run_id = run.validation_run_id
+)
+SELECT validation_run_id, pipeline_run_id, validation_scope, run_mode,
+       run_status, started_at_utc, completed_at_utc,
+       duration_seconds, check_count, passed_check_count, failed_check_count,
+       skipped_check_count, issue_count,
+       CASE validation_outcome
+         WHEN 'PASSED' THEN 'HEALTHY'
+         WHEN 'PASSED_WITH_WARNINGS' THEN 'WARNING'
+         WHEN 'FAILED' THEN 'CRITICAL'
+         WHEN 'TIMED_OUT' THEN 'CRITICAL'
+         ELSE 'UNKNOWN'
        END COLLATE utf8mb4_general_ci AS health_status,
-       run.error_message
-FROM cycling_platform_admin.validation_run run
-LEFT JOIN cycling_platform_admin.validation_run_check checks
-  ON checks.validation_run_id = run.validation_run_id
-GROUP BY run.validation_run_id, run.pipeline_run_id, run.validation_scope,
-         run.run_mode, run.run_status, run.started_at, run.completed_at,
-         run.duration_seconds, run.error_message;
+       error_message,
+       validation_outcome
+FROM governed_outcome;
 
 CREATE OR REPLACE VIEW cycling_platform_admin.v_backup_history AS
 SELECT attempt.backup_attempt_id, attempt.backup_host, attempt.source_host,
@@ -512,12 +544,17 @@ CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_lates
          'ETL, transform or validation executions RUNNING for more than six hours' COLLATE utf8mb4_general_ci
   UNION ALL
   SELECT 'latest_validation' COLLATE utf8mb4_general_ci, 'VALIDATION' COLLATE utf8mb4_general_ci,
-         CASE WHEN COUNT(*) > 0 THEN 'CRITICAL' ELSE 'HEALTHY' END COLLATE utf8mb4_general_ci,
-         COUNT(*), 'Validation scopes whose latest execution did not succeed' COLLATE utf8mb4_general_ci
-  FROM cycling_platform_admin.validation_run run
-  WHERE run.validation_run_id IN (
-    SELECT MAX(latest.validation_run_id) FROM cycling_platform_admin.validation_run latest GROUP BY latest.validation_scope
-  ) AND run.run_status <> 'SUCCESS'
+         CASE MAX(CASE history.health_status WHEN 'CRITICAL' THEN 4 WHEN 'WARNING' THEN 3 WHEN 'UNKNOWN' THEN 1 ELSE 0 END)
+           WHEN 4 THEN 'CRITICAL' WHEN 3 THEN 'WARNING' WHEN 1 THEN 'UNKNOWN' ELSE 'HEALTHY'
+         END COLLATE utf8mb4_general_ci,
+         COALESCE(SUM(history.health_status <> 'HEALTHY'), 0),
+         'Latest governed validation outcome for each validation scope' COLLATE utf8mb4_general_ci
+  FROM cycling_platform_admin.v_validation_history history
+  WHERE history.validation_run_id IN (
+    SELECT MAX(latest.validation_run_id)
+    FROM cycling_platform_admin.v_validation_history latest
+    GROUP BY latest.validation_scope
+  )
   UNION ALL
   SELECT 'backup' COLLATE utf8mb4_general_ci, 'BACKUP' COLLATE utf8mb4_general_ci, health_status,
          CASE WHEN health_status = 'HEALTHY' THEN 0 ELSE 1 END,

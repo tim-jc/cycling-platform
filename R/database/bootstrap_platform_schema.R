@@ -88,7 +88,13 @@ bootstrap_platform_schema <- function(
     " schema-definition files."
   )
 
-  for (sql_file in sql_files) {
+  deferred_view_files <- sql_files[grepl(
+    "^[0-9]+_create_.*views[.]sql$",
+    basename(sql_files)
+  )]
+  base_object_files <- setdiff(sql_files, deferred_view_files)
+
+  for (sql_file in base_object_files) {
     execute_sql(sql_file, connection)
   }
 
@@ -102,6 +108,10 @@ bootstrap_platform_schema <- function(
       "005_create_schema_migration.sql"
     )
   )
+
+  for (sql_file in deferred_view_files) {
+    execute_sql(sql_file, connection)
+  }
 
   message(
     "Platform bootstrap complete: schema definitions current; ",
