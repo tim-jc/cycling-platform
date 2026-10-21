@@ -179,6 +179,8 @@ testthat::test_that("backup runtime renders a minimal manifest beside safe plist
   testthat::expect_false(grepl("/Documents/", rendered_text, fixed = TRUE))
   testthat::expect_false(grepl("STRAVA_", rendered_text, fixed = TRUE))
   testthat::expect_false(grepl("GOOGLE_HEALTH_", rendered_text, fixed = TRUE))
+  testthat::expect_true(grepl("schema-preflight", rendered_text, fixed = TRUE))
+  testthat::expect_true(grepl("run_admin_schema_preflight", rendered_text, fixed = TRUE))
 
   backup_plist <- paste(readLines(
     file.path(render, "com.tim-jc.cycling-platform-backup.plist"),

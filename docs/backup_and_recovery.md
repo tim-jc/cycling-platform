@@ -123,6 +123,29 @@ The TCP preflight only proves that the port is reachable. The actual
 dump is retried according to `backups.dump_max_attempts` and
 `backups.dump_retry_sleep_seconds`.
 
+After TCP connectivity succeeds and before the first full dump, the workflow
+uses the resolved production `mysqldump` client and identical connection,
+credential, routine, trigger, and client-compatibility options to make a
+schema-only dump of `cycling_platform_admin`. The preflight requires non-empty
+schema output containing the governed
+`v_google_health_daily_ingestion_failure_history` view definition. This catches
+client/server view-metadata incompatibilities before any member of the
+five-database set is written. Deterministic metadata failures are classified as
+`database_metadata_failure` at operation `schema_preflight` and are not retried;
+recognised transient connection failures retain the configured bounded retry.
+No preflight can publish a recovery point or change `latest_success.json`.
+
+The installed runtime also exposes the same check independently, without
+creating a durable backup-attempt row or running any full dump:
+
+```sh
+"$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" schema-preflight
+```
+
+It uses the installed protected `backup.env` and the actual installed dump
+client, returns non-zero with a concise sanitised diagnostic on failure, and
+requires no additional configuration.
+
 Output shape:
 
 ```text
@@ -164,6 +187,7 @@ is promoted to the final `.sql.gz` name only after:
 
 * TCP connectivity to the configured MariaDB host and port succeeds, where
   `nc` is available
+* the Admin schema-only compatibility preflight succeeds
 * `mysqldump | gzip` exits successfully
 * the temporary file is non-empty
 * `gzip -t` passes
@@ -411,10 +435,15 @@ artefact, and existing freshness alert behaviour without creating dumps.
 Then run one controlled backup from the installed runtime:
 
 ```sh
+"$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" schema-preflight
 "$HOME/Library/Application Support/cycling-platform/backup/runtime/scripts/run_backup_workflow.sh" backup
 scripts/install_backup_launchd.sh verify
 scripts/install_backup_launchd.sh status
 ```
+
+The independent preflight must report success without adding backup history or
+changing `latest_success.json`. The subsequent complete backup remains the
+acceptance authority for five-file verification and publication.
 
 While it is running, inspect the process-bound assertion in another Terminal:
 

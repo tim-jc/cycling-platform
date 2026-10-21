@@ -18,6 +18,7 @@ BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-}"
 BACKUP_PHYSICAL_SUCCESS_MARKER="${BACKUP_PHYSICAL_SUCCESS_MARKER:-}"
 BACKUP_FAILURE_CONTEXT_FILE="${BACKUP_FAILURE_CONTEXT_FILE:-}"
 BACKUP_ATTEMPT_ID_FILE="${BACKUP_ATTEMPT_ID_FILE:-}"
+MODE="${1:-backup}"
 MYSQLDUMP="${MYSQLDUMP:-}"
 NC="${NC_BIN:-}"
 MYSQLDUMP_CANDIDATES=()
@@ -31,6 +32,8 @@ RUNTIME_INVENTORY_FILE=""
 RUNTIME_STATUS_FILE=""
 RUNTIME_FINALIZER_SCRIPT=""
 VERIFIED_DATABASE_COUNT=0
+SCHEMA_PREFLIGHT_OUTPUT=""
+SCHEMA_PREFLIGHT_ERROR=""
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export LANG="${LANG:-en_GB.UTF-8}"
@@ -310,6 +313,9 @@ cleanup() {
     rm -rf "$RUNTIME_PROJECT_DIR"
   fi
 
+  [[ -z "$SCHEMA_PREFLIGHT_OUTPUT" ]] || rm -f "$SCHEMA_PREFLIGHT_OUTPUT"
+  [[ -z "$SCHEMA_PREFLIGHT_ERROR" ]] || rm -f "$SCHEMA_PREFLIGHT_ERROR"
+
   rm -rf "$LOCK_DIR"
 }
 
@@ -463,8 +469,117 @@ configure_mysqldump_extra_args() {
   fi
 }
 
+build_mysqldump_args() {
+  local database="$1"
+  local dump_kind="${2:-full}"
+
+  DUMP_ARGS=(
+    --host="$MARIADB_HOST"
+    --port="$MARIADB_PORT"
+    --user="$MARIADB_USER"
+  )
+  if [[ "${#MYSQLDUMP_CONNECT_ARGS[@]}" -gt 0 ]]; then
+    DUMP_ARGS+=("${MYSQLDUMP_CONNECT_ARGS[@]}")
+  fi
+  DUMP_ARGS+=(
+    --single-transaction
+    --quick
+    --routines
+    --triggers
+  )
+  if [[ "$dump_kind" == "schema" ]]; then
+    DUMP_ARGS+=(--no-data)
+  fi
+  if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
+    DUMP_ARGS+=("${MYSQLDUMP_EXTRA_ARGS[@]}")
+  fi
+  DUMP_ARGS+=("$database")
+}
+
+schema_preflight_error_is_transient() {
+  grep -Eqi \
+    'Error (2002|2003|2005|2013)|Can.t connect|Connection refused|Lost connection to (MySQL|MariaDB) server|connection timed out|timeout' \
+    <<< "$1"
+}
+
+run_admin_schema_preflight() {
+  local admin_database="cycling_platform_admin"
+  local attempt=1
+  local dump_error=""
+  local preflight_failure_class=""
+  local preflight_status=0
+
+  SCHEMA_PREFLIGHT_OUTPUT="$(mktemp -t cycling-platform-admin-schema.XXXXXX)"
+  SCHEMA_PREFLIGHT_ERROR="$(mktemp -t cycling-platform-admin-schema-error.XXXXXX)"
+  build_mysqldump_args "$admin_database" schema
+
+  log "Running Admin schema compatibility preflight."
+  while ((attempt <= BACKUP_DUMP_MAX_ATTEMPTS)); do
+    : > "$SCHEMA_PREFLIGHT_OUTPUT"
+    : > "$SCHEMA_PREFLIGHT_ERROR"
+    set +e
+    MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${DUMP_ARGS[@]}" \
+      > "$SCHEMA_PREFLIGHT_OUTPUT" 2> "$SCHEMA_PREFLIGHT_ERROR"
+    preflight_status=$?
+    set -e
+
+    if ((preflight_status == 0)); then
+      if [[ ! -s "$SCHEMA_PREFLIGHT_OUTPUT" ]]; then
+        dump_error="Admin schema preflight produced empty output."
+      elif ! grep -Fq 'v_google_health_daily_ingestion_failure_history' \
+        "$SCHEMA_PREFLIGHT_OUTPUT"; then
+        dump_error="Admin schema preflight omitted the governed Google Health recovery view."
+      elif ! grep -Eq 'Final view structure for view|CREATE([^;]* )?VIEW' \
+        "$SCHEMA_PREFLIGHT_OUTPUT"; then
+        dump_error="Admin schema preflight did not contain a complete view definition."
+      elif ! grep -Fq -- '-- Dump completed on ' "$SCHEMA_PREFLIGHT_OUTPUT"; then
+        dump_error="Admin schema preflight output ended before the dump completion marker."
+      else
+        log "Admin schema compatibility preflight succeeded."
+        rm -f "$SCHEMA_PREFLIGHT_OUTPUT" "$SCHEMA_PREFLIGHT_ERROR"
+        SCHEMA_PREFLIGHT_OUTPUT=""
+        SCHEMA_PREFLIGHT_ERROR=""
+        return 0
+      fi
+    else
+      dump_error="$(tail -1 "$SCHEMA_PREFLIGHT_ERROR" 2>/dev/null || true)"
+      dump_error="${dump_error:-Schema dump command failed without an error message.}"
+    fi
+
+    log "Admin schema preflight failed: $(failure_context_text "$dump_error")"
+    if ((preflight_status != 0)) && schema_preflight_error_is_transient "$dump_error" && \
+      ((attempt < BACKUP_DUMP_MAX_ATTEMPTS)); then
+      log "Transient schema preflight connection failure; retrying in $BACKUP_DUMP_RETRY_SLEEP_SECONDS seconds."
+      sleep "$BACKUP_DUMP_RETRY_SLEEP_SECONDS"
+      attempt=$((attempt + 1))
+      continue
+    fi
+
+    preflight_failure_class="database_metadata_failure"
+    if grep -Eqi 'Access denied|authentication|using password' <<< "$dump_error"; then
+      preflight_failure_class="authentication_failure"
+    elif schema_preflight_error_is_transient "$dump_error"; then
+      preflight_failure_class="initial_connectivity_failure"
+    fi
+    log "Admin schema preflight classification: $preflight_failure_class (database=$admin_database, operation=schema_preflight, attempt=$attempt/$BACKUP_DUMP_MAX_ATTEMPTS)."
+    write_failure_context "$preflight_failure_class" "$admin_database" "$attempt" \
+      "schema_preflight" "$dump_error"
+    return 1
+  done
+}
+
 load_backup_environment
 load_script_config
+
+if [[ "$MODE" != "backup" && "$MODE" != "schema-preflight" ]]; then
+  printf 'Usage: %s [backup|schema-preflight]\n' "$0" >&2
+  exit 2
+fi
+if [[ "$MODE" == "schema-preflight" ]]; then
+  BACKUP_ATTEMPT_ID_FILE=""
+  BACKUP_FAILURE_CONTEXT_FILE=""
+  BACKUP_PHYSICAL_SUCCESS_MARKER=""
+fi
 
 require_command Rscript
 
@@ -530,7 +645,9 @@ printf '%s\t%s\t%s\t%s\t%s\n' \
   "uncompressed_bytes" \
   "verified_at" > "$MANIFEST_FILE"
 
-log "Starting MariaDB backup into $BACKUP_DIR"
+if [[ "$MODE" == "backup" ]]; then
+  log "Starting MariaDB backup into $BACKUP_DIR"
+fi
 log "Using dump command: $MYSQLDUMP"
 if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
   log "Using dump options: ${MYSQLDUMP_EXTRA_ARGS[*]}"
@@ -544,31 +661,17 @@ log "Dump attempts: $BACKUP_DUMP_MAX_ATTEMPTS; retry sleep seconds: $BACKUP_DUMP
 
 check_mariadb_connectivity
 
+run_admin_schema_preflight
+
+if [[ "$MODE" == "schema-preflight" ]]; then
+  log "Schema preflight complete; no database dumps or recovery point were created."
+  exit 0
+fi
+
 for database in "${DATABASES[@]}"; do
   output_file="$BACKUP_DIR/${RUN_TIMESTAMP}_${database}.sql.gz"
   temporary_output_file="${output_file}.tmp"
-  dump_args=(
-    --host="$MARIADB_HOST"
-    --port="$MARIADB_PORT"
-    --user="$MARIADB_USER"
-  )
-
-  if [[ "${#MYSQLDUMP_CONNECT_ARGS[@]}" -gt 0 ]]; then
-    dump_args+=("${MYSQLDUMP_CONNECT_ARGS[@]}")
-  fi
-
-  dump_args+=(
-    --single-transaction
-    --quick
-    --routines
-    --triggers
-  )
-
-  if [[ "${#MYSQLDUMP_EXTRA_ARGS[@]}" -gt 0 ]]; then
-    dump_args+=("${MYSQLDUMP_EXTRA_ARGS[@]}")
-  fi
-
-  dump_args+=("$database")
+  build_mysqldump_args "$database" full
 
   log "Backing up $database"
 
@@ -580,7 +683,7 @@ for database in "${DATABASES[@]}"; do
 
     dump_error_file="$(mktemp -t cycling-platform-mysqldump-error.XXXXXX)"
     set +e
-    MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${dump_args[@]}" \
+    MYSQL_PWD="$MARIADB_PASSWORD" "$MYSQLDUMP" "${DUMP_ARGS[@]}" \
       2> "$dump_error_file" |
       gzip > "$temporary_output_file"
     pipeline_status=("${PIPESTATUS[@]}")

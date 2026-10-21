@@ -111,6 +111,19 @@ if [[ "$MODE" == "backup" && ! -f "$BACKUP_CONFIG_FILE" && "$BACKUP_COMMAND" == 
   exit 1
 fi
 
+if [[ "$MODE" == "schema-preflight" ]]; then
+  if [[ ! -f "$BACKUP_CONFIG_FILE" && "$BACKUP_COMMAND" == "$DEFAULT_BACKUP_COMMAND" ]]; then
+    printf 'Backup configuration not found:\n%s\n' "$BACKUP_CONFIG_FILE" >&2
+    exit 1
+  fi
+  log "Running independent Admin schema compatibility preflight."
+  BACKUP_ROOT="$BACKUP_ROOT" \
+    BACKUP_CONFIG_FILE="$BACKUP_CONFIG_FILE" \
+    BACKUP_DIR="$BACKUP_DIR" \
+    "$BACKUP_COMMAND" schema-preflight
+  exit $?
+fi
+
 STALE_HOURS="${STALE_HOURS:-$(read_backup_config freshness_stale_hours 30)}"
 CRITICAL_HOURS="${CRITICAL_HOURS:-$(read_backup_config freshness_critical_hours 48)}"
 
@@ -221,7 +234,7 @@ See: backup-launchd.log" || true
     rm -f -- "$ALERT_STATE_DIR/backup-failure"
   fi
 elif [[ "$MODE" != "check" && "$MODE" != "health" ]]; then
-  printf 'Usage: %s [backup|check|health]\n' "$0" >&2
+  printf 'Usage: %s [backup|schema-preflight|check|health]\n' "$0" >&2
   exit 2
 fi
 

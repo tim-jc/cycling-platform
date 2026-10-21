@@ -17,11 +17,24 @@ run_physical_backup_fixture <- function(
   dump_lines,
   nc_status = 0L,
   lock_directory = file.path(directory, "backup.lock"),
-  attempts = 1L
+  attempts = 1L,
+  preflight_lines = c(
+    "printf '%s\\n' '-- Final view structure for view `v_google_health_daily_ingestion_failure_history`'",
+    "printf '%s\\n' 'CREATE VIEW `v_google_health_daily_ingestion_failure_history` AS SELECT 1;'",
+    "printf '%s\\n' '-- Dump completed on 2026-10-21 12:00:00'",
+    "exit 0"
+  ),
+  mode = "backup"
 ) {
   dump <- write_executable(
     file.path(directory, "mysqldump"),
-    dump_lines
+    c(
+      "if [[ \"${1:-}\" == \"--help\" ]]; then printf '%s\\n' '--connect-timeout --column-statistics'; exit 0; fi",
+      "if [[ \" $* \" == *\" --no-data \"* ]]; then",
+      paste0("  ", preflight_lines),
+      "fi",
+      dump_lines
+    )
   )
   nc <- write_executable(
     file.path(directory, "nc"),
@@ -31,7 +44,7 @@ run_physical_backup_fixture <- function(
   failure_context <- file.path(directory, "failure-context.tsv")
   status <- system2(
     "bash",
-    file.path(backup_workflow_root, "scripts/backup_mariadb.sh"),
+    c(file.path(backup_workflow_root, "scripts/backup_mariadb.sh"), mode),
     env = c(
       paste0("MYSQLDUMP=", dump),
       paste0("NC_BIN=", nc),
@@ -39,6 +52,7 @@ run_physical_backup_fixture <- function(
       paste0("BACKUP_LOCK_DIR=", lock_directory),
       paste0("BACKUP_DUMP_MAX_ATTEMPTS=", attempts),
       paste0("BACKUP_FAILURE_CONTEXT_FILE=", failure_context),
+      paste0("TMPDIR=", directory),
       "BACKUP_DUMP_RETRY_SLEEP_SECONDS=1",
       "MARIADB_HOST=fixture-host",
       "MARIADB_PORT=3306",
@@ -56,6 +70,129 @@ run_physical_backup_fixture <- function(
     } else character()
   )
 }
+
+testthat::test_that("Admin schema preflight uses the governed dump client contract", {
+  directory <- tempfile("backup-schema-preflight-success-")
+  dir.create(directory)
+  invocation <- file.path(directory, "invocation")
+  full_dump <- file.path(directory, "full-dump")
+  result <- run_physical_backup_fixture(
+    directory,
+    c(paste0("touch ", shQuote(full_dump)), "exit 88"),
+    preflight_lines = c(
+      paste0("printf '%s\\n' \"$*|${MYSQL_PWD:-missing}\" > ", shQuote(invocation)),
+      "printf '%s\\n' '-- Final view structure for view `v_google_health_daily_ingestion_failure_history`'",
+      "printf '%s\\n' 'CREATE VIEW `v_google_health_daily_ingestion_failure_history` AS SELECT 1;'",
+      "printf '%s\\n' '-- Dump completed on 2026-10-21 12:00:00'",
+      "exit 0"
+    ),
+    mode = "schema-preflight"
+  )
+
+  testthat::expect_equal(result$status, 0L)
+  args <- readLines(invocation, warn = FALSE)
+  testthat::expect_match(args, "--host=fixture-host", fixed = TRUE)
+  testthat::expect_match(args, "--port=3306", fixed = TRUE)
+  testthat::expect_match(args, "--user=fixture-user", fixed = TRUE)
+  testthat::expect_match(args, "--single-transaction", fixed = TRUE)
+  testthat::expect_match(args, "--routines", fixed = TRUE)
+  testthat::expect_match(args, "--triggers", fixed = TRUE)
+  testthat::expect_match(args, "--no-data", fixed = TRUE)
+  testthat::expect_match(args, "cycling_platform_admin", fixed = TRUE)
+  testthat::expect_match(args, "fixture-password", fixed = TRUE)
+  testthat::expect_false(file.exists(full_dump))
+  testthat::expect_false(any(grepl("fixture-password", result$log, fixed = TRUE)))
+  testthat::expect_length(result$failure_context, 0L)
+  testthat::expect_length(list.files(
+    directory,
+    pattern = "cycling-platform-admin-schema"
+  ), 0L)
+})
+
+testthat::test_that("deterministic Admin schema failures stop without retries", {
+  directory <- tempfile("backup-schema-preflight-collation-")
+  dir.create(directory)
+  counter <- file.path(directory, "attempts")
+  full_dump <- file.path(directory, "full-dump")
+  result <- run_physical_backup_fixture(
+    directory,
+    c(paste0("touch ", shQuote(full_dump)), "exit 88"),
+    attempts = 3L,
+    preflight_lines = c(
+      paste0("printf 'attempt\\n' >> ", shQuote(counter)),
+      "printf '%s\\n' \"mysqldump: Illegal mix of collations for operation 'substring_index' (1267)\" >&2",
+      "exit 2"
+    )
+  )
+
+  testthat::expect_equal(result$status, 1L)
+  testthat::expect_length(readLines(counter, warn = FALSE), 1L)
+  testthat::expect_false(file.exists(full_dump))
+  testthat::expect_true(any(grepl("failure_class\tdatabase_metadata_failure", result$failure_context, fixed = TRUE)))
+  testthat::expect_true(any(grepl("database_name\tcycling_platform_admin", result$failure_context, fixed = TRUE)))
+  testthat::expect_true(any(grepl("operation\tschema_preflight", result$failure_context, fixed = TRUE)))
+  testthat::expect_true(any(grepl("attempt\t1", result$failure_context, fixed = TRUE)))
+  testthat::expect_length(list.files(
+    directory,
+    pattern = "cycling-platform-admin-schema"
+  ), 0L)
+})
+
+testthat::test_that("schema preflight rejects empty, incomplete and missing-view output", {
+  cases <- list(
+    empty = c("exit 0"),
+    incomplete = c("printf '%s\\n' 'CREATE TABLE admin_fixture (id INT);'", "exit 0"),
+    truncated_view = c(
+      "printf '%s\\n' '-- Final view structure for view `v_google_health_daily_ingestion_failure_history`'",
+      "printf '%s\\n' 'CREATE VIEW `v_google_health_daily_ingestion_failure_history` AS SELECT 1;'",
+      "exit 0"
+    ),
+    missing_view = c(
+      "printf '%s\\n' '-- Final view structure for view `another_view`'",
+      "printf '%s\\n' 'CREATE VIEW `another_view` AS SELECT 1;'",
+      "exit 0"
+    )
+  )
+  for (case_name in names(cases)) {
+    directory <- tempfile(paste0("backup-schema-preflight-", case_name, "-"))
+    dir.create(directory)
+    result <- run_physical_backup_fixture(
+      directory,
+      c("exit 88"),
+      preflight_lines = cases[[case_name]]
+    )
+    testthat::expect_equal(result$status, 1L, info = case_name)
+    testthat::expect_true(any(grepl(
+      "failure_class\tdatabase_metadata_failure",
+      result$failure_context,
+      fixed = TRUE
+    )), info = case_name)
+  }
+})
+
+testthat::test_that("schema preflight retries recognised transient connection failures", {
+  directory <- tempfile("backup-schema-preflight-transient-")
+  dir.create(directory)
+  counter <- file.path(directory, "attempts")
+  result <- run_physical_backup_fixture(
+    directory,
+    c("exit 88"),
+    attempts = 2L,
+    preflight_lines = c(
+      paste0("printf 'attempt\\n' >> ", shQuote(counter)),
+      paste0("count=$(wc -l < ", shQuote(counter), ")"),
+      "if [[ $count -eq 1 ]]; then printf '%s\\n' 'mysqldump: Error 2003: Connection refused' >&2; exit 2; fi",
+      "printf '%s\\n' '-- Final view structure for view `v_google_health_daily_ingestion_failure_history`'",
+      "printf '%s\\n' 'CREATE VIEW `v_google_health_daily_ingestion_failure_history` AS SELECT 1;'",
+      "printf '%s\\n' '-- Dump completed on 2026-10-21 12:00:00'",
+      "exit 0"
+    ),
+    mode = "schema-preflight"
+  )
+
+  testthat::expect_equal(result$status, 0L)
+  testthat::expect_length(readLines(counter, warn = FALSE), 2L)
+})
 
 write_fake_caffeinate_command <- function(directory) {
   write_executable(
@@ -232,6 +369,54 @@ testthat::test_that("missing caffeinate fails rather than running unprotected", 
     fixed = TRUE
   )))
   testthat::expect_false(file.exists(marker))
+})
+
+testthat::test_that("independent schema preflight has no backup telemetry or publication side effects", {
+  directory <- tempfile("backup-independent-schema-preflight-")
+  dir.create(directory)
+  config <- file.path(directory, "backup.env")
+  data <- file.path(directory, "data")
+  latest <- file.path(data, "latest_success.json")
+  invocation <- file.path(directory, "invocation")
+  dir.create(data)
+  writeLines(c(
+    "MARIADB_HOST=fixture-host",
+    "MARIADB_PORT=3306",
+    "MARIADB_USER=fixture-user",
+    "MARIADB_PASSWORD=fixture-password"
+  ), config)
+  writeLines("preserved", latest)
+  backup_command <- write_executable(
+    file.path(directory, "backup-command"),
+    c(
+      "printf '%s\\n' \"$*\" > \"$TEST_INVOCATION\"",
+      "[[ \"${BACKUP_ATTEMPT_ID_FILE:-unset}\" == \"unset\" ]] || exit 91",
+      "[[ \"${BACKUP_PHYSICAL_SUCCESS_MARKER:-unset}\" == \"unset\" ]] || exit 92",
+      "exit 0"
+    )
+  )
+  output <- suppressWarnings(system2(
+    "bash",
+    c(
+      file.path(backup_workflow_root, "scripts/run_backup_workflow.sh"),
+      "schema-preflight"
+    ),
+    env = c(
+      paste0("BACKUP_COMMAND=", backup_command),
+      paste0("BACKUP_CONFIG_FILE=", config),
+      paste0("BACKUP_DIR=", data),
+      paste0("BACKUP_STATUS_FILE=", latest),
+      paste0("BACKUP_ALERT_STATE_DIR=", file.path(directory, "alert-state")),
+      paste0("TEST_INVOCATION=", invocation)
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+
+  testthat::expect_equal(attr(output, "status") %||% 0L, 0L)
+  testthat::expect_equal(readLines(invocation, warn = FALSE), "schema-preflight")
+  testthat::expect_equal(readLines(latest, warn = FALSE), "preserved")
+  testthat::expect_false(any(grepl("Starting physical off-host backup", output, fixed = TRUE)))
 })
 
 testthat::test_that("installed-style config cannot silently target another data directory", {

@@ -312,6 +312,11 @@ verify_runtime() {
     log "Installed backup workflow does not contain the required process-bound sleep assertion."
     return 1
   }
+  if ! grep -Fq 'schema-preflight' "$RUNTIME_DIR/scripts/run_backup_workflow.sh" ||
+    ! grep -Fq 'run_admin_schema_preflight' "$RUNTIME_DIR/scripts/backup_mariadb.sh"; then
+    log "Installed backup runtime does not contain the Admin schema preflight."
+    return 1
+  fi
   [[ ! -e "$RUNTIME_DIR/backup.env" && ! -e "$RUNTIME_DIR/backups" && ! -e "$RUNTIME_DIR/data" ]] || {
     log "Mutable backup config/data was found beneath the runtime directory."
     return 1
