@@ -158,6 +158,21 @@ condition while ensuring real warnings, failures, timeouts, and unknown current
 state remain visible. Grafana and other read consumers must use these Admin views
 rather than independently reclassifying checks.
 
+### Latest terminal daily pipeline
+
+The `latest_daily_pipeline` debt condition is based on the daily execution whose
+terminal result became known most recently. Terminal executions are `SUCCESS` or
+`FAILED`; `RUNNING` is not evidence of recovery. The ordering is
+`completed_at DESC, pipeline_run_id DESC`, so overlapping executions that finish
+out of start order are governed by completion order and an exact timestamp tie is
+resolved deterministically by the execution identifier.
+
+A failed terminal execution remains current debt while a later retry is running.
+It clears only when a terminal `SUCCESS` completes after it. Active execution is
+otherwise neutral: a non-stale run is not made critical merely for running, while
+the separate stale-execution conditions classify pipeline and child executions
+left `RUNNING` for more than six hours as `CRITICAL`.
+
 `v_operational_debt_latest` owns the current debt catalogue:
 
 | Debt | Classification |

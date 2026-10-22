@@ -530,8 +530,12 @@ CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_lates
          COUNT(*), 'Latest completed daily pipeline did not succeed' COLLATE utf8mb4_general_ci
   FROM cycling_platform_admin.pipeline_run run
   WHERE run.pipeline_run_id = (
-    SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest
-    WHERE latest.pipeline_name = 'daily-platform'
+    SELECT terminal.pipeline_run_id
+    FROM cycling_platform_admin.pipeline_run terminal
+    WHERE terminal.pipeline_name = 'daily-platform'
+      AND terminal.run_status IN ('SUCCESS', 'FAILED')
+    ORDER BY terminal.completed_at DESC, terminal.pipeline_run_id DESC
+    LIMIT 1
   ) AND run.run_status = 'FAILED'
   UNION ALL
   SELECT 'stale_child_execution' COLLATE utf8mb4_general_ci, 'EXECUTION' COLLATE utf8mb4_general_ci,

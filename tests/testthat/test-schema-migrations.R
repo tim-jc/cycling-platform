@@ -192,6 +192,56 @@ testthat::test_that("migration 016 reconciles validation outcomes and current he
     canonical_lines,
     fixed = TRUE
   ) - 1L
+  testthat::expect_match(
+    migration_sql,
+    trimws(paste(canonical_lines[validation_start:validation_end], collapse = "\n")),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    migration_sql,
+    "SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("migration 016 remains immutable after deployment", {
+  project_root <- find_migration_project_root()
+  manifest <- discover_schema_migrations(
+    file.path(project_root, "sql", "migrations")
+  )
+  migration_016 <- manifest[
+    manifest$migration_version == "016",
+    ,
+    drop = FALSE
+  ]
+
+  testthat::expect_equal(nrow(migration_016), 1L)
+  testthat::expect_identical(
+    migration_016$migration_filename[[1]],
+    "016_govern_validation_outcome_semantics.sql"
+  )
+  testthat::expect_identical(
+    migration_016$migration_checksum[[1]],
+    "907c1cabf3102c213142c3a20985c9225e92fabe1cafb6020f4cf14b6cc6a850"
+  )
+})
+
+testthat::test_that("migration 017 publishes the canonical terminal-run debt contract", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "017_fix_latest_terminal_daily_pipeline_debt.sql"
+  )
+  migration_lines <- readLines(migration_file, warn = FALSE)
+  migration_sql <- paste(migration_lines, collapse = "\n")
+  canonical_lines <- readLines(file.path(
+    project_root,
+    "sql",
+    "admin",
+    "100_create_operational_observability_views.sql"
+  ), warn = FALSE)
   debt_start <- grep(
     "CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest",
     canonical_lines,
@@ -202,17 +252,31 @@ testthat::test_that("migration 016 reconciles validation outcomes and current he
     canonical_lines,
     fixed = TRUE
   ) - 1L
+  migration_start <- grep(
+    "CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_latest",
+    migration_lines,
+    fixed = TRUE
+  )
 
+  testthat::expect_identical(
+    trimws(paste(migration_lines[migration_start:length(migration_lines)], collapse = "\n")),
+    trimws(paste(canonical_lines[debt_start:debt_end], collapse = "\n"))
+  )
   testthat::expect_match(
     migration_sql,
-    trimws(paste(canonical_lines[validation_start:validation_end], collapse = "\n")),
+    "terminal.run_status IN ('SUCCESS', 'FAILED')",
     fixed = TRUE
   )
   testthat::expect_match(
     migration_sql,
-    trimws(paste(canonical_lines[debt_start:debt_end], collapse = "\n")),
+    "ORDER BY terminal.completed_at DESC, terminal.pipeline_run_id DESC",
     fixed = TRUE
   )
+  testthat::expect_false(grepl(
+    "SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest",
+    migration_sql,
+    fixed = TRUE
+  ))
 })
 
 testthat::test_that("migration 006 removes only the obsolete Silver staging table", {
