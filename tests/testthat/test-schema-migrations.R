@@ -236,6 +236,33 @@ testthat::test_that("migration 017 publishes the canonical terminal-run debt con
   )
   migration_lines <- readLines(migration_file, warn = FALSE)
   migration_sql <- paste(migration_lines, collapse = "\n")
+  testthat::expect_match(
+    migration_sql,
+    "terminal.run_status IN ('SUCCESS', 'FAILED')",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    migration_sql,
+    "ORDER BY terminal.completed_at DESC, terminal.pipeline_run_id DESC",
+    fixed = TRUE
+  )
+  testthat::expect_false(grepl(
+    "SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest",
+    migration_sql,
+    fixed = TRUE
+  ))
+})
+
+testthat::test_that("migration 018 publishes the canonical terminal-validation debt contract", {
+  project_root <- find_migration_project_root()
+  migration_file <- file.path(
+    project_root,
+    "sql",
+    "migrations",
+    "018_fix_latest_terminal_validation_debt.sql"
+  )
+  migration_lines <- readLines(migration_file, warn = FALSE)
+  migration_sql <- paste(migration_lines, collapse = "\n")
   canonical_lines <- readLines(file.path(
     project_root,
     "sql",
@@ -264,16 +291,26 @@ testthat::test_that("migration 017 publishes the canonical terminal-run debt con
   )
   testthat::expect_match(
     migration_sql,
-    "terminal.run_status IN ('SUCCESS', 'FAILED')",
+    "terminal.run_status IN ('SUCCESS', 'FAILED', 'TIMED_OUT')",
     fixed = TRUE
   )
   testthat::expect_match(
     migration_sql,
-    "ORDER BY terminal.completed_at DESC, terminal.pipeline_run_id DESC",
+    "PARTITION BY terminal.validation_scope",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    migration_sql,
+    "ORDER BY terminal.completed_at_utc DESC,",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    migration_sql,
+    "WHEN terminal.validation_run_id IS NULL THEN 'UNKNOWN'",
     fixed = TRUE
   )
   testthat::expect_false(grepl(
-    "SELECT MAX(latest.pipeline_run_id) FROM cycling_platform_admin.pipeline_run latest",
+    "SELECT MAX(latest.validation_run_id)",
     migration_sql,
     fixed = TRUE
   ))

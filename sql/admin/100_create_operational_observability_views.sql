@@ -553,12 +553,34 @@ CREATE OR REPLACE VIEW cycling_platform_admin.v_operational_debt_condition_lates
          END COLLATE utf8mb4_general_ci,
          COALESCE(SUM(history.health_status <> 'HEALTHY'), 0),
          'Latest governed validation outcome for each validation scope' COLLATE utf8mb4_general_ci
-  FROM cycling_platform_admin.v_validation_history history
-  WHERE history.validation_run_id IN (
-    SELECT MAX(latest.validation_run_id)
-    FROM cycling_platform_admin.v_validation_history latest
-    GROUP BY latest.validation_scope
-  )
+  FROM (
+    SELECT scopes.validation_scope,
+           CASE
+             WHEN terminal.validation_run_id IS NULL THEN 'UNKNOWN'
+             ELSE terminal.health_status
+           END COLLATE utf8mb4_general_ci AS health_status
+    FROM (
+      SELECT DISTINCT validation_scope
+      FROM cycling_platform_admin.v_validation_history
+    ) scopes
+    LEFT JOIN (
+      SELECT ranked.validation_run_id, ranked.validation_scope,
+             ranked.health_status
+      FROM (
+        SELECT terminal.validation_run_id, terminal.validation_scope,
+               terminal.health_status,
+               ROW_NUMBER() OVER (
+                 PARTITION BY terminal.validation_scope
+                 ORDER BY terminal.completed_at_utc DESC,
+                          terminal.validation_run_id DESC
+               ) AS terminal_rank
+        FROM cycling_platform_admin.v_validation_history terminal
+        WHERE terminal.run_status IN ('SUCCESS', 'FAILED', 'TIMED_OUT')
+      ) ranked
+      WHERE ranked.terminal_rank = 1
+    ) terminal
+      ON terminal.validation_scope = scopes.validation_scope
+  ) history
   UNION ALL
   SELECT 'backup' COLLATE utf8mb4_general_ci, 'BACKUP' COLLATE utf8mb4_general_ci, health_status,
          CASE WHEN health_status = 'HEALTHY' THEN 0 ELSE 1 END,

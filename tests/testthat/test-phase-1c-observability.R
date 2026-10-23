@@ -112,7 +112,7 @@ testthat::test_that("generated Phase 1C view text uses the canonical collation",
     sql,
     perl = TRUE
   )[[1]]
-  testthat::expect_equal(sum(generated_statuses > 0L), 9L)
+  testthat::expect_equal(sum(generated_statuses > 0L), 10L)
   testthat::expect_false(grepl("END AS (health_status|source_data_change_status)", sql))
 
   # Every SELECT-list literal in the two UNION-based contracts is explicit.
@@ -243,7 +243,7 @@ testthat::test_that("latest validation debt consumes governed validation history
 
   testthat::expect_match(
     sql,
-    "FROM cycling_platform_admin.v_validation_history history",
+    "FROM cycling_platform_admin.v_validation_history terminal",
     fixed = TRUE
   )
   testthat::expect_match(

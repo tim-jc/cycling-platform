@@ -158,6 +158,29 @@ condition while ensuring real warnings, failures, timeouts, and unknown current
 state remain visible. Grafana and other read consumers must use these Admin views
 rather than independently reclassifying checks.
 
+For current health, "latest" means the latest **terminal assessment**, not the
+latest execution that started. Terminal validation states are `SUCCESS`, `FAILED`,
+and `TIMED_OUT`. They are ordered independently within each `validation_scope` by
+`completed_at DESC, validation_run_id DESC`. A newer `RUNNING` execution therefore
+does not establish recovery from the preceding completed failure or warning. A
+later completed `PASSED` assessment does establish recovery.
+
+A scope with execution history but only active executions has no completed
+assessment and is `UNKNOWN`. When there is no validation history anywhere, the
+existing aggregate behaviour remains `HEALTHY`; Slice 3C deliberately does not
+introduce a global missing-history policy. The latest terminal record is not
+skipped merely because its governed outcome is `UNKNOWN`: incomplete, malformed,
+or unsupported terminal evidence remains visible as uncertainty rather than
+falling back to an older healthy result.
+
+Active execution is assessed separately. A validation left `RUNNING` for more
+than six hours contributes to `stale_child_execution` without replacing the
+latest terminal assessment. An earlier failed assessment and a stale retry may
+therefore both be actionable at once. Historical rows reconciled administratively
+record reconciliation time in `completed_at`; that timestamp does not claim to be
+the original execution's actual completion time. Platform health inherits these
+semantics from `v_operational_debt_latest` without recalculating them.
+
 ### Latest terminal daily pipeline
 
 The `latest_daily_pipeline` debt condition is based on the daily execution whose
