@@ -93,15 +93,7 @@ achievement_notifications_are_quiet <- function(summary) {
 }
 
 compact_backup_health_lines <- function(summary) {
-  lines <- summary$lines
-  if (!identical(summary$freshness_status, "HEALTHY") || length(lines) == 0L) return(lines)
-
-  lines[[1]] <- sub(
-    "^Off-host backup: .* — ([^—]+ ✓)$",
-    "Off-host backup: \\1",
-    lines[[1]]
-  )
-  lines
+  summary$lines
 }
 
 format_compact_phase_line <- function(phase_results) {

@@ -79,7 +79,13 @@ quiet_notification_fixture <- function() {
       delivery_result = list(attempted = 0, sent = 0, failed = 0, retry = 0)
     ),
     backup = list(
-      lines = c("Off-host backup: 16 Aug 04:08 — 20h ago ✓", "Retention: 30-day set reconciled ✓"),
+      lines = c(
+        "Overall: HEALTHY ✓",
+        "Latest attempt: SUCCESS",
+        "Last verified backup: 20h ago",
+        "Reconciliation: HEALTHY ✓"
+      ),
+      health_status = "HEALTHY",
       freshness_status = "HEALTHY",
       reconciliation_status = "HEALTHY"
     )
@@ -111,7 +117,9 @@ testthat::test_that("quiet successful notification suppresses expected zero-stat
   testthat::expect_match(body, "Silver:\nSUCCESS · no affected activities", fixed = TRUE)
   testthat::expect_match(body, "Gold:\nSUCCESS · no candidates · no evaluation debt", fixed = TRUE)
   testthat::expect_match(body, "Achievement notifications: none", fixed = TRUE)
-  testthat::expect_match(body, "Off-host backup: 20h ago ✓", fixed = TRUE)
+  testthat::expect_match(body, "Overall: HEALTHY ✓", fixed = TRUE)
+  testthat::expect_match(body, "Last verified backup: 20h ago", fixed = TRUE)
+  testthat::expect_match(body, "Latest attempt: SUCCESS", fixed = TRUE)
   testthat::expect_match(body, "raw 5m 12s · silver 1s · gold 1s · checks 5s", fixed = TRUE)
   testthat::expect_false(grepl("Pending:", body, fixed = TRUE))
   testthat::expect_false(grepl("gear: detail", body, fixed = TRUE))
@@ -178,13 +186,15 @@ testthat::test_that("achievement delivery, backup warnings, and phase failures s
   x$achievements$lines[[2]] <- "attempted 1 · sent 0 · failed 1 · retry 1"
   testthat::expect_match(paste(render_fixture(x), collapse = "\n"), "failed 1 · retry 1", fixed = TRUE)
 
-  for (status in c("STALE", "CRITICAL")) {
+  for (status in c("WARNING", "CRITICAL")) {
     x <- quiet_notification_fixture()
+    x$backup$health_status <- status
     x$backup$freshness_status <- status
-    x$backup$lines[[1]] <- paste0("Off-host backup: 15 Aug 04:08 — 44h ago ⚠ ", status)
+    x$backup$lines[[1]] <- paste0("Overall: ", status, " ⚠")
+    x$backup$lines[[2]] <- "Latest attempt: FAILED · connection_lost · cycling_platform_raw"
     body <- paste(render_fixture(x), collapse = "\n")
-    testthat::expect_match(body, paste0("⚠ ", status), fixed = TRUE)
-    testthat::expect_match(body, "15 Aug 04:08", fixed = TRUE)
+    testthat::expect_match(body, paste0("Overall: ", status, " ⚠"), fixed = TRUE)
+    testthat::expect_match(body, "Latest attempt: FAILED", fixed = TRUE)
   }
 
   x <- quiet_notification_fixture()

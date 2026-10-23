@@ -898,51 +898,186 @@ format_backup_health_lines <- function(health, now = Sys.time()) {
   c(backup_line, retention_line)
 }
 
+governed_backup_health_columns <- function() {
+  c(
+    "latest_attempt_id",
+    "latest_attempt_status",
+    "latest_attempt_completed_at_utc",
+    "latest_attempt_failure_class",
+    "latest_attempt_failing_database",
+    "latest_recovery_point_id",
+    "latest_recovery_point_at_utc",
+    "recovery_point_age_hours",
+    "latest_reconciliation_id",
+    "latest_reconciliation_status",
+    "latest_reconciliation_at_utc",
+    "missing_file_count",
+    "incomplete_run_count",
+    "orphan_file_count",
+    "unexpected_file_count",
+    "health_status"
+  )
+}
+
+validate_governed_backup_health <- function(health) {
+  if (nrow(health) != 1L) {
+    stop(
+      "Governed backup health must return exactly one row; received ",
+      nrow(health),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  missing_columns <- setdiff(governed_backup_health_columns(), names(health))
+  if (length(missing_columns) > 0L) {
+    stop(
+      "Governed backup health is missing columns: ",
+      paste(missing_columns, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  supported_health <- c("HEALTHY", "WARNING", "CRITICAL", "UNKNOWN")
+  if (
+    is.na(health$health_status[[1]]) ||
+      !health$health_status[[1]] %in% supported_health
+  ) {
+    stop(
+      "Governed backup health returned unsupported health_status: ",
+      if (is.na(health$health_status[[1]])) "NA" else health$health_status[[1]],
+      ".",
+      call. = FALSE
+    )
+  }
+
+  invisible(health)
+}
+
+get_governed_backup_health <- function(connection) {
+  health <- DBI::dbGetQuery(
+    connection,
+    paste0(
+      "SELECT ",
+      paste(governed_backup_health_columns(), collapse = ", "),
+      " FROM cycling_platform_admin.v_backup_health_latest"
+    )
+  )
+  validate_governed_backup_health(health)
+  health
+}
+
+format_governed_backup_age <- function(age_hours) {
+  if (length(age_hours) == 0L || is.na(age_hours[[1]])) return(NULL)
+  if (age_hours[[1]] < 1) "<1h ago" else paste0(floor(age_hours[[1]]), "h ago")
+}
+
+format_governed_backup_health_lines <- function(health) {
+  status <- health$health_status[[1]]
+  status_marker <- switch(
+    status,
+    HEALTHY = "✓",
+    WARNING = "⚠",
+    CRITICAL = "⚠",
+    UNKNOWN = "⚠"
+  )
+  lines <- paste("Overall:", status, status_marker)
+
+  attempt_status <- health$latest_attempt_status[[1]]
+  attempt_line <- if (is.na(attempt_status)) {
+    "Latest attempt: none recorded"
+  } else {
+    detail <- character()
+    if (!is.na(health$latest_attempt_failure_class[[1]])) {
+      detail <- c(detail, health$latest_attempt_failure_class[[1]])
+    }
+    if (!is.na(health$latest_attempt_failing_database[[1]])) {
+      detail <- c(detail, health$latest_attempt_failing_database[[1]])
+    }
+    paste0(
+      "Latest attempt: ",
+      attempt_status,
+      if (length(detail) > 0L) paste0(" · ", paste(detail, collapse = " · ")) else ""
+    )
+  }
+  lines <- c(lines, attempt_line)
+
+  age_text <- format_governed_backup_age(health$recovery_point_age_hours)
+  recovery_line <- if (is.na(health$latest_recovery_point_id[[1]])) {
+    "Last verified backup: none"
+  } else if (is.null(age_text)) {
+    "Last verified backup: recorded · age unavailable"
+  } else {
+    paste("Last verified backup:", age_text)
+  }
+  lines <- c(lines, recovery_line)
+
+  reconciliation_line <- if (is.na(health$latest_reconciliation_id[[1]])) {
+    "Reconciliation: no evidence recorded"
+  } else {
+    counts <- c(
+      missing = health$missing_file_count[[1]],
+      incomplete = health$incomplete_run_count[[1]],
+      orphan = health$orphan_file_count[[1]],
+      unexpected = health$unexpected_file_count[[1]]
+    )
+    issue_text <- if (any(counts > 0, na.rm = TRUE)) {
+      paste0(
+        " · ",
+        paste(paste(names(counts), counts), collapse = " · ")
+      )
+    } else {
+      ""
+    }
+    paste0(
+      "Reconciliation: ",
+      health$latest_reconciliation_status[[1]],
+      if (identical(health$latest_reconciliation_status[[1]], "HEALTHY")) " ✓" else "",
+      issue_text
+    )
+  }
+
+  c(lines, reconciliation_line)
+}
+
 backup_health_notification_summary <- function(
   connection,
   config = list(),
-  now = Sys.time()
+  now = Sys.time(),
+  health_reader = get_governed_backup_health
 ) {
-  stale_hours <- config$backups$freshness_stale_hours
-  critical_hours <- config$backups$freshness_critical_hours
-
-  if (is.null(stale_hours)) {
-    stale_hours <- 30
-  }
-
-  if (is.null(critical_hours)) {
-    critical_hours <- 48
-  }
-
   tryCatch(
     {
-      health <- get_backup_health(
-        connection = connection,
-        now = now,
-        stale_hours = stale_hours,
-        critical_hours = critical_hours
-      )
+      health <- health_reader(connection = connection)
+      validate_governed_backup_health(health)
+      status <- health$health_status[[1]]
+      reconciliation_status <- if (is.na(health$latest_reconciliation_id[[1]])) {
+        "MISSING"
+      } else {
+        health$latest_reconciliation_status[[1]]
+      }
 
       list(
-        lines = format_backup_health_lines(health, now = now),
-        freshness_status = health$freshness_status,
-        reconciliation_status = if (
-          nrow(health$latest_reconciliation) == 0
-        ) {
-          "MISSING"
-        } else {
-          health$latest_reconciliation$status[[1]]
-        }
+        lines = format_governed_backup_health_lines(health),
+        health_status = status,
+        freshness_status = status,
+        reconciliation_status = reconciliation_status,
+        latest_attempt_status = health$latest_attempt_status[[1]],
+        latest_recovery_point_id = health$latest_recovery_point_id[[1]]
       )
     },
     error = function(e) {
       list(
         lines = paste0(
-          "Backup observability: unavailable ⚠ — ",
+          "Overall: UNAVAILABLE ⚠ — ",
           substr(conditionMessage(e), 1, 160)
         ),
+        health_status = "UNAVAILABLE",
         freshness_status = "UNKNOWN",
-        reconciliation_status = "UNKNOWN"
+        reconciliation_status = "UNKNOWN",
+        latest_attempt_status = NA_character_,
+        latest_recovery_point_id = NA_integer_
       )
     }
   )

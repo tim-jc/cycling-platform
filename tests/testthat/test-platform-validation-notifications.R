@@ -186,8 +186,10 @@ testthat::test_that("validation notification body includes summary counts", {
     validation_run_id = 123L,
     backup_health_summary = list(
       lines = c(
-        "Off-host backup: 14 Jul 05:06 — 3h ago ✓",
-        "Retention: 30-day set reconciled ✓"
+        "Overall: HEALTHY ✓",
+        "Latest attempt: SUCCESS",
+        "Last verified backup: 3h ago",
+        "Reconciliation: HEALTHY ✓"
       )
     )
   )
@@ -207,7 +209,8 @@ testthat::test_that("validation notification body includes summary counts", {
   testthat::expect_true(grepl("warning_check: 2 issues", body, fixed = TRUE))
   testthat::expect_true(grepl("Validation run: 123", body, fixed = TRUE))
   testthat::expect_true(grepl("Backup health:", body, fixed = TRUE))
-  testthat::expect_true(grepl("3h ago ✓", body, fixed = TRUE))
+  testthat::expect_true(grepl("Overall: HEALTHY ✓", body, fixed = TRUE))
+  testthat::expect_true(grepl("Last verified backup: 3h ago", body, fixed = TRUE))
 })
 
 testthat::test_that("validation notification samples are truncated to five rows", {

@@ -283,6 +283,19 @@ missing/incomplete reconciled files or a recovery point older than 48 hours are
 CRITICAL; no recovery point is UNKNOWN. The existing 30/48-hour backup thresholds
 remain authoritative.
 
+Routine daily-platform and validation notifications consume
+`v_backup_health_latest` directly. They present its governed overall status, the
+latest physical attempt, the latest usable recovery point and reconciliation
+evidence as distinct facts. They do not recalculate freshness thresholds or
+reinterpret reconciliation counts. A governed `UNKNOWN` is shown as such; an
+empty, malformed or failed view query is shown separately as `UNAVAILABLE`, never
+as healthy.
+
+This routine current-state summary is separate from the immediate Mac backup
+failure notification. The latter remains an event alert emitted by the physical
+backup workflow, while routine notifications report the latest governed Admin
+state without creating another backup alert.
+
 ## Time and Duration Semantics
 
 All operational timestamps are UTC instants; `_utc` view suffixes make this

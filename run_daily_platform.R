@@ -1218,9 +1218,12 @@ backup_health_summary <- tryCatch(
   error = function(e) {
     list(
       lines = paste0(
-        "Backup observability: unavailable ⚠ — ",
+        "Overall: UNAVAILABLE ⚠ — ",
         substr(conditionMessage(e), 1, 160)
-      )
+      ),
+      health_status = "UNAVAILABLE",
+      freshness_status = "UNKNOWN",
+      reconciliation_status = "UNKNOWN"
     )
   }
 )

@@ -393,11 +393,20 @@ therefore preserves cron-compatible status `0`, but sends an attention
 notification summarising affected checks, issue counts, sample rows and the
 validation run ID.
 
-When a validation notification is sent, it also includes the latest off-host
-backup and Mac-side retention reconciliation summary. Daily automation always
-includes the same two lines. Healthy backup state does not create an additional
-notification. Stale/critical wording and reconciliation warnings are therefore
-surfaced through the existing channel without a per-backup success message.
+When a validation notification is sent, it also includes the governed current
+backup state from `cycling_platform_admin.v_backup_health_latest`. Daily
+automation includes the same summary. The lines distinguish overall health, the
+latest physical attempt, the latest complete verified recovery point and current
+reconciliation evidence. This prevents a failed latest attempt from being hidden
+by an older usable recovery point and preserves `UNKNOWN` or `CRITICAL` Admin
+classification without local reclassification.
+
+Healthy backup state does not create an additional notification, and backup
+health does not independently alter the priority of an otherwise successful
+daily or validation notification. Immediate Mac backup failure messages remain
+separate event alerts; these routine messages only present governed current
+state. Consumers must not independently apply backup freshness thresholds or
+derive reconciliation severity from the component counts.
 
 Configured validation timeouts live in `config/platform.yml`:
 
