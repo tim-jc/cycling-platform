@@ -72,6 +72,10 @@ The POC measures rather than classifies continuity. It does not determine:
 Gap, jump and eligibility thresholds require review of observed distributions
 and must become explicitly versioned policy before downstream use.
 
+The fixed-population follow-on calibration procedure is documented in
+`docs/gps_track_integrity_calibration.md`. It reuses this profiler without
+changing the POC's default memory-light result.
+
 ## Raw-to-Silver positional alignment
 
 Strava returns `latlng`, `time`, and `distance` as separate stream arrays. Raw

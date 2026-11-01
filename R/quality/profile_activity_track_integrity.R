@@ -125,10 +125,17 @@ track_point_diagnostic_rows <- function(
 #'
 #' @param samples One activity's Silver stream samples in retrieval order.
 #' @param diagnostic_limit Maximum rows retained for each diagnostic category.
+#' @param include_segments Return the derived consecutive-segment frame. This is
+#'   intended for bounded calibration tooling; the default keeps the POC's
+#'   memory-light public result unchanged.
 #'
 #' @return A list containing `summary` (named activity metrics) and a bounded
 #'   `diagnostics` data frame.
-profile_activity_track_integrity <- function(samples, diagnostic_limit = 5L) {
+profile_activity_track_integrity <- function(
+  samples,
+  diagnostic_limit = 5L,
+  include_segments = FALSE
+) {
   required_columns <- c(
     "activity_id", "sample_index", "latitude", "longitude",
     "time_seconds", "distance_metres"
@@ -146,9 +153,13 @@ profile_activity_track_integrity <- function(samples, diagnostic_limit = 5L) {
     stop("diagnostic_limit must be a positive integer.", call. = FALSE)
   }
   diagnostic_limit <- as.integer(diagnostic_limit)
+  if (length(include_segments) != 1L || is.na(include_segments) ||
+      !is.logical(include_segments)) {
+    stop("include_segments must be TRUE or FALSE.", call. = FALSE)
+  }
 
   if (nrow(samples) == 0L) {
-    return(list(
+    result <- list(
       summary = list(
         activity_id = NA_character_, sample_count = 0L,
         valid_coordinate_count = 0L, invalid_coordinate_count = 0L,
@@ -172,7 +183,13 @@ profile_activity_track_integrity <- function(samples, diagnostic_limit = 5L) {
         maximum_implied_geographic_speed_metres_per_second = NA_real_
       ),
       diagnostics = empty_track_diagnostics()
-    ))
+    )
+    if (include_segments) {
+      result$segments <- empty_track_diagnostics()[
+        , setdiff(names(empty_track_diagnostics()), "diagnostic_type"), drop = FALSE
+      ]
+    }
+    return(result)
   }
 
   activity_ids <- unique(as.character(samples$activity_id))
@@ -297,7 +314,7 @@ profile_activity_track_integrity <- function(samples, diagnostic_limit = 5L) {
   )
   rownames(diagnostics) <- NULL
 
-  list(
+  result <- list(
     summary = list(
       activity_id = activity_id,
       sample_count = nrow(samples),
@@ -330,6 +347,8 @@ profile_activity_track_integrity <- function(samples, diagnostic_limit = 5L) {
     ),
     diagnostics = diagnostics
   )
+  if (include_segments) result$segments <- segments
+  result
 }
 
 validate_track_audit_activity_ids <- function(activity_ids, maximum_ids = 50L) {
