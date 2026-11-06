@@ -310,3 +310,49 @@ An offline, non-publishing qualification prototype may compare explainable
 candidate classifications with the governed evidence. Numerical qualification
 thresholds are not approved. No production qualification policy or Explorer
 tile publication is authorised by this decision.
+
+## Stage 1 offline qualification prototype
+
+Stage 1 implements only deterministic structural semantics and the machinery
+needed to represent contextual evidence. It classifies observations and
+segments independently as `ACCEPTED`, `UNCERTAIN`, or `REJECTED`. An execution
+or input-contract failure is never converted to geographic uncertainty.
+
+The version-controlled experimental policy is returned by
+`default_gps_qualification_policy()` in
+`R/quality/gps_qualification_prototype.R`. Its deterministic rules reject
+missing/out-of-range observations, unusable segment endpoints, and movement
+over non-positive elapsed time. A stationary duplicate timestamp is retained as
+supporting evidence and is not rejected. Contextual acceptance and all
+numerical empirical rules remain disabled and carry unapproved `NA` candidate
+parameters. Consequently, structurally valid entities without a deterministic
+decision normally remain `UNCERTAIN` in this first baseline.
+
+The policy fingerprint is a SHA-256 of its canonical, name-sorted structure.
+Decision output also records a feature-contract version, evaluation run ID and
+per-entity input signature. Reason rows distinguish determining acceptance,
+uncertainty and rejection from supporting diagnostics.
+
+The offline audit runner takes an evidence manifest, the immutable reviewed
+label snapshot, and a new external output directory:
+
+```sh
+Rscript scripts/audits/run_gps_qualification_prototype.R \
+  "$HOME/Documents/Cycling/audits/gps-qualification-input-manifest.csv" \
+  "$HOME/Documents/Cycling/audits/gps-reference-window-results/manual_label_reviewed_2026-11-06.csv" \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage1-new"
+```
+
+The input manifest contains one `observation_path,segment_path` pair per
+governed evidence source. An optional `case_key` filters a multi-case source to
+one governed case. Inputs and the label snapshot are hashed into the run
+manifest. Output is refused inside the repository, inside an input/evidence
+directory, or wherever any intended output filename already exists. The runner
+does not connect to MariaDB or publish to Gold, Reference, Admin, Explorer tiles
+or any governed evidence location.
+
+Evaluation scores only reviewed rows, keeps `UNREVIEWED` rows in the coverage
+report, separates observations from segments and CALIBRATION from HOLDOUT, and
+reports the individual HOLDOUT cases. The three reviewed HOLDOUT rows do not
+support a statistically reliable holdout-performance claim. Empirical rule
+calibration and Explorer tile eligibility remain explicitly deferred.
