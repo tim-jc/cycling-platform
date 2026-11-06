@@ -427,7 +427,7 @@ run_track_calibration <- function(
   diagnostic_limit = 3L
 ) {
   manifest <- validate_track_calibration_manifest(manifest)
-  summaries <- distributions <- diagnostics <- list()
+  summaries <- distributions <- diagnostics <- local_context <- list()
   failures <- character()
   started <- proc.time()[["elapsed"]]
   maximum_samples <- 0L
@@ -490,6 +490,12 @@ run_track_calibration <- function(
         "One or more governed reference segment pairs were not present."
     }
     diagnostics[[i]] <- rbind(ordinary, extra, reference)
+    context_indexes <- calibration_candidate_observation_indexes(
+      samples, result, maximum_observations = 30L
+    )
+    local_context[[i]] <- activity_observation_local_context(
+      samples, result$segments, context_indexes
+    )
     rm(samples, result)
   }
   bind_rows <- function(rows) {
@@ -514,6 +520,7 @@ run_track_calibration <- function(
     activity_summary = bind_rows(summaries),
     segment_distribution_summary = bind_rows(distributions),
     diagnostic_segments = diagnostics_frame,
+    local_context_diagnostics = bind_rows(local_context),
     complete = length(failures) == 0L,
     failed_activity_ids = unique(failures),
     elapsed_seconds = proc.time()[["elapsed"]] - started,
@@ -522,11 +529,25 @@ run_track_calibration <- function(
   )
 }
 
-write_track_calibration_outputs <- function(result, manifest, output_directory) {
-  dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
-  utils::write.csv(manifest, file.path(output_directory, "gps_track_calibration_v1_manifest.csv"), row.names = FALSE, na = "")
-  utils::write.csv(result$activity_summary, file.path(output_directory, "activity_summary.csv"), row.names = FALSE, na = "")
-  utils::write.csv(result$segment_distribution_summary, file.path(output_directory, "segment_distribution_summary.csv"), row.names = FALSE, na = "")
-  utils::write.csv(result$diagnostic_segments, file.path(output_directory, "diagnostic_segments.csv"), row.names = FALSE, na = "")
+write_track_calibration_outputs <- function(
+  result,
+  manifest,
+  output_directory,
+  repository_root = getwd()
+) {
+  names <- c(
+    "gps_track_calibration_v1_manifest.csv", "activity_summary.csv",
+    "segment_distribution_summary.csv", "diagnostic_segments.csv",
+    "local_context_diagnostics.csv"
+  )
+  destination <- validate_track_evidence_output_destination(
+    output_directory, names, repository_root
+  )
+  dir.create(destination$output_directory, recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(manifest, destination$paths[[1L]], row.names = FALSE, na = "")
+  utils::write.csv(result$activity_summary, destination$paths[[2L]], row.names = FALSE, na = "")
+  utils::write.csv(result$segment_distribution_summary, destination$paths[[3L]], row.names = FALSE, na = "")
+  utils::write.csv(result$diagnostic_segments, destination$paths[[4L]], row.names = FALSE, na = "")
+  utils::write.csv(result$local_context_diagnostics, destination$paths[[5L]], row.names = FALSE, na = "")
   invisible(output_directory)
 }

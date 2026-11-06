@@ -6,6 +6,7 @@ calibration_path <- function(...) {
 
 source(calibration_path("R", "quality", "profile_activity_track_integrity.R"))
 source(calibration_path("R", "quality", "calibrate_activity_track_integrity.R"))
+source(calibration_path("R", "quality", "profile_geographic_calibration_evidence.R"))
 
 calibration_candidates_fixture <- function(n = 90L) {
   references <- track_calibration_references()$activity_id
@@ -144,6 +145,7 @@ testthat::test_that("population profiling reads and releases one activity at a t
   testthat::expect_equal(maximum_active, 1L)
   testthat::expect_equal(nrow(result$segment_distribution_summary), nrow(manifest) * 7L)
   testthat::expect_true(all(result$activity_summary$processing_status == "SUCCESS"))
+  testthat::expect_lte(nrow(result$local_context_diagnostics), nrow(manifest) * 30L)
   testthat::expect_equal(
     result$total_sample_rows_processed,
     sum(vapply(manifest$activity_id, function(id) nrow(calibration_manifest_samples_fixture(id)), integer(1)))
@@ -241,7 +243,7 @@ testthat::test_that("the pure profiler only returns segments when requested", {
   testthat::expect_equal(nrow(calibration$segments), 3L)
 })
 
-testthat::test_that("writer produces exactly the four governed local CSVs", {
+testthat::test_that("writer produces the governed local CSVs including local context", {
   manifest <- select_track_calibration_manifest(calibration_candidates_fixture(6))
   fetch <- function(connection, activity_id) calibration_manifest_samples_fixture(activity_id)
   result <- run_track_calibration(NULL, manifest, get_samples = fetch)
@@ -249,8 +251,79 @@ testthat::test_that("writer produces exactly the four governed local CSVs", {
   write_track_calibration_outputs(result, manifest, directory)
   testthat::expect_setequal(list.files(directory), c(
     "gps_track_calibration_v1_manifest.csv", "activity_summary.csv",
-    "segment_distribution_summary.csv", "diagnostic_segments.csv"
+    "segment_distribution_summary.csv", "diagnostic_segments.csv",
+    "local_context_diagnostics.csv"
   ))
+})
+
+testthat::test_that("calibration writer refuses collisions before writing", {
+  manifest <- select_track_calibration_manifest(calibration_candidates_fixture(6))
+  fetch <- function(connection, activity_id) calibration_manifest_samples_fixture(activity_id)
+  result <- run_track_calibration(NULL, manifest, get_samples = fetch)
+  directory <- tempfile("gps-calibration-collision-")
+  dir.create(directory)
+  collision <- file.path(directory, "local_context_diagnostics.csv")
+  writeBin(charToRaw("existing evidence"), collision)
+  before <- readBin(collision, "raw", n = file.info(collision)$size)
+
+  testthat::expect_error(
+    write_track_calibration_outputs(result, manifest, directory),
+    "Refusing to overwrite"
+  )
+  testthat::expect_identical(
+    readBin(collision, "raw", n = file.info(collision)$size), before
+  )
+  testthat::expect_setequal(list.files(directory), "local_context_diagnostics.csv")
+})
+
+testthat::test_that("calibration writer accepts empty external directories", {
+  manifest <- select_track_calibration_manifest(calibration_candidates_fixture(6))
+  fetch <- function(connection, activity_id) calibration_manifest_samples_fixture(activity_id)
+  result <- run_track_calibration(NULL, manifest, get_samples = fetch)
+  directory <- tempfile("gps-calibration-empty-")
+  dir.create(directory)
+
+  testthat::expect_silent(
+    write_track_calibration_outputs(result, manifest, directory)
+  )
+  testthat::expect_identical(
+    names(utils::read.csv(file.path(directory, "activity_summary.csv"))),
+    names(result$activity_summary)
+  )
+})
+
+testthat::test_that("calibration writer rejects repository-local path aliases", {
+  repository <- normalizePath(calibration_path("."), mustWork = TRUE)
+  local_destination <- tempfile("gps-output-", tmpdir = repository)
+  testthat::expect_error(
+    write_track_calibration_outputs(list(), data.frame(), local_destination),
+    "outside the repository"
+  )
+
+  working <- tempfile("gps-relative-working-")
+  dir.create(working)
+  old <- setwd(working)
+  on.exit(setwd(old), add = TRUE)
+  relative_destination <- "relative-output"
+  result <- list(
+    activity_summary = data.frame(value = 1),
+    segment_distribution_summary = data.frame(value = 1),
+    diagnostic_segments = data.frame(value = 1),
+    local_context_diagnostics = data.frame(value = 1)
+  )
+  testthat::expect_silent(
+    write_track_calibration_outputs(result, data.frame(value = 1), relative_destination,
+      repository_root = repository)
+  )
+  testthat::expect_true(file.exists(file.path(relative_destination, "activity_summary.csv")))
+
+  link <- tempfile("gps-repository-link-")
+  testthat::skip_if_not(file.symlink(repository, link), "Symbolic links unavailable")
+  testthat::expect_error(
+    write_track_calibration_outputs(list(), data.frame(), file.path(link, "nested"),
+      repository_root = repository),
+    "outside the repository"
+  )
 })
 
 testthat::test_that("calibration scripts remain read-only", {

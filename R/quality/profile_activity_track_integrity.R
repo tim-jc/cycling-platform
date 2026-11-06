@@ -51,6 +51,54 @@ track_metric_distribution <- function(values) {
   c(count = length(values), mean = if (length(values)) mean(values) else NA_real_, result)
 }
 
+resolve_track_evidence_output_path <- function(path) {
+  path <- path.expand(as.character(path))
+  if (length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("Output directory must be one non-empty path.", call. = FALSE)
+  }
+  if (!grepl("^/", path)) path <- file.path(getwd(), path)
+
+  suffix <- character()
+  existing <- path
+  while (!file.exists(existing) && !dir.exists(existing)) {
+    parent <- dirname(existing)
+    if (identical(parent, existing)) {
+      stop("Cannot resolve output directory: ", path, call. = FALSE)
+    }
+    suffix <- c(basename(existing), suffix)
+    existing <- parent
+  }
+  resolved <- normalizePath(existing, winslash = "/", mustWork = TRUE)
+  if (length(suffix)) resolved <- do.call(file.path, as.list(c(resolved, suffix)))
+  resolved
+}
+
+validate_track_evidence_output_destination <- function(
+  output_directory,
+  filenames,
+  repository_root = getwd()
+) {
+  repository_root <- normalizePath(
+    repository_root, winslash = "/", mustWork = TRUE
+  )
+  output_directory <- resolve_track_evidence_output_path(output_directory)
+  if (identical(output_directory, repository_root) ||
+      startsWith(output_directory, paste0(repository_root, "/"))) {
+    stop("Output directory must be outside the repository.", call. = FALSE)
+  }
+
+  paths <- file.path(output_directory, filenames)
+  existing <- paths[file.exists(paths)]
+  if (length(existing)) {
+    stop(
+      "Refusing to overwrite existing evidence file(s): ",
+      paste(basename(existing), collapse = ", "),
+      call. = FALSE
+    )
+  }
+  list(output_directory = output_directory, paths = paths)
+}
+
 empty_track_diagnostics <- function() {
   data.frame(
     diagnostic_type = character(),
