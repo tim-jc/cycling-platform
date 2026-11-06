@@ -223,6 +223,75 @@ evidence keys. A historical `WINDOW_NOT_LOCATED` status in the original
 registry extraction records that run's outcome; it does not contradict a
 subsequently completed supplemental investigation.
 
+### Raw/Silver investigation commands
+
+Three parameterised, read-only commands support new investigations. All output
+directories must be outside the repository. They may be new or empty, but the
+commands refuse to replace any intended output file and check all collisions
+before writing.
+
+Inspect duplicate or non-increasing timestamps, retaining Raw array positions
+and the positional Silver comparison:
+
+```sh
+Rscript scripts/audits/extract_gps_duplicate_timestamps.R \
+  31709557 \
+  "$HOME/Documents/Cycling/audits/activity-31709557-duplicate-timestamps-new"
+```
+
+The optional third argument changes the number of surrounding observations from
+the default of five.
+
+Locate the maximum-displacement and maximum-implied-speed segments with bounded
+context and Raw/Silver verification:
+
+```sh
+Rscript scripts/audits/extract_gps_extreme_segments.R \
+  15562928333 \
+  "$HOME/Documents/Cycling/audits/activity-15562928333-extremes-new"
+```
+
+This command also accepts an optional context-observation count as its third
+argument. It uses neutral `LARGEST_DISPLACEMENT` and `HIGHEST_IMPLIED_SPEED`
+case keys by default. To reproduce the original Reading and Kingston evidence
+keys exactly, supply both explicit keys after the context value:
+
+```sh
+Rscript scripts/audits/extract_gps_extreme_segments.R \
+  15562928333 \
+  "$HOME/Documents/Cycling/audits/activity-15562928333-extremes-new" \
+  5 READING_LARGEST_DISPLACEMENT KINGSTON_HIGHEST_IMPLIED_SPEED
+```
+
+Explicit governed windows use a request CSV with these columns:
+
+- `activity_id`;
+- unique `case_key` containing letters, digits, underscores, or hyphens;
+- `window_from_sample_index` and `window_to_sample_index`;
+- optional `focus_from_sample_index` and `focus_to_sample_index`, supplied
+  together;
+- optional consecutive `focus_segment_from_sample_index` and
+  `focus_segment_to_sample_index`, supplied together;
+- non-empty `evidence_note`.
+
+Run the request with:
+
+```sh
+Rscript scripts/audits/extract_gps_governed_reference_windows.R \
+  "$HOME/Documents/Cycling/audits/kingston-window-request.csv" \
+  "$HOME/Documents/Cycling/audits/supplemental-reference-windows-new"
+```
+
+Each request is written beneath the output directory using its `case_key`. The
+Kingston request that reproduces the established window uses activity
+`15562928333`, window `1448` through `1477`, focus observations `1453` through
+`1472`, and focus segment `1471` to `1472`. Use a new output root; do not point
+the command at the immutable 2026-11-06 evidence.
+
+The earlier registry workflow remains the Silver-only cohort extractor. These
+commands add Raw-array provenance and require exact Raw/Silver positional
+agreement; they do not replace or rewrite the registry's historical status.
+
 The registry marks activities `659466921` and `227124704` as
 `HISTORICAL_EVIDENCE_REQUIRED`. Their current Strava-derived data is post-crop;
 absence of the former continuation/tunnel anomaly is not profiler failure and

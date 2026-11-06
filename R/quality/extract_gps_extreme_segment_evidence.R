@@ -5,14 +5,32 @@
 #' @param silver_samples Silver samples for the same activity.
 #' @param context_observations Number of observations retained on each side.
 #' @return Named evidence tables suitable for CSV output.
+gps_extreme_segment_evidence_filenames <- function() {
+  c(
+    extraction_summary = "extraction_summary.csv",
+    raw_stream_metadata = "raw_stream_metadata.csv",
+    anomaly_candidates = "anomaly_candidates.csv",
+    candidate_window_observations = "candidate_window_observations.csv",
+    candidate_window_segments = "candidate_window_segments.csv",
+    extraction_status = "extraction_status.csv"
+  )
+}
+
 build_gps_extreme_segment_evidence <- function(
   raw_streams,
   silver_samples,
-  context_observations = 5L
+  context_observations = 5L,
+  case_keys = c("READING_LARGEST_DISPLACEMENT", "KINGSTON_HIGHEST_IMPLIED_SPEED")
 ) {
   context_observations <- as.integer(context_observations)
   if (is.na(context_observations) || context_observations < 0L) {
     stop("context_observations must be a non-negative integer.", call. = FALSE)
+  }
+  case_keys <- trimws(as.character(case_keys))
+  if (length(case_keys) != 2L || any(!nzchar(case_keys)) ||
+      any(!grepl("^[A-Za-z0-9][A-Za-z0-9_-]*$", case_keys)) ||
+      anyDuplicated(case_keys)) {
+    stop("case_keys must contain two unique safe identifiers.", call. = FALSE)
   }
 
   positional_result <- build_duplicate_timestamp_evidence(
@@ -48,7 +66,7 @@ build_gps_extreme_segment_evidence <- function(
 
   candidate_rows <- c(largest_displacement_row, highest_speed_row)
   candidates <- segments[candidate_rows, , drop = FALSE]
-  candidates$case_key <- c("READING_LARGEST_DISPLACEMENT", "KINGSTON_HIGHEST_IMPLIED_SPEED")
+  candidates$case_key <- case_keys
   candidates$selection_rule <- c(
     "MAX_GEOGRAPHIC_DISPLACEMENT",
     "MAX_IMPLIED_GEOGRAPHIC_SPEED"
@@ -123,30 +141,12 @@ write_gps_extreme_segment_evidence <- function(
   output_directory,
   repository_root = getwd()
 ) {
-  repository_root <- normalizePath(repository_root, mustWork = TRUE)
-  output_directory <- normalizePath(output_directory, mustWork = FALSE)
-  if (identical(output_directory, repository_root) ||
-      startsWith(output_directory, paste0(repository_root, .Platform$file.sep))) {
-    stop("Output directory must be outside the repository.", call. = FALSE)
-  }
-  filenames <- c(
-    extraction_summary = "extraction_summary.csv",
-    raw_stream_metadata = "raw_stream_metadata.csv",
-    anomaly_candidates = "anomaly_candidates.csv",
-    candidate_window_observations = "candidate_window_observations.csv",
-    candidate_window_segments = "candidate_window_segments.csv",
-    extraction_status = "extraction_status.csv"
+  filenames <- gps_extreme_segment_evidence_filenames()
+  destination <- validate_track_evidence_output_destination(
+    output_directory, unname(filenames), repository_root
   )
-  paths <- stats::setNames(file.path(output_directory, filenames), names(filenames))
-  existing <- paths[file.exists(paths)]
-  if (length(existing)) {
-    stop(
-      "Refusing to overwrite existing evidence file(s): ",
-      paste(basename(existing), collapse = ", "),
-      call. = FALSE
-    )
-  }
-  dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
+  paths <- stats::setNames(destination$paths, names(filenames))
+  dir.create(destination$output_directory, recursive = TRUE, showWarnings = FALSE)
   for (name in names(filenames)) {
     utils::write.csv(evidence[[name]], paths[[name]], row.names = FALSE, na = "")
   }

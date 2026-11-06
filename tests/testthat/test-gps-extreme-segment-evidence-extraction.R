@@ -5,6 +5,7 @@ extreme_evidence_path <- function(...) {
 }
 
 source(extreme_evidence_path("R", "quality", "profile_activity_track_integrity.R"))
+source(extreme_evidence_path("R", "quality", "fetch_gps_investigation_evidence.R"))
 source(extreme_evidence_path("R", "quality", "extract_duplicate_timestamp_evidence.R"))
 source(extreme_evidence_path("R", "quality", "extract_gps_extreme_segment_evidence.R"))
 
@@ -83,15 +84,40 @@ testthat::test_that("missing positions remain missing and are never interpolated
   testthat::expect_true(result$candidate_window_observations$latitude_matches[row])
 })
 
-testthat::test_that("runner is fixed to one activity and uses read-only source tables", {
+testthat::test_that("generic runner is parameterised and read-only", {
   script <- paste(readLines(
-    extreme_evidence_path("scripts", "audits", "extract_activity_15562928333_gps_anomalies.R"),
+    extreme_evidence_path("scripts", "audits", "extract_gps_extreme_segments.R"),
     warn = FALSE
   ), collapse = "\n")
-  testthat::expect_match(script, "activity_id <- 15562928333", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_raw.activity_streams", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_silver.activity_streams", fixed = TRUE)
+  testthat::expect_match(script, "validate_gps_investigation_activity_id", fixed = TRUE)
+  testthat::expect_false(grepl("activity_id <- 15562928333", script, fixed = TRUE))
   testthat::expect_false(grepl("INSERT|UPDATE|DELETE|REPLACE|TRUNCATE", script))
+})
+
+testthat::test_that("extreme evidence remains equivalent for the original wrapper inputs", {
+  fixture <- gps_extreme_fixture()
+  old_path <- build_gps_extreme_segment_evidence(fixture$raw, fixture$silver, 5L)
+  fetched <- list(raw_streams = fixture$raw, silver_samples = fixture$silver)
+  new_path <- build_gps_extreme_segment_evidence(
+    fetched$raw_streams, fetched$silver_samples, 5L
+  )
+  testthat::expect_equal(new_path, old_path)
+})
+
+testthat::test_that("extreme evidence accepts neutral governed case keys", {
+  fixture <- gps_extreme_fixture()
+  result <- build_gps_extreme_segment_evidence(
+    fixture$raw, fixture$silver, 5L,
+    c("LARGEST_DISPLACEMENT", "HIGHEST_IMPLIED_SPEED")
+  )
+  testthat::expect_identical(
+    result$anomaly_candidates$case_key,
+    c("LARGEST_DISPLACEMENT", "HIGHEST_IMPLIED_SPEED")
+  )
+  testthat::expect_error(
+    build_gps_extreme_segment_evidence(fixture$raw, fixture$silver, 5L, c("SAME", "SAME")),
+    "unique safe identifiers"
+  )
 })
 
 testthat::test_that("writer refuses repository outputs and existing evidence", {

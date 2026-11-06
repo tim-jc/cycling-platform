@@ -23,17 +23,26 @@ build_governed_gps_reference_window <- function(
   case_key,
   evidence_note
 ) {
-  indexes <- as.integer(c(
-    window_from_sample_index, window_to_sample_index,
-    focus_from_sample_index, focus_to_sample_index,
+  window_indexes <- as.integer(c(window_from_sample_index, window_to_sample_index))
+  focus_indexes <- as.integer(c(focus_from_sample_index, focus_to_sample_index))
+  segment_indexes <- as.integer(c(
     focus_segment_from_sample_index, focus_segment_to_sample_index
   ))
-  if (anyNA(indexes) || indexes[[1L]] > indexes[[2L]] ||
-      indexes[[3L]] > indexes[[4L]] || indexes[[5L]] >= indexes[[6L]]) {
+  if (anyNA(window_indexes) || window_indexes[[1L]] >= window_indexes[[2L]]) {
     stop("Reference-window sample indexes are invalid.", call. = FALSE)
   }
-  if (indexes[[3L]] < indexes[[1L]] || indexes[[4L]] > indexes[[2L]] ||
-      indexes[[5L]] < indexes[[1L]] || indexes[[6L]] > indexes[[2L]]) {
+  focus_supplied <- !anyNA(focus_indexes)
+  segment_supplied <- !anyNA(segment_indexes)
+  if (xor(is.na(focus_indexes[[1L]]), is.na(focus_indexes[[2L]])) ||
+      xor(is.na(segment_indexes[[1L]]), is.na(segment_indexes[[2L]]))) {
+    stop("Optional focus indexes must be supplied as complete pairs.", call. = FALSE)
+  }
+  if ((focus_supplied && (focus_indexes[[1L]] > focus_indexes[[2L]] ||
+      focus_indexes[[1L]] < window_indexes[[1L]] ||
+      focus_indexes[[2L]] > window_indexes[[2L]])) ||
+      (segment_supplied && (segment_indexes[[1L]] >= segment_indexes[[2L]] ||
+      segment_indexes[[1L]] < window_indexes[[1L]] ||
+      segment_indexes[[2L]] > window_indexes[[2L]]))) {
     stop("Focus evidence must lie inside the requested reference window.", call. = FALSE)
   }
 
@@ -43,17 +52,17 @@ build_governed_gps_reference_window <- function(
     context_observations = 0L
   )
   positional <- positional_result$positional_comparison
-  expected_sample_indexes <- seq.int(indexes[[1L]], indexes[[2L]])
+  expected_sample_indexes <- seq.int(window_indexes[[1L]], window_indexes[[2L]])
   silver_window_indexes <- sort(as.integer(silver_samples$sample_index[
-    silver_samples$sample_index >= indexes[[1L]] &
-      silver_samples$sample_index <= indexes[[2L]]
+    silver_samples$sample_index >= window_indexes[[1L]] &
+      silver_samples$sample_index <= window_indexes[[2L]]
   ]))
   if (!identical(silver_window_indexes, expected_sample_indexes)) {
     stop("Requested reference-window observations are missing or out of order.", call. = FALSE)
   }
   positional_window <- positional[
-    positional$sample_index >= indexes[[1L]] &
-      positional$sample_index <= indexes[[2L]],
+    positional$sample_index >= window_indexes[[1L]] &
+      positional$sample_index <= window_indexes[[2L]],
     , drop = FALSE
   ]
   if (!identical(as.integer(positional_window$sample_index), expected_sample_indexes)) {
@@ -85,12 +94,12 @@ build_governed_gps_reference_window <- function(
     expected_sample_indexes
   )
   window_segments <- segments[
-    segments$from_sample_index >= indexes[[1L]] &
-      segments$to_sample_index <= indexes[[2L]],
+    segments$from_sample_index >= window_indexes[[1L]] &
+      segments$to_sample_index <= window_indexes[[2L]],
     , drop = FALSE
   ]
-  expected_from_indexes <- seq.int(indexes[[1L]], indexes[[2L]] - 1L)
-  expected_to_indexes <- seq.int(indexes[[1L]] + 1L, indexes[[2L]])
+  expected_from_indexes <- seq.int(window_indexes[[1L]], window_indexes[[2L]] - 1L)
+  expected_to_indexes <- seq.int(window_indexes[[1L]] + 1L, window_indexes[[2L]])
   if (!identical(as.integer(observations$sample_index), expected_sample_indexes) ||
       !identical(as.integer(window_segments$from_sample_index), expected_from_indexes) ||
       !identical(as.integer(window_segments$to_sample_index), expected_to_indexes)) {
@@ -100,25 +109,25 @@ build_governed_gps_reference_window <- function(
   evidence_provenance <- "CURRENT_RAW_SILVER_OFFLINE_EXTRACTION"
   observations$case_key <- case_key
   observations$evidence_provenance <- evidence_provenance
-  observations$is_focus_observation <-
-    observations$sample_index >= indexes[[3L]] &
-    observations$sample_index <= indexes[[4L]]
+  observations$is_focus_observation <- focus_supplied &
+    observations$sample_index >= focus_indexes[[1L]] &
+    observations$sample_index <= focus_indexes[[2L]]
   window_segments$case_key <- case_key
   window_segments$evidence_provenance <- evidence_provenance
-  window_segments$is_focus_segment <-
-    window_segments$from_sample_index == indexes[[5L]] &
-    window_segments$to_sample_index == indexes[[6L]]
+  window_segments$is_focus_segment <- segment_supplied &
+    window_segments$from_sample_index == segment_indexes[[1L]] &
+    window_segments$to_sample_index == segment_indexes[[2L]]
 
   request <- data.frame(
     case_key = case_key,
     activity_id = as.character(observations$activity_id[[1L]]),
-    focus_from_sample_index = indexes[[3L]],
-    focus_to_sample_index = indexes[[4L]],
-    window_radius = indexes[[3L]] - indexes[[1L]],
-    window_from_sample_index = indexes[[1L]],
-    window_to_sample_index = indexes[[2L]],
-    focus_segment_from_sample_index = indexes[[5L]],
-    focus_segment_to_sample_index = indexes[[6L]],
+    focus_from_sample_index = focus_indexes[[1L]],
+    focus_to_sample_index = focus_indexes[[2L]],
+    window_radius = if (focus_supplied) focus_indexes[[1L]] - window_indexes[[1L]] else NA_integer_,
+    window_from_sample_index = window_indexes[[1L]],
+    window_to_sample_index = window_indexes[[2L]],
+    focus_segment_from_sample_index = segment_indexes[[1L]],
+    focus_segment_to_sample_index = segment_indexes[[2L]],
     evidence_provenance = evidence_provenance,
     evidence_note = evidence_note,
     stringsAsFactors = FALSE
@@ -132,7 +141,7 @@ build_governed_gps_reference_window <- function(
     raw_silver_mismatch_count = sum(positional_window$any_mismatch),
     detail = sprintf(
       "Complete governed window extracted for samples %d through %d.",
-      indexes[[1L]], indexes[[2L]]
+      window_indexes[[1L]], window_indexes[[2L]]
     ),
     stringsAsFactors = FALSE
   )
@@ -158,12 +167,6 @@ write_governed_gps_reference_window <- function(
   output_directory,
   repository_root = getwd()
 ) {
-  repository_root <- normalizePath(repository_root, mustWork = TRUE)
-  output_directory <- normalizePath(output_directory, mustWork = FALSE)
-  if (identical(output_directory, repository_root) ||
-      startsWith(output_directory, paste0(repository_root, .Platform$file.sep))) {
-    stop("Output directory must be outside the repository.", call. = FALSE)
-  }
   filenames <- c(
     reference_window_request = "reference_window_request.csv",
     raw_stream_metadata = "raw_stream_metadata.csv",
@@ -173,16 +176,11 @@ write_governed_gps_reference_window <- function(
     reference_window_status = "reference_window_status.csv",
     manual_label_template = "manual_label_template.csv"
   )
-  paths <- stats::setNames(file.path(output_directory, filenames), names(filenames))
-  existing <- paths[file.exists(paths)]
-  if (length(existing)) {
-    stop(
-      "Refusing to overwrite existing evidence file(s): ",
-      paste(basename(existing), collapse = ", "),
-      call. = FALSE
-    )
-  }
-  dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
+  destination <- validate_track_evidence_output_destination(
+    output_directory, unname(filenames), repository_root
+  )
+  paths <- stats::setNames(destination$paths, names(filenames))
+  dir.create(destination$output_directory, recursive = TRUE, showWarnings = FALSE)
   for (name in names(filenames)) {
     utils::write.csv(evidence[[name]], paths[[name]], row.names = FALSE, na = "")
   }

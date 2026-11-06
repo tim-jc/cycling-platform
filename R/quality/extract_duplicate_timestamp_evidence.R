@@ -69,6 +69,17 @@ gps_evidence_values_match <- function(raw, silver) {
   (is.na(raw) & is.na(silver)) | (!is.na(raw) & !is.na(silver) & raw == silver)
 }
 
+duplicate_timestamp_evidence_filenames <- function() {
+  c(
+    extraction_summary = "extraction_summary.csv",
+    raw_stream_metadata = "raw_stream_metadata.csv",
+    positional_comparison = "raw_silver_positional_comparison.csv",
+    non_increasing_intervals = "non_increasing_timestamp_intervals.csv",
+    equal_timestamp_runs = "equal_timestamp_runs.csv",
+    reference_window = "reference_window.csv"
+  )
+}
+
 #' Compare Raw arrays and Silver observations and identify timestamp anomalies.
 #'
 #' @param raw_streams Raw stream rows.
@@ -221,25 +232,13 @@ build_duplicate_timestamp_evidence <- function(raw_streams, silver_samples, cont
 }
 
 write_duplicate_timestamp_evidence <- function(evidence, output_directory, repository_root = getwd()) {
-  repository_root <- normalizePath(repository_root, mustWork = TRUE)
-  output_directory <- normalizePath(output_directory, mustWork = FALSE)
-  if (identical(output_directory, repository_root) || startsWith(output_directory, paste0(repository_root, .Platform$file.sep))) {
-    stop("Output directory must be outside the repository.", call. = FALSE)
-  }
-  filenames <- c(
-    summary = "extraction_summary.csv",
-    raw_stream_metadata = "raw_stream_metadata.csv",
-    positional_comparison = "raw_silver_positional_comparison.csv",
-    non_increasing_intervals = "non_increasing_timestamp_intervals.csv",
-    equal_timestamp_runs = "equal_timestamp_runs.csv",
-    reference_window = "reference_window.csv"
+  filenames <- duplicate_timestamp_evidence_filenames()
+  names(filenames)[names(filenames) == "extraction_summary"] <- "summary"
+  destination <- validate_track_evidence_output_destination(
+    output_directory, unname(filenames), repository_root
   )
-  paths <- stats::setNames(file.path(output_directory, filenames), names(filenames))
-  existing <- paths[file.exists(paths)]
-  if (length(existing) > 0L) {
-    stop("Refusing to overwrite existing evidence file(s): ", paste(basename(existing), collapse = ", "), call. = FALSE)
-  }
-  dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
+  paths <- stats::setNames(destination$paths, names(filenames))
+  dir.create(destination$output_directory, recursive = TRUE, showWarnings = FALSE)
   for (name in names(filenames)) {
     utils::write.csv(evidence[[name]], paths[[name]], row.names = FALSE, na = "")
   }

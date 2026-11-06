@@ -6,6 +6,7 @@ governed_window_path <- function(...) {
 
 source(governed_window_path("R", "quality", "profile_activity_track_integrity.R"))
 source(governed_window_path("R", "quality", "profile_geographic_calibration_evidence.R"))
+source(governed_window_path("R", "quality", "fetch_gps_investigation_evidence.R"))
 source(governed_window_path("R", "quality", "extract_duplicate_timestamp_evidence.R"))
 source(governed_window_path("R", "quality", "extract_governed_gps_reference_window.R"))
 
@@ -124,20 +125,115 @@ testthat::test_that("writer refuses repository paths and existing output files",
   )
 })
 
-testthat::test_that("Kingston runner is fixed, read-only, and requests exact governed ranges", {
+testthat::test_that("governed request contract reproduces the Kingston wrapper evidence", {
+  request <- data.frame(
+    activity_id = "15562928333", case_key = "KINGSTON_TUNNEL_GPS_DRIFT",
+    window_from_sample_index = 6L, window_to_sample_index = 35L,
+    focus_from_sample_index = 11L, focus_to_sample_index = 30L,
+    focus_segment_from_sample_index = 29L, focus_segment_to_sample_index = 30L,
+    evidence_note = "synthetic fixture", stringsAsFactors = FALSE
+  )
+  fixture <- governed_window_fixture()
+  extracted <- extract_governed_gps_reference_window_requests(
+    NULL, request,
+    get_evidence = function(connection, activity_id) {
+      list(raw_streams = fixture$raw, silver_samples = fixture$silver)
+    }
+  )
+  testthat::expect_equal(extracted[[1L]], build_governed_window_fixture(fixture))
+})
+
+testthat::test_that("governed request validation rejects malformed contracts", {
+  request <- data.frame(
+    activity_id = "15562928333", case_key = "CASE",
+    window_from_sample_index = 6L, window_to_sample_index = 35L,
+    focus_from_sample_index = 11L, focus_to_sample_index = 30L,
+    focus_segment_from_sample_index = 29L, focus_segment_to_sample_index = 30L,
+    evidence_note = "fixture", stringsAsFactors = FALSE
+  )
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(request[, -1L]), "missing"
+  )
+  invalid_activity <- request
+  invalid_activity$activity_id <- "not-an-id"
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(invalid_activity), "digits only"
+  )
+  duplicate <- rbind(request, request)
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(duplicate), "must be unique"
+  )
+  invalid_bounds <- request
+  invalid_bounds$window_to_sample_index <- invalid_bounds$window_from_sample_index
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(invalid_bounds), "contain a segment"
+  )
+  incomplete_focus <- request
+  incomplete_focus$focus_to_sample_index <- NA_integer_
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(incomplete_focus), "supplied together"
+  )
+  outside_focus <- request
+  outside_focus$focus_from_sample_index <- 5L
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(outside_focus), "inside"
+  )
+  invalid_segment <- request
+  invalid_segment$focus_segment_to_sample_index <- 31L
+  testthat::expect_error(
+    validate_governed_gps_reference_window_requests(invalid_segment), "consecutive"
+  )
+})
+
+testthat::test_that("optional focus fields remain blank and deterministic", {
+  request <- data.frame(
+    activity_id = "15562928333", case_key = "NO_FOCUS",
+    window_from_sample_index = 6L, window_to_sample_index = 10L,
+    focus_from_sample_index = NA_integer_, focus_to_sample_index = NA_integer_,
+    focus_segment_from_sample_index = NA_integer_, focus_segment_to_sample_index = NA_integer_,
+    evidence_note = "no focus", stringsAsFactors = FALSE
+  )
+  fixture <- governed_window_fixture()
+  result <- extract_governed_gps_reference_window_requests(
+    NULL, request,
+    get_evidence = function(connection, activity_id) {
+      list(raw_streams = fixture$raw, silver_samples = fixture$silver)
+    }
+  )[[1L]]
+  testthat::expect_false(any(result$reference_window_observations$is_focus_observation))
+  testthat::expect_false(any(result$reference_window_segments$is_focus_segment))
+  testthat::expect_true(all(result$manual_label_template$manual_label == "UNREVIEWED"))
+})
+
+testthat::test_that("multi-request preflight prevents partial output", {
+  result <- build_governed_window_fixture()
+  results <- list(FIRST = result, SECOND = result)
+  output <- tempfile("governed-request-output-")
+  dir.create(file.path(output, "SECOND"), recursive = TRUE)
+  collision <- file.path(output, "SECOND", "manual_label_template.csv")
+  writeBin(charToRaw("existing"), collision)
+
+  testthat::expect_error(
+    write_governed_gps_reference_window_requests(results, output),
+    "Refusing to overwrite"
+  )
+  testthat::expect_false(dir.exists(file.path(output, "FIRST")))
+  testthat::expect_identical(readBin(collision, "raw", n = 8L), charToRaw("existing"))
+  testthat::expect_error(
+    validate_governed_gps_reference_window_destinations("../escape", output),
+    "unique safe case keys"
+  )
+})
+
+testthat::test_that("generic governed runner is request-driven and read-only", {
   script <- paste(readLines(
     governed_window_path(
-      "scripts", "audits", "extract_activity_15562928333_kingston_reference_window.R"
+      "scripts", "audits", "extract_gps_governed_reference_windows.R"
     ),
     warn = FALSE
   ), collapse = "\n")
 
-  testthat::expect_match(script, "activity_id <- 15562928333", fixed = TRUE)
-  testthat::expect_match(script, "window_from_sample_index = 1448L", fixed = TRUE)
-  testthat::expect_match(script, "window_to_sample_index = 1477L", fixed = TRUE)
-  testthat::expect_match(script, "focus_from_sample_index = 1453L", fixed = TRUE)
-  testthat::expect_match(script, "focus_to_sample_index = 1472L", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_raw.activity_streams", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_silver.activity_streams", fixed = TRUE)
+  testthat::expect_match(script, "read_governed_gps_reference_window_requests", fixed = TRUE)
+  testthat::expect_false(grepl("15562928333|1448L|1477L", script))
   testthat::expect_false(grepl("INSERT|UPDATE|DELETE|REPLACE|TRUNCATE", script))
 })

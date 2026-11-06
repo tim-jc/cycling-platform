@@ -4,6 +4,8 @@ evidence_path <- function(...) {
   path
 }
 
+source(evidence_path("R", "quality", "profile_activity_track_integrity.R"))
+source(evidence_path("R", "quality", "fetch_gps_investigation_evidence.R"))
 source(evidence_path("R", "quality", "extract_duplicate_timestamp_evidence.R"))
 
 duplicate_timestamp_fixture <- function() {
@@ -108,12 +110,32 @@ testthat::test_that("evidence writer refuses repository paths and overwrites", {
   testthat::expect_error(write_duplicate_timestamp_evidence(evidence, output, repository), "Refusing to overwrite")
 })
 
-testthat::test_that("runner is fixed to the requested activity and read-only tables", {
+testthat::test_that("generic runner accepts an activity argument and remains read-only", {
   script <- paste(readLines(
-    evidence_path("scripts", "audits", "extract_activity_31709557_duplicate_timestamps.R"), warn = FALSE
+    evidence_path("scripts", "audits", "extract_gps_duplicate_timestamps.R"), warn = FALSE
   ), collapse = "\n")
-  testthat::expect_match(script, "activity_id <- 31709557", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_raw.activity_streams", fixed = TRUE)
-  testthat::expect_match(script, "cycling_platform_silver.activity_streams", fixed = TRUE)
+  testthat::expect_match(script, "validate_gps_investigation_activity_id", fixed = TRUE)
+  testthat::expect_false(grepl("activity_id <- 31709557", script, fixed = TRUE))
   testthat::expect_false(grepl("INSERT|UPDATE|DELETE|REPLACE|TRUNCATE", script))
+})
+
+testthat::test_that("activity validation and shared Raw/Silver fetch are parameterised", {
+  testthat::expect_identical(validate_gps_investigation_activity_id("31709557"), "31709557")
+  testthat::expect_error(validate_gps_investigation_activity_id("31x"), "digits only")
+  calls <- list()
+  query <- function(connection, statement, params) {
+    calls[[length(calls) + 1L]] <<- list(statement = statement, params = params)
+    if (grepl("cycling_platform_raw", statement, fixed = TRUE)) {
+      duplicate_timestamp_fixture()$raw
+    } else {
+      duplicate_timestamp_fixture()$silver
+    }
+  }
+  result <- fetch_gps_raw_silver_evidence(NULL, "31709557", get_query = query)
+
+  testthat::expect_equal(length(calls), 2L)
+  testthat::expect_true(all(vapply(calls, \(call) identical(call$params, list("31709557")), logical(1))))
+  testthat::expect_match(calls[[1L]]$statement, "cycling_platform_raw.activity_streams", fixed = TRUE)
+  testthat::expect_match(calls[[2L]]$statement, "ORDER BY sample_index", fixed = TRUE)
+  testthat::expect_equal(result$raw_streams, duplicate_timestamp_fixture()$raw)
 })
