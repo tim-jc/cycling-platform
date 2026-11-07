@@ -356,3 +356,38 @@ report, separates observations from segments and CALIBRATION from HOLDOUT, and
 reports the individual HOLDOUT cases. The three reviewed HOLDOUT rows do not
 support a statistically reliable holdout-performance claim. Empirical rule
 calibration and Explorer tile eligibility remain explicitly deferred.
+
+## Stage 2B contextual evidence extraction
+
+Stage 2B Batch 1 is a CALIBRATION-only evidence exercise. It preserves each
+governed Raw/Silver reference window and adds separately versioned experimental
+context summaries for three and five segments on either side of the approved
+focus. These summaries are diagnostics only: they contain no `coherent` or
+`credible` classification and introduce no qualification threshold.
+
+The Batch 1 runner accepts an approved governed-window request CSV, the existing
+segment diagnostic artifact, the existing activity manifest, and a fresh
+external output directory:
+
+```sh
+Rscript scripts/audits/extract_gps_qualification_batch1.R \
+  "$HOME/Documents/Cycling/audits/gps-stage2b-batch1-requests.csv" \
+  "$HOME/Documents/Cycling/audits/gps-track-calibration-v1-results/diagnostic_segments.csv" \
+  "$HOME/Documents/Cycling/audits/gps-track-calibration-v1-results/gps_track_calibration_v1_manifest.csv" \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage2b-batch1-new"
+```
+
+Before connecting, the runner verifies the case keys, activity IDs, exact focus
+segments, CALIBRATION partitions, recorded sample counts, and every intended
+output path. It refuses repository-local output and all collisions. All source
+retrieval uses the existing parameterised Raw/Silver reader; positional
+disagreement or a missing requested sample stops the batch before publication.
+
+Each case contains the seven governed evidence files plus experimental
+observation context, experimental segment context, source-context completeness,
+and a five-row manual-review worksheet. The worksheet begins entirely
+`UNREVIEWED`; a nonexistent adjacent segment at a true activity boundary is
+`NOT_APPLICABLE`. Root manifests record versions, source validation, commit and
+file hashes. The current Raw/Silver stream contracts do not prove whether device
+distance is independently measured or GPS-derived, so provenance is recorded as
+`UNKNOWN` unless a future governed source contract supplies that evidence.
