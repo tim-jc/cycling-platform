@@ -218,6 +218,56 @@ This is current state, not a duplicated debt-event history. Existing execution,
 validation, notification and backup histories show when most transitions occurred.
 Automatic repair of stale RUNNING rows remains deferred; detection is deliberate.
 
+### Durable operational-condition evaluation
+
+Slice 4A records evaluations of the complete governed debt catalogue without
+changing the classification rules in `v_operational_debt_latest`. The stable
+condition identity is `(catalogue_version, debt_domain, debt_key)`; volatile run
+identifiers, counts, summaries and observation timestamps are evidence, not
+identity.
+
+The Admin tables have separate responsibilities:
+
+- `operational_condition_state` stores the last observed classification and
+  evidence, the active incident reference, and the last actionable severity;
+- `operational_condition_incident` records each distinct opening and closure;
+- `operational_condition_event` records ordered opening, escalation,
+  severity-change and recovery transitions. `event_id` is globally unique and
+  `(incident_id, incident_event_sequence)` is unique and ordered.
+
+`WARNING` and `CRITICAL` open incidents. Repeated observations update evidence
+without creating events. A downgrade from `CRITICAL` to `WARNING` remains the
+same incident. `UNKNOWN` and `INFO` preserve an active incident and do not imply
+recovery; only explicit `HEALTHY` closes it. A later actionable recurrence opens
+a new incident. Historical execution rows remain unchanged.
+
+Evaluation first acquires the named MariaDB evaluator lock, reads and validates
+all expected catalogue keys, and only then starts one write transaction. State
+rows are selected `FOR UPDATE`; unique incident/event constraints provide a
+second line of defence. Query failure, malformed rows, missing or duplicate keys,
+or any persistence error leaves all condition state unchanged. No network
+operation occurs in the transaction.
+
+Inspect the first evaluation before enabling stateful execution:
+
+```sh
+Rscript scripts/operations/preview_operational_conditions.R
+```
+
+Preview reads the current catalogue and existing state and prints proposed
+transitions without acquiring the evaluator lock, changing state, consuming an
+event or sending anything. The stateful command is deliberately unscheduled in
+Slice 4A:
+
+```sh
+Rscript scripts/operations/evaluate_operational_conditions.R
+```
+
+Slice 4B may consume immutable `operational_condition_event.event_id` values as
+delivery identities and maintain delivery status separately. It must not mark or
+delete condition events, derive health independently, perform delivery inside the
+evaluation transaction, or treat an `UNKNOWN` observation as recovery.
+
 ### Google Health daily ingestion recovery
 
 `v_google_health_daily_ingestion_failure_history` is the authoritative recovery
