@@ -32,6 +32,7 @@ Implemented:
 * Strava activity details
 * Strava activity streams
 * Strava activity laps
+* Strava gear observations and resolution
 * Google/Fitbit heart-rate raw response ingestion
 * Google/Fitbit sleep raw ingestion
 * Google Health daily resting heart-rate Raw ingestion
@@ -58,6 +59,9 @@ Status:
 
 * `silver.activities` is complete.
 * `silver.activity_streams` is complete following local repair/backfill.
+* `silver.gear` is implemented. Production deployment and a successful
+  scheduled run were reported by the owner; repository inspection cannot
+  independently verify production state.
 * Coastal project is fully migrated to `cycling-platform`, complete, and no
   longer depends on the legacy scraper database.
 * `cycling-analytics` has been created as an empty replacement project for the
@@ -258,13 +262,29 @@ These remain useful but are lower priority than platform stabilisation, gold
 objects, and `cycling-analytics` migration:
 
 * Strava athlete
-* Strava gear
 * Strava zones
 * Strava routes
 
 ## Technical Debt
 
 Near term:
+
+* accept and deploy the canonical activity identity foundation, then integrate
+  allocation into publication of new Strava activities before treating mapping
+  coverage as continuous
+* measure gear observation coverage and retain unresolved historical gear IDs
+  as visible source debt; canonical equipment identity is a separate future
+  domain and must not reuse activity identity
+* investigate the 2026-11-16 Google Health repeated OAuth-refresh/internal
+  failure (the 2026-11-17 scheduled run recovered without intervention; root
+  cause remains unknown)
+* complete production acceptance of operational observability Slice 4A and
+  retain Slice 4B notification delivery as deferred work
+* repair the pre-existing legacy test bootstrap/isolation failures without
+  obscuring new regressions
+* complete GPS track-integrity calibration conditions before permanent
+  geographic publication; future geographic products depend on stable
+  canonical activity identity
 
 * expand automated tests where they reduce regression risk
 * add raw data quality checks comparing promoted columns to source payloads

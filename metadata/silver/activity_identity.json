@@ -1,0 +1,15 @@
+{
+  "metadata_version": "1.0.0",
+  "object": {"schema": "silver", "database_schema": "cycling_platform_silver", "name": "activity_identity", "type": "table", "ddl_path": "sql/silver/070_create_activity_identity.sql"},
+  "governance": {"owner": "cycling-platform", "lifecycle": "implemented", "contract_path": "docs/data-contracts/silver/activity_identity.md", "semantic_review_status": "in_review", "semantic_status": "agreed", "implementation_status": "aligned", "alignment_status": "aligned", "last_verified_date": "2026-11-17"},
+  "physical_schema": {"authority": "repository_ddl", "columns": [
+    {"name": "activity_key", "ordinal_position": 1, "data_type": "bigint", "raw_data_type": "BIGINT", "nullable": false, "default": null, "primary_key": true, "unique": true},
+    {"name": "identity_status", "ordinal_position": 2, "data_type": "varchar", "raw_data_type": "VARCHAR(20)", "nullable": false, "default": "ACTIVE", "primary_key": false, "unique": false},
+    {"name": "identity_origin", "ordinal_position": 3, "data_type": "varchar", "raw_data_type": "VARCHAR(30)", "nullable": false, "default": null, "primary_key": false, "unique": false},
+    {"name": "created_at_utc", "ordinal_position": 4, "data_type": "datetime", "raw_data_type": "DATETIME", "nullable": false, "default": "CURRENT_TIMESTAMP", "primary_key": false, "unique": false},
+    {"name": "updated_at_utc", "ordinal_position": 5, "data_type": "datetime", "raw_data_type": "DATETIME", "nullable": false, "default": "CURRENT_TIMESTAMP", "primary_key": false, "unique": false}
+  ], "primary_key": ["activity_key"], "unique_constraints": []},
+  "lineage": {"source_objects": ["cycling_platform_silver.activities"], "source_columns": ["source_id", "activity_id"], "transformation_files": ["R/admin/canonical_activity_identity.R"], "transformation_functions": ["backfill_canonical_activity_identity"], "transformation_description": "Allocates an opaque platform identity for each published Silver Strava activity.", "authorship": "generated_and_human_reviewed", "confidence": "high", "review_required": false},
+  "data_quality": {"uniqueness_expectations": ["activity_key is unique"], "not_null_expectations": ["all columns are required"], "referential_integrity_expectations": ["source mappings reference this key"], "accepted_values": ["identity_status=ACTIVE", "governed identity_origin"], "implemented_validations": ["database primary key and CHECK constraints", "immutable update/delete triggers", "backfill postcondition", "read-only identity integrity diagnostics"]},
+  "human_todos": [{"id": "SILVER-ACTIVITY_IDENTITY-001", "field": "allocation", "category": "future_enhancement", "severity": "future", "status": "open", "text": "Integrate identity allocation with publication of new source activities.", "resolution": null}]
+}

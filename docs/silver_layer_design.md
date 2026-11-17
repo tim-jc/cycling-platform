@@ -178,6 +178,7 @@ cycling_platform_silver.activities.gear_id
 
 Names are not duplicated into every activity. Consumer presentation uses a
 join so Strava renames propagate predictably.
+
 * `is_manual`, derived from raw/details payload where available
 * `has_streams`
 * `has_details`
@@ -211,6 +212,15 @@ Silver activity rebuilds write run and single-batch progress to
 `cycling_platform_admin.transform_run` and
 `cycling_platform_admin.transform_run_batch`. The log records expected raw
 activity rows, inserted silver rows, timing, and failures.
+
+## Canonical activity identity foundation
+
+`silver.activity_identity` owns the platform-generated, source-independent
+`activity_key`. `silver.activity_source_map` resolves one source identity
+`(source_id, source_activity_id)` to that key. These tables are additive:
+existing `activities.activity_id`, stream/lap keys and consumer joins are not
+changed. See `docs/canonical_activity_identity.md` for backfill and rollout
+boundaries.
 
 ## `silver.activity_streams`
 

@@ -298,6 +298,15 @@ replacement planning remain outside this repository. Consumers join
 `Not recorded` for null IDs and a visible `Unknown gear (<gear_id>)` fallback
 for unresolved non-null IDs.
 
+## Canonical Activity Identity
+
+Canonical activity identity is additive. `silver.activity_identity.activity_key`
+is the source-independent platform identity, while
+`silver.activity_source_map` maps `(source_id, source_activity_id)` to it.
+Existing Strava `activity_id` keys remain unchanged compatibility contracts.
+Identity reconciliation is distinct from choosing source data for activity
+attributes, streams, laps, equipment, or geography.
+
 ## Operational Lessons
 
 Large historical repairs should not reuse the incremental ETL path. The Strava

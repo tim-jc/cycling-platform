@@ -1,5 +1,10 @@
 # Silver data contracts
 
+Canonical identity foundations:
+
+- [`activity_identity`](activity_identity.md)
+- [`activity_source_map`](activity_source_map.md)
+
 Current managed contracts:
 
 - [activities](activities.md)

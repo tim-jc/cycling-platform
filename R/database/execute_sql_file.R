@@ -18,7 +18,8 @@ execute_sql_file <- function(
     # Assumptions:
     # - SQL statements are terminated by ';'
     # - Semicolons do not appear inside strings
-    # - Procedures and triggers are not supported
+    # - Compound statements (for example BEGIN/END procedure or trigger bodies)
+    #   are not supported; single-statement triggers are supported
 
     statements <- strsplit(
       sql,
