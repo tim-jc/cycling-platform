@@ -5,6 +5,7 @@ identity_root <- local({
 })
 
 source(file.path(identity_root, "R/admin/canonical_activity_identity.R"), local = TRUE)
+source(file.path(identity_root, "R/database/bootstrap_platform_schema.R"), local = TRUE)
 
 testthat::test_that("candidate validation accepts unique Strava identities", {
   candidates <- data.frame(
@@ -100,4 +101,132 @@ testthat::test_that("integrity diagnostics are read-only and governed", {
     testthat::expect_match(body_text, key, fixed = TRUE)
   }
   testthat::expect_match(body_text, "EXPECTED_HISTORICAL", fixed = TRUE)
+  testthat::expect_match(body_text, "SOURCE_ALLOCATION", fixed = TRUE)
+})
+
+testthat::test_that("continuous publication owns allocation transaction", {
+  rebuild <- paste(readLines(
+    file.path(identity_root, "R/transforms/rebuild_silver_activities.R"),
+    warn = FALSE
+  ), collapse = "\n")
+  testthat::expect_match(rebuild, "DBI::dbWithTransaction", fixed = TRUE)
+  testthat::expect_match(
+    rebuild, "ensure_published_activity_identities(connection)", fixed = TRUE
+  )
+  testthat::expect_match(
+    rebuild, "assert_canonical_activity_identity_immutability(connection)",
+    fixed = TRUE
+  )
+  implementation <- paste(readLines(
+    file.path(identity_root, "R/admin/canonical_activity_identity.R"),
+    warn = FALSE
+  ), collapse = "\n")
+  testthat::expect_match(implementation, "SOURCE_ALLOCATION", fixed = TRUE)
+  testthat::expect_match(implementation, "activity_refresh_ids", fixed = TRUE)
+  testthat::expect_match(implementation, "FOR UPDATE", fixed = TRUE)
+  transform <- paste(readLines(file.path(
+    identity_root, "sql/silver/020_transform_activities.sql"
+  ), warn = FALSE), collapse = "\n")
+  testthat::expect_false(grepl(
+    "activity_identity|activity_source_map", transform
+  ))
+  testthat::expect_false(grepl(
+    "DROP TABLE|TRUNCATE TABLE", implementation
+  ))
+})
+
+testthat::test_that("runtime excludes trigger DDL and fails closed on missing safeguards", {
+  runner <- paste(readLines(file.path(
+    identity_root, "R/transforms/run_silver_transformations.R"
+  ), warn = FALSE), collapse = "\n")
+  testthat::expect_match(
+    runner, 'exclude_pattern = "_triggers[.]sql$"', fixed = TRUE
+  )
+  implementation <- paste(readLines(file.path(
+    identity_root, "R/admin/canonical_activity_identity.R"
+  ), warn = FALSE), collapse = "\n")
+  for (trigger_name in CANONICAL_ACTIVITY_IMMUTABILITY_TRIGGERS$trigger_name) {
+    testthat::expect_match(implementation, trigger_name, fixed = TRUE)
+  }
+  testthat::expect_match(
+    implementation,
+    "refusing Silver activity publication. Run governed schema recovery.",
+    fixed = TRUE
+  )
+  bootstrap <- list_platform_bootstrap_sql_files(identity_root)
+  testthat::expect_true(any(
+    basename(bootstrap) == "090_create_activity_identity_immutability_triggers.sql"
+  ))
+})
+
+testthat::test_that("identity operations explicitly close their connection", {
+  disconnected <- 0L
+  result <- with_canonical_activity_identity_connection(
+    operation = function(connection) paste0(connection, "-ok"),
+    connect = function(database_name) database_name,
+    is_valid = function(connection) TRUE,
+    disconnect = function(connection) disconnected <<- disconnected + 1L
+  )
+  testthat::expect_identical(result, "cycling_platform_silver-ok")
+  testthat::expect_identical(disconnected, 1L)
+
+  disconnected <- 0L
+  testthat::expect_error(
+    with_canonical_activity_identity_connection(
+      operation = function(connection) stop("primary failure", call. = FALSE),
+      connect = function(database_name) database_name,
+      is_valid = function(connection) TRUE,
+      disconnect = function(connection) disconnected <<- disconnected + 1L
+    ),
+    "primary failure"
+  )
+  testthat::expect_identical(disconnected, 1L)
+})
+
+testthat::test_that("cleanup failure does not mask the primary error", {
+  cleanup_warning <- NULL
+  primary <- withCallingHandlers(
+    tryCatch(
+      with_canonical_activity_identity_connection(
+        operation = function(connection) stop("primary failure", call. = FALSE),
+        connect = function(database_name) database_name,
+        is_valid = function(connection) TRUE,
+        disconnect = function(connection) stop("cleanup failure", call. = FALSE)
+      ),
+      error = conditionMessage
+    ),
+    warning = function(warning) {
+      cleanup_warning <<- conditionMessage(warning)
+      invokeRestart("muffleWarning")
+    }
+  )
+  testthat::expect_match(primary, "primary failure", fixed = TRUE)
+  testthat::expect_match(cleanup_warning, "cleanup failure", fixed = TRUE)
+})
+
+testthat::test_that("identity commands use the governed connection wrapper", {
+  backfill <- paste(readLines(file.path(
+    identity_root, "scripts/operations/backfill_canonical_activity_identity.R"
+  ), warn = FALSE), collapse = "\n")
+  diagnostics <- paste(readLines(file.path(
+    identity_root, "scripts/operations/diagnose_canonical_activity_identity.R"
+  ), warn = FALSE), collapse = "\n")
+  testthat::expect_match(
+    backfill, "with_canonical_activity_identity_connection", fixed = TRUE
+  )
+  testthat::expect_match(
+    diagnostics, "with_canonical_activity_identity_connection", fixed = TRUE
+  )
+  testthat::expect_false(grepl("on.exit", backfill, fixed = TRUE))
+  testthat::expect_false(grepl("on.exit", diagnostics, fixed = TRUE))
+})
+
+testthat::test_that("publication validation governs canonical identity coverage", {
+  validation <- paste(readLines(file.path(
+    identity_root, "R/validation/validate_platform_completeness.R"
+  ), warn = FALSE), collapse = "\n")
+  testthat::expect_match(
+    validation, "silver_activity_canonical_identity_coverage", fixed = TRUE
+  )
+  testthat::expect_match(validation, "activity_source_map mapping", fixed = TRUE)
 })

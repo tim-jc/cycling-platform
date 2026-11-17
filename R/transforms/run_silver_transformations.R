@@ -180,7 +180,8 @@ run_silver_transformations <- function(
     connection = connection,
     sql_dir = sql_dir,
     layer_name = "silver table creation",
-    pattern = "^[0-9]+_create_.*\\.sql$"
+    pattern = "^[0-9]+_create_.*\\.sql$",
+    exclude_pattern = "_triggers[.]sql$"
   )
 
   explicit_activity_ids <- if (is.null(activity_ids)) NULL else unique(activity_ids)

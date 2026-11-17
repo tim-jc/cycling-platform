@@ -269,9 +269,18 @@ objects, and `cycling-analytics` migration:
 
 Near term:
 
-* accept and deploy the canonical activity identity foundation, then integrate
-  allocation into publication of new Strava activities before treating mapping
-  coverage as continuous
+* accept and deploy continuous canonical activity identity allocation; retain
+  exact MariaDB 11.8 and backup/restore trigger-preservation checks as explicit
+  deployment evidence gates
+* add a bounded deadlock/serialization retry policy around transactional
+  publication only if operational evidence shows MariaDB concurrency failures;
+  do not weaken source-map uniqueness or immutability guarantees
+* decide whether standalone Silver-only publication needs its own terminal
+  completeness validation contract in addition to the existing governed
+  pipeline publication validation
+* consider set-based canonical identity resolution if measured publication
+  overhead becomes material; the initial implementation deliberately favours
+  simple per-activity correctness and exact `BIGINT` handling
 * measure gear observation coverage and retain unresolved historical gear IDs
   as visible source debt; canonical equipment identity is a separate future
   domain and must not reuse activity identity

@@ -1645,6 +1645,31 @@ validate_platform_completeness <- function(
     checks,
     run_validation_query(
       connection = connection,
+      check_name = "silver_activity_canonical_identity_coverage",
+      check_scope = "publication",
+      severity = "CRITICAL",
+      query = "
+        SELECT
+          activities.activity_id,
+          activities.source_id
+        FROM cycling_platform_silver.activities activities
+        LEFT JOIN cycling_platform_silver.activity_source_map mapping
+          ON mapping.source_id = activities.source_id
+         AND mapping.source_activity_id =
+             CAST(CAST(activities.activity_id AS CHAR) AS BINARY)
+        WHERE mapping.activity_key IS NULL
+        ORDER BY activities.activity_id
+        LIMIT 1000
+      ",
+      per_check_timeout_seconds = per_check_timeout_seconds,
+      deadline = deadline
+    )
+  )
+
+  checks <- append_validation_result(
+    checks,
+    run_validation_query(
+      connection = connection,
       check_name = "silver_activities_has_streams_without_stream_rows",
       check_scope = "publication",
       severity = "CRITICAL",

@@ -1,6 +1,6 @@
 # Canonical activity identity foundation
 
-Status: Awaiting Acceptance  
+Status: Continuous allocation Awaiting Acceptance
 Date: 2026-11-17
 
 ## Contract
@@ -22,6 +22,27 @@ used by all existing Silver, Gold, Admin, Analytics, Coastal and GPS evidence
 contracts. This foundation does not alter those columns or joins. New permanent
 geographic products may use `activity_key` only after their source activity is
 resolved through the mapping table.
+
+## Publication allocation
+
+Silver activity publication is the continuous allocation boundary. The staged
+delete/reinsert and identity resolution execute in one database transaction.
+An existing `(source_id, source_activity_id)` mapping always wins. A newly
+published Strava activity without a mapping receives an identity and mapping
+with `SOURCE_ALLOCATION` provenance. Publication cannot commit without mapping
+coverage; allocation or later publication failure rolls back the activity and
+new identity state together. A failed refresh therefore restores any previously
+committed Silver row.
+
+All scheduled, hygiene, historical-backfill, targeted-repair and manual Silver
+paths call the same `rebuild_silver_activities()` publication boundary. The
+platform-wide execution lock prevents supported workflows overlapping, while
+the source-map primary key and transaction remain the correctness guarantee.
+Neither identity table is dropped or truncated by ordinary Silver rebuilds.
+Routine publication does not create or replace the immutability triggers.
+Bootstrap and forward migrations own those schema objects. Before changing any
+Silver activity, publication validates the exact four-trigger contract and
+fails closed with governed-recovery guidance if it is missing or malformed.
 
 ## Initial backfill
 
@@ -73,7 +94,7 @@ Rscript scripts/operations/diagnose_canonical_activity_identity.R
 The report distinguishes unmapped published activities, identities without a
 source mapping, historical mappings whose activity is not currently published,
 multiple Strava records mapped to one key, and mapping provenance outside the
-foundation allocation policy. Historical mappings are expected retained
+authorized `STRAVA_BACKFILL` or `SOURCE_ALLOCATION` policy. Historical mappings are expected retained
 evidence; the other non-zero categories are integrity violations. Diagnostics
 never repair, delete, or reassign identity.
 
@@ -85,29 +106,31 @@ or rename an established source mapping, or delete established identity. This
 does not affect transaction rollback: an identity insert whose mapping insert
 fails is rolled back normally before it becomes established.
 
-The account applying migration 020 must hold MariaDB's `TRIGGER` privilege on
-`cycling_platform_silver`; this must be confirmed before deployment because the
-platform repository does not govern production grants. A privileged database
-administrator can replace or drop the triggers deliberately during governed
-recovery. That is the explicit administrative boundary, not an ordinary
-correction interface. Backup and restore must retain triggers. Future correction,
-merge, split, or reconciliation requires a separate audited design and migration;
-it must not bypass these objects informally.
+The account applying migration 020, fresh bootstrap, or a governed trigger
+recovery must hold MariaDB's `TRIGGER` privilege on
+`cycling_platform_silver`; the routine transform account does not need trigger
+creation privilege solely for publication. Restore accounts must be able to
+recreate triggers, and dump accounts must include their definitions. These
+privileges must be confirmed before deployment because the platform repository
+does not govern production grants. A privileged database administrator can
+replace or drop the triggers deliberately during governed recovery. That is the
+explicit administrative boundary, not an ordinary correction interface.
+Backup and restore must retain triggers. Future correction, merge, split, or
+reconciliation requires a separate audited design and migration; it must not
+bypass these objects informally.
 
 ## Deliberate boundary
 
-This slice does not allocate identities during normal Strava ingestion. After
-the accepted backfill, a later Silver activity can therefore remain unmapped
-until this command is rerun. Deployment must not advertise continuous identity
-coverage until the next bounded allocator integration is implemented. Automatic
-cross-source matching, merge/split operations, source preference, stream/lap
-selection and canonical equipment identity are separate decisions.
+Continuous allocation applies only when a Strava activity crosses the canonical
+Silver publication boundary. Raw-only or failed activities receive no identity.
+Automatic cross-source matching, merge/split operations, source preference,
+stream/lap selection and canonical equipment identity are separate decisions.
 
 Ambiguous source matches are not inserted into the resolved mapping table.
 Future candidate/review state must remain separate so uncertainty cannot be
 mistaken for canonical identity.
 
-The owner-run initial backfill must use the governed command above; it now
+The owner-run historical backfill must use the governed command above; it
 refuses to overlap any process holding the platform execution lock. Preview and
 diagnostics acquire no advisory locks and perform no persistent writes.
 
@@ -116,9 +139,21 @@ diagnostics acquire no advisory locks and perform no persistent writes.
 Acceptance requires: one mapping per published Silver activity; unique source
 identities; every mapping resolving to an identity and registered source;
 stable keys across a second backfill; zero changes to existing `activity_id`
-values; and unchanged existing consumer queries. Production counts and scale
-remain unverified until an authorised deployment and read-only acceptance run.
+values; and unchanged existing consumer queries. Owner-reported production
+acceptance of the foundation recorded 3,963 published activities and mappings,
+100% coverage, zero pending allocations, and five healthy diagnostics. This
+repository did not independently inspect production.
+
+Following continuous-allocation deployment, acceptance additionally requires a
+newly published activity to receive `SOURCE_ALLOCATION` identity in the same
+transaction, followed by healthy publication validation and diagnostics.
 
 MariaDB 11.8 exact-version integration remains a mandatory pre-deployment gate
 when that disposable runtime is available; local development verification used
 MariaDB 13.0.2 and must not be treated as equivalent production-version proof.
+The local 4,003-activity publication measurement recorded 0.078 seconds for the
+same rebuild with identity resolution replaced by a no-op and 1.113 seconds
+with normal per-activity identity resolution (1.035 seconds measured overhead).
+This is disposable synthetic evidence, not a production capacity claim. A
+future set-based resolver may reduce round trips if production scale or timing
+justifies it; correctness does not depend on that optimisation.

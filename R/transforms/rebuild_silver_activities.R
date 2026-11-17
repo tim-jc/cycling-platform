@@ -69,6 +69,7 @@ rebuild_silver_activities <- function(
     sql_file = create_sql_file,
     connection = connection
   )
+  assert_canonical_activity_identity_immutability(connection)
 
   DBI::dbExecute(connection, "DROP TEMPORARY TABLE IF EXISTS activity_refresh_ids")
   DBI::dbExecute(connection, "CREATE TEMPORARY TABLE activity_refresh_ids (activity_id BIGINT PRIMARY KEY) ENGINE=InnoDB")
@@ -109,10 +110,13 @@ rebuild_silver_activities <- function(
 
   transform_error <- tryCatch(
     {
-      execute_sql_file(
-        sql_file = transform_sql_file,
-        connection = connection
-      )
+      DBI::dbWithTransaction(connection, {
+        execute_sql_file(
+          sql_file = transform_sql_file,
+          connection = connection
+        )
+        ensure_published_activity_identities(connection)
+      })
 
       NULL
     },

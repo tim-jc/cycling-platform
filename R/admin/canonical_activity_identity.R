@@ -1,6 +1,59 @@
 CANONICAL_ACTIVITY_BACKFILL_LOCK <-
   "cycling-platform-canonical-activity-identity-backfill"
 CANONICAL_ACTIVITY_BACKFILL_OWNER <- "canonical-activity-identity-backfill"
+CANONICAL_ACTIVITY_IMMUTABILITY_TRIGGERS <- data.frame(
+  trigger_name = c(
+    "trg_activity_identity_immutable_delete",
+    "trg_activity_identity_immutable_update",
+    "trg_activity_source_map_immutable_delete",
+    "trg_activity_source_map_immutable_update"
+  ),
+  event_manipulation = c("DELETE", "UPDATE", "DELETE", "UPDATE"),
+  event_object_table = c(
+    "activity_identity", "activity_identity",
+    "activity_source_map", "activity_source_map"
+  ),
+  stringsAsFactors = FALSE
+)
+
+assert_canonical_activity_identity_immutability <- function(connection) {
+  actual <- DBI::dbGetQuery(connection, paste(
+    "SELECT trigger_name, event_manipulation, event_object_table,",
+    "action_timing, action_statement",
+    "FROM information_schema.triggers",
+    "WHERE trigger_schema = 'cycling_platform_silver'",
+    "AND trigger_name IN (",
+    paste0(
+      "'", CANONICAL_ACTIVITY_IMMUTABILITY_TRIGGERS$trigger_name, "'",
+      collapse = ", "
+    ),
+    ") ORDER BY trigger_name"
+  ))
+  expected <- CANONICAL_ACTIVITY_IMMUTABILITY_TRIGGERS[order(
+    CANONICAL_ACTIVITY_IMMUTABILITY_TRIGGERS$trigger_name
+  ), , drop = FALSE]
+  actual_contract <- actual[, names(expected), drop = FALSE]
+  contract_matches <- nrow(actual) == nrow(expected) &&
+    identical(as.character(actual_contract$trigger_name), expected$trigger_name) &&
+    identical(
+      as.character(actual_contract$event_manipulation),
+      expected$event_manipulation
+    ) &&
+    identical(
+      as.character(actual_contract$event_object_table),
+      expected$event_object_table
+    ) &&
+    all(as.character(actual$action_timing) == "BEFORE") &&
+    all(grepl("SIGNAL SQLSTATE", as.character(actual$action_statement), fixed = TRUE))
+  if (!contract_matches) {
+    stop(
+      "Canonical activity identity immutability triggers are missing or invalid; ",
+      "refusing Silver activity publication. Run governed schema recovery.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
 
 read_canonical_activity_backfill_candidates <- function(connection) {
   DBI::dbGetQuery(connection, paste(
@@ -97,30 +150,89 @@ release_canonical_activity_platform_locks <- function(connection) {
   invisible(TRUE)
 }
 
-allocate_canonical_activity_identity <- function(connection, source_id,
-                                                  source_activity_id) {
+resolve_or_allocate_canonical_activity_identity <- function(
+  connection,
+  source_id,
+  source_activity_id,
+  allocation_provenance
+) {
+  allowed_provenance <- c("STRAVA_BACKFILL", "SOURCE_ALLOCATION")
+  if (!allocation_provenance %in% allowed_provenance) {
+    stop("Unsupported canonical activity allocation provenance.", call. = FALSE)
+  }
+  source_activity_id <- as.character(source_activity_id)
+  if (length(source_activity_id) != 1L || is.na(source_activity_id) ||
+      !nzchar(source_activity_id)) {
+    stop("Canonical activity source identity is invalid.", call. = FALSE)
+  }
+
+  existing <- DBI::dbGetQuery(connection, paste(
+    "SELECT activity_key FROM cycling_platform_silver.activity_source_map",
+    "WHERE source_id = ? AND source_activity_id = ? FOR UPDATE"
+  ), params = list(source_id, source_activity_id))
+  if (nrow(existing)) return(existing$activity_key[[1L]])
+
+  DBI::dbExecute(connection, paste(
+    "INSERT INTO cycling_platform_silver.activity_identity",
+    "(identity_status, identity_origin) VALUES ('ACTIVE', ?)"
+  ), params = list(allocation_provenance))
+  key <- DBI::dbGetQuery(
+    connection, "SELECT LAST_INSERT_ID() AS activity_key"
+  )$activity_key[[1L]]
+  DBI::dbExecute(connection, paste(
+    "INSERT INTO cycling_platform_silver.activity_source_map",
+    "(source_id, source_activity_id, activity_key, mapping_method)",
+    "VALUES (?, ?, ?, ?)"
+  ), params = list(source_id, source_activity_id, key, allocation_provenance))
+  key
+}
+
+allocate_canonical_activity_identity <- function(
+  connection,
+  source_id,
+  source_activity_id,
+  allocation_provenance = "STRAVA_BACKFILL"
+) {
   DBI::dbWithTransaction(connection, {
-    existing <- DBI::dbGetQuery(connection, paste(
-      "SELECT activity_key FROM cycling_platform_silver.activity_source_map",
-      "WHERE source_id = ? AND source_activity_id = ? FOR UPDATE"
-    ), params = list(source_id, source_activity_id))
-    if (nrow(existing)) {
-      existing$activity_key[[1L]]
-    } else {
-      DBI::dbExecute(connection, paste(
-        "INSERT INTO cycling_platform_silver.activity_identity",
-        "(identity_status, identity_origin) VALUES ('ACTIVE', 'STRAVA_BACKFILL')"
-      ))
-      key <- DBI::dbGetQuery(connection, "SELECT LAST_INSERT_ID() AS activity_key")$
-        activity_key[[1L]]
-      DBI::dbExecute(connection, paste(
-        "INSERT INTO cycling_platform_silver.activity_source_map",
-        "(source_id, source_activity_id, activity_key, mapping_method)",
-        "VALUES (?, ?, ?, 'STRAVA_BACKFILL')"
-      ), params = list(source_id, source_activity_id, key))
-      key
-    }
+    resolve_or_allocate_canonical_activity_identity(
+      connection,
+      source_id,
+      source_activity_id,
+      allocation_provenance
+    )
   })
+}
+
+ensure_published_activity_identities <- function(connection) {
+  published <- DBI::dbGetQuery(connection, paste(
+    "SELECT activity.source_id,",
+    "CAST(activity.activity_id AS CHAR) AS source_activity_id,",
+    "source.source_name",
+    "FROM cycling_platform_silver.activities activity",
+    "INNER JOIN activity_refresh_ids refresh_ids",
+    "ON refresh_ids.activity_id = activity.activity_id",
+    "LEFT JOIN cycling_platform_admin.data_source source",
+    "ON source.source_id = activity.source_id",
+    "ORDER BY activity.activity_id"
+  ))
+  if (!nrow(published)) return(invisible(integer()))
+  if (any(is.na(published$source_name) |
+          as.character(published$source_name) != "strava")) {
+    stop(
+      "Continuous canonical activity allocation only supports Strava publication.",
+      call. = FALSE
+    )
+  }
+
+  keys <- lapply(seq_len(nrow(published)), function(index) {
+    resolve_or_allocate_canonical_activity_identity(
+      connection,
+      published$source_id[[index]],
+      published$source_activity_id[[index]],
+      "SOURCE_ALLOCATION"
+    )
+  })
+  invisible(keys)
 }
 
 perform_canonical_activity_identity_backfill <- function(connection) {
@@ -133,7 +245,8 @@ perform_canonical_activity_identity_backfill <- function(connection) {
       allocate_canonical_activity_identity(
         connection,
         pending$source_id[[index]],
-        pending$source_activity_id[[index]]
+        pending$source_activity_id[[index]],
+        "STRAVA_BACKFILL"
       )
     }
   }
@@ -241,14 +354,56 @@ read_canonical_activity_identity_integrity <- function(connection) {
     "UNION ALL",
     "SELECT 'mapping_provenance_inconsistent',",
     "CASE WHEN COUNT(*) = 0 THEN 'HEALTHY' ELSE 'VIOLATION' END, COUNT(*),",
-    "'Mappings inconsistent with the foundation Strava backfill allocation policy'",
+    "'Mappings inconsistent with the authorized Strava allocation policy'",
     "FROM cycling_platform_silver.activity_source_map mapping",
     "JOIN cycling_platform_silver.activity_identity identity_row",
     "ON identity_row.activity_key = mapping.activity_key",
     "JOIN cycling_platform_admin.data_source source ON source.source_id = mapping.source_id",
     "WHERE source.source_name <> 'strava'",
-    "OR mapping.mapping_method <> 'STRAVA_BACKFILL'",
-    "OR identity_row.identity_origin <> 'STRAVA_BACKFILL'",
+    "OR (mapping.mapping_method, identity_row.identity_origin) NOT IN (",
+    "('STRAVA_BACKFILL', 'STRAVA_BACKFILL'),",
+    "('SOURCE_ALLOCATION', 'SOURCE_ALLOCATION'))",
     "ORDER BY diagnostic_key"
   ))
+}
+
+with_canonical_activity_identity_connection <- function(
+  operation,
+  database_name = "cycling_platform_silver",
+  connect = get_connection,
+  is_valid = DBI::dbIsValid,
+  disconnect = DBI::dbDisconnect
+) {
+  connection <- connect(database_name)
+  primary_error <- NULL
+  result <- tryCatch(
+    operation(connection),
+    error = function(error) {
+      primary_error <<- error
+      NULL
+    }
+  )
+  cleanup_error <- tryCatch({
+    if (is_valid(connection)) disconnect(connection)
+    NULL
+  }, error = function(error) error)
+
+  if (!is.null(primary_error)) {
+    if (!is.null(cleanup_error)) {
+      warning(
+        "Canonical identity connection cleanup also failed: ",
+        conditionMessage(cleanup_error),
+        call. = FALSE
+      )
+    }
+    stop(primary_error)
+  }
+  if (!is.null(cleanup_error)) {
+    stop(
+      "Canonical identity operation completed but connection cleanup failed: ",
+      conditionMessage(cleanup_error),
+      call. = FALSE
+    )
+  }
+  result
 }

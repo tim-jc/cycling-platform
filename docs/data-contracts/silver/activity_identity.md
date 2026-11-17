@@ -2,7 +2,7 @@
 
 Metadata: [`metadata/silver/activity_identity.json`](../../../metadata/silver/activity_identity.json)
 
-Status: implemented; Awaiting Acceptance  
+Status: implemented; continuous allocation Awaiting Acceptance
 Semantic review: in review
 
 ## Purpose
@@ -21,7 +21,8 @@ Canonical for identity only, not for choosing activity attributes or streams.
 `activity_key` is an immutable, opaque, auto-allocated `BIGINT`.
 
 ## Source and lineage
-Initial rows derive from published Silver Strava activities and source mappings.
+Initial rows derive from governed historical backfill. New rows are allocated at
+the transactional Silver activity publication boundary.
 
 ## Date and timezone semantics
 Lifecycle timestamps are UTC processing times.
@@ -33,16 +34,17 @@ recovery can replace enforcement objects but is not an ordinary application path
 
 ## Data quality expectations
 Every key is unique and every identity origin is governed.
-Read-only identity diagnostics report any identity without a source mapping.
+Read-only identity diagnostics report any identity without a source mapping;
+publication validation requires every published activity to resolve a mapping.
 
 ## Known limitations
-Continuous allocation, merges, splits, and retirement are not implemented.
+Merges, splits, retirement and cross-source reconciliation are not implemented.
 
 ## Consumers
 Future geographic and multi-source consumers; existing consumers are unchanged.
 
 ## Human review TODOs
-`SILVER-ACTIVITY_IDENTITY-001`: integrate allocation with new publication.
+None for continuous Strava allocation.
 
 ## Architectural notes
 Identity reconciliation is separate from source preference and equipment.

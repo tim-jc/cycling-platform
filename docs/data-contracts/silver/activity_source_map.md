@@ -2,7 +2,7 @@
 
 Metadata: [`metadata/silver/activity_source_map.json`](../../../metadata/silver/activity_source_map.json)
 
-Status: implemented; Awaiting Acceptance  
+Status: implemented; continuous allocation Awaiting Acceptance
 Semantic review: in review
 
 ## Purpose
@@ -23,26 +23,32 @@ map to one `activity_key`. `source_activity_id` uses exact binary comparison;
 provider IDs are not case-folded.
 
 ## Source and lineage
-Initial mappings use existing Silver `source_id` and Strava `activity_id`.
+Initial mappings use `STRAVA_BACKFILL`; ongoing Silver publication uses
+`SOURCE_ALLOCATION`. Both derive exact identity from Silver `source_id` and
+Strava `activity_id`.
 
 ## Date and timezone semantics
 `mapped_at_utc` is UTC processing time, not activity time.
 
 ## Transformations and business rules
-Only unambiguous resolved mappings are inserted; reruns preserve mappings.
+Only unambiguous resolved mappings are inserted; existing mappings take
+precedence and reruns preserve them. Publication, identity insertion and mapping
+insertion commit or roll back together.
 Database triggers reject mapping updates and deletes. Temporary source absence
 or Silver withdrawal therefore retains the established mapping.
 
 ## Data quality expectations
 Both foreign keys resolve and source identities never map twice.
 Diagnostics distinguish expected historical mappings from current integrity
-violations and inconsistent foundation provenance.
+violations and provenance outside the two authorized allocation paths.
 
 ## Known limitations
 No ambiguous-candidate workflow or second-source matching exists yet.
 
 ## Consumers
-The backfill verifier and future canonical/geographic consumers.
+Silver publication, the backfill verifier, validation, and future
+canonical/geographic consumers. A consumer resolves `activity_key` by joining
+on `source_id` and the exact binary representation of its source activity ID.
 
 ## Human review TODOs
 `SILVER-ACTIVITY_SOURCE_MAP-001`: design separate reconciliation review state.
