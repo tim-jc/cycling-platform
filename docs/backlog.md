@@ -281,9 +281,15 @@ Near term:
   trigger-inclusive logical recovery tests, isolated from production credentials
   and data
 * G3A geographic calculation foundation and acceptance remediation were formally
-  accepted on 17 November 2026; G3B has not commenced and must govern
-  representation identity, full-resolution eligibility, sample lineage,
-  chronology and qualification versioning before persistence
+  accepted on 17 November 2026; G3B.1 GPS research reconciliation was accepted
+  and closed on 18 November 2026 without creating production qualification policy
+* G3B.2 / Stage 2C is the next geographic research slice: investigate longer
+  temporal context, sustained positional unreliability and credible recovery
+  using fixed 30-observation comparisons plus complete known episodes, preserving
+  the holdout and introducing no qualification thresholds
+* future governed geographic persistence must still establish representation
+  identity, full-resolution eligibility, sample lineage, chronology and
+  qualification versioning
 * add a bounded deadlock/serialization retry policy around transactional
   publication only if operational evidence shows MariaDB concurrency failures;
   do not weaken source-map uniqueness or immutability guarantees
@@ -303,9 +309,9 @@ Near term:
   retain Slice 4B notification delivery as deferred work
 * repair the pre-existing legacy test bootstrap/isolation failures without
   obscuring new regressions
-* complete GPS track-integrity calibration conditions before permanent
-  geographic publication; future geographic products depend on stable
-  canonical activity identity
+* complete G3B.2 and the remaining GPS track-integrity calibration conditions
+  before permanent geographic publication; future geographic products depend on
+  stable canonical activity identity
 
 * expand automated tests where they reduce regression risk
 * add raw data quality checks comparing promoted columns to source payloads

@@ -391,3 +391,44 @@ and a five-row manual-review worksheet. The worksheet begins entirely
 file hashes. The current Raw/Silver stream contracts do not prove whether device
 distance is independently measured or GPS-derived, so provenance is recorded as
 `UNKNOWN` unless a future governed source contract supplies that evidence.
+
+## G3B.1 research reconciliation and acceptance
+
+G3B.1 was accepted and closed by the owner on 18 November 2026. The original
+Stage 2B worksheets remain immutable. Twelve owner visual reviews, recovered
+from the dedicated geospatial development conversation, were reconciled against
+the exact Stage 2B evidence keys in an external, versioned research package.
+
+The accepted reconciliation contains 48 confirmed research decisions: 17
+`ACCEPTED`, 13 `UNCERTAIN`, and 18 `REJECTED`. Six accepted decisions remain
+explicitly conditional: observations 1 and 2 and segment 1 to 2 for activity
+`31722499`, and observations 211 and 212 and segment 211 to 212 for activity
+`989877988`. Their conditions remain part of the evidence and are not equivalent
+to unconditional governed labels. Twenty-two adjacent evidence rows for which no
+owner decision was recovered remain unreviewed.
+
+Contextual findings, including the extended acquisition episode for activity
+`31690375`, remain distinct from observation and segment labels. The governed
+`manual_label_reviewed_2026-11-06.csv` snapshot was not modified, and the
+confirmed reconciliation is not production qualification policy.
+
+The original batch request registry was created at
+`/private/tmp/gps-stage2b-batch1-requests.csv` and is no longer present. Its
+recorded SHA-256 is
+`8949fd1260d53bd0ae84280dde78d960fb98894d716ee4153857906485b7d825`.
+Per-case requests, extracted evidence and recorded output hashes remain intact;
+the absent batch input remains a historical reproducibility limitation.
+
+## G3B.2 / Stage 2C next investigation
+
+G3B.2 is the next bounded research slice. It will retain fixed 30-observation
+context windows as standard descriptive comparisons and add complete episode
+context where owner review indicates a longer disturbance. Activity `31690375`
+must include the full initial acquisition episode and sufficient subsequent
+observations to examine sustained credible recovery. Ordinary-movement and
+stationary controls remain required, and the existing holdout must not be used
+for development.
+
+Reviewed sample boundaries are contextual evidence, not general qualification
+thresholds. G3B.2 does not by itself authorise new rules, a governed label
+snapshot, production classification, geographic backfill or G3A changes.
