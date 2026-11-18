@@ -49,6 +49,13 @@ Silver layer design is documented in `docs/silver_layer_design.md`.
 `cycling-platform` is responsible for ingestion, Raw data, curated Reference
 knowledge, Silver canonical data, Gold analytical objects, operational
 automation, monitoring, and data quality.
+
+The accepted pure G3A geographic calculation foundation is documented in
+[`geographic_calculation_foundation.md`](geographic_calculation_foundation.md).
+It establishes provisional zoom-14 tile geometry and governed sample-only
+evidence semantics without creating persistent geographic products. Proposed
+logical contracts are recorded in
+[`proposals/geographic_data_contracts.md`](proposals/geographic_data_contracts.md).
 `cycling-analytics` is responsible for dashboards, reports, exploratory
 analysis, reusable analytical functions, and replacing the legacy scraper
 project. `cycling-mcp` is a separate peer read-only consumer; MCP and coaching

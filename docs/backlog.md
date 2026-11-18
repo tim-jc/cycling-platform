@@ -269,9 +269,21 @@ objects, and `cycling-analytics` migration:
 
 Near term:
 
-* accept and deploy continuous canonical activity identity allocation; retain
-  exact MariaDB 11.8 and backup/restore trigger-preservation checks as explicit
-  deployment evidence gates
+* owner reports continuous canonical activity identity deployed with 3,964
+  published activities and mappings, a genuine `SOURCE_ALLOCATION`, five healthy
+  diagnostics and resolved connection-cleanup warnings; overnight deep validation
+  remains pending and is not independently verified here
+* retain exact MariaDB 11.8 and named-account backup/restore trigger-preservation
+  checks as explicit canonical identity evidence gates
+* build an owner-approved reusable, isolated Mac integration environment with
+  Docker Compose MariaDB 11.8.8, named migration/runtime/backup/restore accounts,
+  production-equivalent privileges, repeatable integration execution and
+  trigger-inclusive logical recovery tests, isolated from production credentials
+  and data
+* G3A geographic calculation foundation and acceptance remediation were formally
+  accepted on 17 November 2026; G3B has not commenced and must govern
+  representation identity, full-resolution eligibility, sample lineage,
+  chronology and qualification versioning before persistence
 * add a bounded deadlock/serialization retry policy around transactional
   publication only if operational evidence shows MariaDB concurrency failures;
   do not weaken source-map uniqueness or immutability guarantees
