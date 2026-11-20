@@ -538,3 +538,29 @@ derived geographic evidence, including lifetime tile visitation consequences.
 No source crop is authorised by this research milestone. G3B.2B diagnostic
 synthesis is next, but this closure does not authorise its commencement or any
 qualification rule, threshold, governed snapshot or production classification.
+
+## G3B.2B scientific diagnostic methodology
+
+G3B.2B formalises the owner-approved scientific method without implementing a
+diagnostic or qualification algorithm. The authoritative design is the
+[GPS qualification scientific methodology](gps_qualification_scientific_methodology.md),
+supported by the [evidence traceability matrix](gps_qualification_evidence_traceability.md),
+[diagnostic candidate catalogue](gps_diagnostic_candidate_catalogue.md) and
+[proposed G3B.3 research plan](gps_qualification_g3b3_research_plan.md).
+
+The methodology keeps measurements, diagnostic interpretations and qualification
+separate; rejects a composite quality score; preserves independent observation
+and segment outcomes; and establishes continuous reactive, prospective and
+positive-evidence validation. It defines conceptual explainability, traceability,
+versioning, reproducibility and invalidation requirements without selecting a
+physical schema, threshold or production policy. G3B.2B was owner-accepted and
+closed on 20 November 2026; that acceptance does not authorise G3B.3A.
+
+The owner-approved research direction divides G3B.3 into seven independently
+commissioned and accepted increments: measurement consolidation, independent
+diagnostics, cumulative discrepancy research, multi-scale contextual analysis,
+diagnostic episode modelling, cross-diagnostic synthesis and independent
+evaluation subject to evidence partitioning. Measurement work begins with an
+inventory of existing capabilities. The existing holdout remains sealed, and
+independent diagnostic evaluation must not consume evidence reserved for later
+qualification-policy evaluation.

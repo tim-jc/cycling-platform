@@ -318,10 +318,11 @@ Near term:
   retain Slice 4B notification delivery as deferred work
 * repair the pre-existing legacy test bootstrap/isolation failures without
   obscuring new regressions
-* proceed to G3B.2B diagnostic synthesis only after separate authorisation;
-  remaining GPS track-integrity calibration conditions must be completed before
-  permanent geographic publication, and future geographic products depend on
-  stable canonical activity identity
+* G3B.2B scientific diagnostic methodology was owner-accepted and closed on
+  20 November 2026; the owner-approved G3B.3 direction is split into separately gated
+  increments G3B.3A-G3B.3G, beginning with measurement consolidation, but no
+  increment is commenced; evidence partitioning must preserve independent
+  diagnostic and later qualification-policy evaluation before holdout exposure
 
 * expand automated tests where they reduce regression risk
 * add raw data quality checks comparing promoted columns to source payloads
