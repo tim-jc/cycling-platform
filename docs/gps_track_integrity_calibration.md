@@ -432,3 +432,109 @@ for development.
 Reviewed sample boundaries are contextual evidence, not general qualification
 thresholds. G3B.2 does not by itself authorise new rules, a governed label
 snapshot, production classification, geographic backfill or G3A changes.
+
+### Stage 2C extraction-readiness contract
+
+The proposed versioned request registry is stored outside the repository at
+`gps-qualification-stage2c-request-registry-v1-2026-11-18`. It contains twelve
+standard 30-observation requests and three complete episodes: activity
+`31690375` samples 1-139, the established Kingston window for activity
+`15562928333` samples 1448-1477, and activity `158147957` samples 1008-1015.
+Every request records its source-evidence path and SHA-256, repository revision,
+calibration partition, original focus references and overlap group. The two
+activity-`31690375` focus segments are explicitly members of one acquisition
+episode. No holdout activity is present.
+
+`R/quality/extract_gps_episode_context.R` adds source-faithful descriptive
+observations and segments, strict cumulative distance series, repeated-position
+and timestamp indicators, direction changes, and three-, five-, fifteen- and
+thirty-observation context. Missing measurements remain missing; cumulative
+series stop when their required input becomes incomplete rather than silently
+skipping gaps. GPS/device-distance agreement remains descriptive because device
+distance provenance is unresolved.
+
+Complete episodes additionally produce a sample-indexed track image and aligned
+chronological measurement image. Observation, segment, episode-boundary and
+contextual-finding review worksheets are separate. Every new review field starts
+`UNREVIEWED`; confirmed G3B.1 research decisions are referenced as prior evidence
+without being copied into the new manual-label field. Overlapping request windows
+are consolidated by exact evidence key and contradictory duplicates fail.
+
+The extraction command is intentionally gated and must not be run until the
+owner separately authorises read-only production access:
+
+```sh
+Rscript scripts/audits/extract_gps_qualification_stage2c.R \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage2c-request-registry-v1-2026-11-18/stage2c_request_registry.csv" \
+  "$HOME/Documents/Cycling/audits/gps-track-calibration-v1-results/gps_track_calibration_v1_manifest.csv" \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage2b-owner-review-reconciliation-v1-2026-11-18/confirmed_owner_review_reconciliation_v1.csv" \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage2b-owner-review-reconciliation-v1-2026-11-18/confirmed_contextual_findings_v1.csv" \
+  "$HOME/Documents/Cycling/audits/gps-qualification-stage2c-evidence-new" \
+  --execute-authorised-read-only
+```
+
+The command validates the complete registry, hashes and destinations before
+opening the read-only connection. It publishes nothing to Platform schemas and
+refuses output collisions or repository-local evidence destinations.
+
+The read-only database connection is owned by a function-scoped lifecycle and is
+closed on successful extraction or failure before local evidence publication
+continues. Episode plots likewise own and close their explicit PNG devices on
+success or failure; they must not create an implicit repository `Rplots.pdf`.
+
+## G3B.2A scientific evidence reconciliation
+
+G3B.2A reconciles the owner-led review from 18-19 November 2026 without changing
+the governed label snapshot or any Stage 2B/2C evidence. The versioned external
+package is
+`gps-qualification-stage2ca-scientific-reconciliation-v1-2026-11-20`.
+It preserves all 70 prior reconciliation rows, links four superseding observation
+decisions for activity `158147957`, records six satisfied geographic-credibility
+conditions, and reopens three observations plus seven connecting segments without
+inventing replacement labels. Twenty-two previously undecided rows remain
+unreviewed.
+
+Contextual ranges and disturbance/recovery milestones are separate from the
+decision ledger and never create individual labels. The scientific vocabulary is:
+
+- **geographic distance**: distance calculated between successive recorded
+  coordinates;
+- **reported distance**: incremental distance derived from the source-reported
+  cumulative-distance stream.
+
+Reported distance is not assumed to be independent of GPS or to be a gold
+standard. Agreement describes measurement consistency, not necessarily positional
+accuracy; disagreement describes measurement inconsistency, not necessarily
+positional error. Positional credibility, temporal continuity, measurement
+consistency, kinematic plausibility and contextual credibility remain separate
+research dimensions.
+
+The supplementary office-onset request for activity `31856627` covers samples
+5327-5387, focuses on the last definitely reliable sample 5357 and onset segment
+5357-5358, and overlaps existing Stage 2C evidence at samples 5362-5387. It is
+calibration-only and has not been executed. After separately authorised
+extraction, `validate_stage2ca_supplementary_overlap()` must demonstrate exact
+agreement for 26 observations and 25 segments before the evidence is accepted.
+
+G3B.2A was owner-accepted and closed on 20 November 2026. The final versioned
+package is
+`gps-qualification-stage2ca-scientific-reconciliation-v2-2026-11-20`.
+It verifies the accepted supplementary samples 5327-5387, closes all ten reopened
+activity-`158147957` decisions, retains the two activity-`31690375` focus
+assessments, and accounts for all 15 Stage 2C requests plus the supplementary
+request. Unreviewed individual evidence remains unreviewed. Every decision remains
+non-governed research evidence.
+
+The supplementary onset measurements do not reveal a compelling numerical
+boundary signature. Segment 5357-5358 has an `11.4618908°` calculated bearing
+change; the owner's approximately 90-degree physical route turn and approximately
+45-degree wider trace turn are contextual geographic assessments and are not the
+same measurement. This reinforces that plausible kinematics can coexist with
+positional divergence and that anomaly detection does not establish episode
+boundaries.
+
+Future source-level cropping of an activity must invalidate and regenerate its
+derived geographic evidence, including lifetime tile visitation consequences.
+No source crop is authorised by this research milestone. G3B.2B diagnostic
+synthesis is next, but this closure does not authorise its commencement or any
+qualification rule, threshold, governed snapshot or production classification.

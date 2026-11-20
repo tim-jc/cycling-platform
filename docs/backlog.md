@@ -283,10 +283,19 @@ Near term:
 * G3A geographic calculation foundation and acceptance remediation were formally
   accepted on 17 November 2026; G3B.1 GPS research reconciliation was accepted
   and closed on 18 November 2026 without creating production qualification policy
-* G3B.2 / Stage 2C is the next geographic research slice: investigate longer
-  temporal context, sustained positional unreliability and credible recovery
-  using fixed 30-observation comparisons plus complete known episodes, preserving
-  the holdout and introducing no qualification thresholds
+* G3B.2 technical extraction and G3B.2A scientific reconciliation were accepted
+  and closed on 20 November 2026; the accepted supplementary office-onset evidence
+  and final owner decisions are preserved in the v2 reconciliation package, with
+  all original requests accounted for and no governed label or production rule
+  created; G3B.2B diagnostic synthesis is the next milestone but is not commenced
+* establish source-correction invalidation before permitting activity cropping:
+  a future crop must regenerate activity geographic evidence and propagate removal
+  or chronology changes through lifetime tile visitation and attribution
+* isolate pinned Explorer fixture conformance from the mutable sibling checkout:
+  the G3A tests require Explorer revision `f93beddc07a0d2b6378a596cc1b2a9ac7f4b55ca`,
+  while a later local Explorer checkout currently causes two otherwise unrelated
+  Platform test failures; retain fixture hashes and revision pinning rather than
+  weakening conformance checks
 * future governed geographic persistence must still establish representation
   identity, full-resolution eligibility, sample lineage, chronology and
   qualification versioning
@@ -309,8 +318,9 @@ Near term:
   retain Slice 4B notification delivery as deferred work
 * repair the pre-existing legacy test bootstrap/isolation failures without
   obscuring new regressions
-* complete G3B.2 and the remaining GPS track-integrity calibration conditions
-  before permanent geographic publication; future geographic products depend on
+* proceed to G3B.2B diagnostic synthesis only after separate authorisation;
+  remaining GPS track-integrity calibration conditions must be completed before
+  permanent geographic publication, and future geographic products depend on
   stable canonical activity identity
 
 * expand automated tests where they reduce regression risk
